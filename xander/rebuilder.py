@@ -51,11 +51,14 @@ def parse_observations(stdout: str) -> dict[int, object]:
         start = line.find(MARKER + " ")  # le jeu a pu écrire sans retour à la ligne
         if start == -1:
             continue
-        _, time, _name, value = line[start:].split(" ", 3)
+        parts = line[start:].split(" ", 3)
+        if len(parts) != 4 or not parts[1].isdigit():
+            continue  # texte du jeu qui contient le marqueur par hasard
+        time, value = int(parts[1]), parts[3]
         try:
-            observations[int(time)] = ast.literal_eval(value)
+            observations[time] = ast.literal_eval(value)
         except (ValueError, SyntaxError):
-            observations[int(time)] = value  # objet non littéral : on garde sa repr
+            observations[time] = value  # objet non littéral : on garde sa repr
     return observations
 
 

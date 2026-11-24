@@ -73,10 +73,11 @@ ACTING = (FunctionKind.INPUT, FunctionKind.INOUT)
 def split_turns(parsed: ParsedExample) -> list[list[Function]]:
     """Découpe la chronologie en tours.
 
-    Un nouveau tour commence quand le joueur change, ou quand un getter
-    (OUTPUT) arrive alors que le tour en cours a déjà agi (INPUT/INOUT) : utile
-    pour les jeux à un seul joueur (``get_board, play, get_board, play`` -> deux
-    tours). Un appel NONE comme ``print()`` reste dans le tour en cours.
+    Un nouveau tour commence quand le joueur change, ou quand le tour en cours
+    a déjà agi (INPUT/INOUT) et que revient la fonction qui l'a ouvert. Pour un
+    jeu à un joueur, ``print, get, play, print, get, play`` donne donc deux
+    tours ``print -> get -> play``, et ``get, play, print, get, play, print``
+    deux tours ``get -> play -> print`` : un appel NONE reste à sa place.
     """
     owner = {f.time: name for name, player in parsed.players.items() for f in player.functions_used}
     turns: list[list[Function]] = []
@@ -84,7 +85,7 @@ def split_turns(parsed: ParsedExample) -> list[list[Function]]:
     has_acted = False
     for function in parsed.player_functions():
         if (owner[function.time] != previous_owner
-                or (has_acted and function.kind is FunctionKind.OUTPUT)):
+                or (has_acted and function.name == turns[-1][0].name)):
             turns.append([])
             previous_owner = owner[function.time]
             has_acted = False

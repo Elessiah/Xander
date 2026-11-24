@@ -36,9 +36,15 @@ board = game.play(5)  # array 9
 | `# player <nom>` | les appels faits par le joueur `<nom>` pendant **un** tour. On répète l'en-tête à chaque tour |
 | `# end player <nom>` | fin de partie, `<nom>` a gagné. `# end draw` pour un match nul |
 
-Les en-têtes doivent avoir exactement ces formes (`# player` suivi d'un seul
-mot, etc.). Toute autre ligne qui commence par `#` est un commentaire libre,
-ignoré : `# player jumps here` ou `# end of setup` ne changent pas de section.
+Les en-têtes doivent avoir exactement ces formes ; la casse et les espaces en
+trop ne comptent pas (`#Player   X` est accepté). `# end d` et `# end nul`
+valent aussi `# end draw`.
+
+Toute autre ligne qui commence par `#` est un commentaire libre, ignoré, **à
+condition de ne pas commencer par un mot-clé de section**. `# player O (2e
+tour)` ou `# end of setup` provoquent une erreur « en-tête mal formé » avec
+le numéro de ligne : les ignorer attribuerait les coups au mauvais joueur sans
+prévenir. Écrivez plutôt `# 2e tour de O` ou `# fin de la mise en place`.
 
 ## Lignes de code
 

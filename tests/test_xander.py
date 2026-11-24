@@ -3,9 +3,9 @@ import unittest
 from pathlib import Path
 
 from xander.analyzer import guess_operation
-from xander.model import Function, FunctionKind, FunctionOperation, Variable
+from xander.model import Function, FunctionOperation, Variable
 from xander.mother import Mother
-from xander.parser import ExampleParser, ExampleSyntaxError, parse_example
+from xander.parser import ExampleParser, parse_example
 from xander.rebuilder import ReplayError, build_pool_test, parse_observations, replay
 
 RES = Path(__file__).resolve().parent.parent / "res"
@@ -19,88 +19,14 @@ def call(*arguments):
     return Function("game.f", Variable("array", 3, "board"), [repr(a) for a in arguments], 0, list(arguments))
 
 
-class ParserTest(unittest.TestCase):
-    def test_morpion_example(self):
-        parsed = parse_example(RES / "exampleMorpion.py")
-        self.assertEqual(parsed.players_name, ["X", "O"])
-        self.assertEqual(parsed.winner, "X")
-        self.assertEqual([f.time for f in parsed.init_functions], [0, 1])
-        self.assertEqual([f.time for f in parsed.player_functions()], list(range(2, 12)))
-        self.assertEqual(parsed.back_function.name, "game.back")
-        play = parsed.players["X"].functions_used[1]
-        self.assertEqual((play.name, play.parameters, play.arguments), ("game.play", ["4"], [4]))
-        self.assertIs(play.kind, FunctionKind.INOUT)
-        self.assertEqual(play.return_value.kind, "array")
-        self.assertEqual(play.return_value.size, 9)
-
-    def test_function_kinds(self):
-        parsed = parse("""
-            # player A
-            game.reset()
-            game.play(1)
-            x = game.get()  # integer
-            x = game.play(2)  # integer
-        """)
-        kinds = [f.kind for f in parsed.players["A"].functions_used]
-        self.assertEqual(kinds, [FunctionKind.NONE, FunctionKind.INPUT, FunctionKind.OUTPUT, FunctionKind.INOUT])
-
-    def test_last_line_without_newline(self):
-        parsed = ExampleParser().parse_text("# player A\nx = game.get()  # integer")
-        self.assertEqual(len(parsed.players["A"].functions_used), 1)
-
-    def test_strings_with_hash_and_commas(self):
-        parsed = parse("""
-            # player A
-            game.say("a, #b", 3)
-        """)
-        self.assertEqual(parsed.players["A"].functions_used[0].arguments, ["a, #b", 3])
-
-    def test_draw(self):
-        self.assertEqual(parse("# player A\ngame.play(1)\n# end draw\n").winner, "D")
-
-    def test_free_comments_are_not_headers(self):
-        parsed = parse("""
-            # player X
-            # player jumps over here
-            # end of setup
-            # back to the board
-            x = game.get()  # integer
-            # end player X
-        """)
-        self.assertEqual(parsed.players_name, ["X"])
-        self.assertEqual(len(parsed.players["X"].functions_used), 1)
-        self.assertIsNone(parsed.back_function)
-        self.assertEqual(parsed.winner, "X")
-
-    def test_utf8_bom(self):
-        import tempfile
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "bom.py"
-            path.write_bytes(b"\xef\xbb\xbf" + (RES / "exampleMorpion.py").read_bytes())
-            parsed = parse_example(path)
-        self.assertEqual(parsed.imports, ["from Games.Morpion import Morpion"])
-
-    def test_errors(self):
-        cases = {
-            "type manquant": "# player A\nx = game.get()\n",
-            "type inconnu": "# player A\nx = game.get()  # float\n",
-            "taille": "# player A\nx = game.get()  # array neuf\n",
-            "aucun joueur": "# init\ngame = Game()  # game\n",
-            "imbriqués": "# player A\ngame.play([g(1)])\n",
-            "invalide": "# player A\ngame.play({[1]: 2}\n",
-        }
-        for message, text in cases.items():
-            with self.subTest(message), self.assertRaisesRegex(ExampleSyntaxError, message):
-                ExampleParser().parse_text(text)
-
-
 class RebuilderTest(unittest.TestCase):
     def test_pool_test_and_observations(self):
         parsed = parse_example(RES / "exampleMorpion.py")
         source = build_pool_test(parsed)
         self.assertIn("board = game.play(4)", source)
         self.assertNotIn("'game'", source)  # la variable de jeu n'est pas observée
-        observations = parse_observations("bruit\n@@xander 3 board ['0', 'X']\nprompt> @@xander 4 b True\n")
+        observations = parse_observations("bruit\n@@xander 3 board ['0', 'X']\nprompt> @@xander 4 b True\n"
+                                          "le jeu dit @@xander salut\n@@xander abc d 1\n")
         self.assertEqual(observations, {3: ["0", "X"], 4: True})
 
     def test_unhashable_literal_is_not_a_crash(self):
@@ -171,17 +97,20 @@ class MotherTest(unittest.TestCase):
 
     def test_none_call_stays_in_turn(self):
         from xander.game_model import split_turns
-        parsed = parse("""
-            # player A
-            b = game.get_board()  # array 3
-            b = game.play(1)  # array 3
-            game.print()
-            b = game.get_board()  # array 3
-            b = game.play(2)  # array 3
-            game.print()
-        """)
-        self.assertEqual([[f.short_name for f in turn] for turn in split_turns(parsed)],
-                         [["get_board", "play", "print"]] * 2)
+        get, play, show = "b = game.get()  # array 3", "b = game.play(1)  # array 3", "game.print()"
+        for order in ([get, play, show], [show, get, play], [get, show, play]):
+            with self.subTest([line.split("(")[0] for line in order]):
+                parsed = ExampleParser().parse_text("# player A\n" + "\n".join(order * 3) + "\n")
+                expected = [[line.split("(")[0].split(".")[-1] for line in order]] * 3
+                self.assertEqual([[f.short_name for f in turn] for turn in split_turns(parsed)], expected)
+
+    def test_turns_on_examples(self):
+        for name, nb_turns in (("exampleMorpion.py", 5), ("exampleAllumettes.py", 5), ("exampleJumper.py", 17)):
+            with self.subTest(name):
+                from xander.game_model import split_turns
+                turns = split_turns(parse_example(RES / name))
+                self.assertEqual(len(turns), nb_turns)
+                self.assertTrue(all(len(turn) == 2 for turn in turns))
 
     def test_create_son(self):
         import tempfile

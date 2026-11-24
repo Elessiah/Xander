@@ -151,6 +151,7 @@ class ExampleParser:
     """
 
     INCLUDE, INIT, BACK, PLAYER, END = "include", "init", "back", "player", "end"
+    KEYWORDS = (INCLUDE, INIT, BACK, PLAYER, END)
 
     def __init__(self):
         self.result = ParsedExample()
@@ -179,11 +180,16 @@ class ExampleParser:
     def _parse_header(self, line: str, number: int) -> None:
         """Reconnaît un en-tête de section ; tout autre commentaire est ignoré.
 
-        Les formes sont strictes, pour qu'un commentaire libre comme
-        ``# player jumps here`` ou ``# end of setup`` ne change pas de section.
+        Les formes sont strictes. Un commentaire qui commence par un mot-clé de
+        section sans avoir la bonne forme (``# player O (2e tour)``,
+        ``# end of setup``) est refusé : l'ignorer attribuerait les coups au
+        mauvais joueur sans prévenir, et l'appliquer changerait de section par
+        erreur.
         """
         words = line[1:].split()
         lowered = [word.lower() for word in words]
+        if not words:
+            return
         if lowered in ([self.INCLUDE], [self.INIT], [self.BACK]):
             self.section = lowered[0]
         elif len(words) == 2 and lowered[0] == self.PLAYER:
@@ -195,9 +201,14 @@ class ExampleParser:
         elif len(words) == 3 and lowered[:2] == [self.END, self.PLAYER]:
             self.section = self.END
             self.result.winner = words[2]
-        elif len(words) == 2 and lowered[0] == self.END and lowered[1] in ("draw", "nul"):
+        elif len(words) == 2 and lowered[0] == self.END and lowered[1] in ("draw", "nul", "d"):
             self.section = self.END
             self.result.winner = "D"
+        elif lowered[0] in self.KEYWORDS:
+            raise ExampleSyntaxError(
+                "en-tête mal formé ; formes acceptées : '# include', '# init', '# back', "
+                "'# player <nom>', '# end', '# end player <nom>', '# end draw'. "
+                "Un commentaire libre ne doit pas commencer par l'un de ces mots", number, line)
 
     def _parse_code(self, line: str, number: int) -> None:
         if self.section == self.INCLUDE:
