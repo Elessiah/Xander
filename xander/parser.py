@@ -17,11 +17,19 @@ from __future__ import annotations
 
 import ast
 import io
+import re
 import tokenize
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from xander.model import VARIABLE_KINDS, Function, Player, Variable
+
+
+#: Commentaire qui ressemble à un en-tête (mot-clé, éventuellement au pluriel,
+#: suivi d'une ponctuation, d'un espace ou de rien) : ``# player: O``,
+#: ``# players O``, ``# end-player X``, ``# init:``. ``# ending`` ou
+#: ``# backup`` restent des commentaires libres.
+MALFORMED_HEADER = re.compile(r"(include|init|back|player|end)s?(\W|$)")
 
 
 class ExampleSyntaxError(Exception):
@@ -204,7 +212,7 @@ class ExampleParser:
         elif len(words) == 2 and lowered[0] == self.END and lowered[1] in ("draw", "nul", "d"):
             self.section = self.END
             self.result.winner = "D"
-        elif lowered[0] in self.KEYWORDS:
+        elif MALFORMED_HEADER.match(line[1:].strip().lower()):
             raise ExampleSyntaxError(
                 "en-tête mal formé ; formes acceptées : '# include', '# init', '# back', "
                 "'# player <nom>', '# end', '# end player <nom>', '# end draw'. "

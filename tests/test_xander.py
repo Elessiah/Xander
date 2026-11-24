@@ -26,7 +26,7 @@ class RebuilderTest(unittest.TestCase):
         self.assertIn("board = game.play(4)", source)
         self.assertNotIn("'game'", source)  # la variable de jeu n'est pas observée
         observations = parse_observations("bruit\n@@xander 3 board ['0', 'X']\nprompt> @@xander 4 b True\n"
-                                          "le jeu dit @@xander salut\n@@xander abc d 1\n")
+                                          "le jeu dit @@xander salut\n@@xander abc d 1\n@@xander ² a 1\n")
         self.assertEqual(observations, {3: ["0", "X"], 4: True})
 
     def test_unhashable_literal_is_not_a_crash(self):
@@ -103,6 +103,14 @@ class MotherTest(unittest.TestCase):
                 parsed = ExampleParser().parse_text("# player A\n" + "\n".join(order * 3) + "\n")
                 expected = [[line.split("(")[0].split(".")[-1] for line in order]] * 3
                 self.assertEqual([[f.short_name for f in turn] for turn in split_turns(parsed)], expected)
+
+    def test_first_turn_can_differ(self):
+        from xander.game_model import split_turns
+        lines = ["s = game.score()  # integer", "b = game.play(1)  # array 3"]
+        lines += ["b = game.get()  # array 3", "b = game.play(1)  # array 3"] * 3
+        parsed = ExampleParser().parse_text("# player A\n" + "\n".join(lines) + "\n")
+        self.assertEqual([[f.short_name for f in turn] for turn in split_turns(parsed)],
+                         [["score", "play"]] + [["get", "play"]] * 3)
 
     def test_turns_on_examples(self):
         for name, nb_turns in (("exampleMorpion.py", 5), ("exampleAllumettes.py", 5), ("exampleJumper.py", 17)):

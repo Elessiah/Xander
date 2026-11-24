@@ -89,9 +89,10 @@ opération la modifie (setters).
 
 `GameModel` regroupe ce qu'un enfant devra savoir : la variable de jeu, la
 fonction d'annulation, les variables observables, les joueurs et le **déroulé
-d'un tour**. Les tours sont découpés quand le joueur change, ou quand un appel
-qui lit suit un appel qui agit (nécessaire pour les jeux à un joueur comme
-Jumper) ; on retient la longueur de tour la plus fréquente.
+d'un tour**. Les tours sont découpés quand le joueur change, ou, une fois que
+le tour a agi, quand arrive un getter ou la fonction qui a ouvert le tour
+(nécessaire pour les jeux à un joueur comme Jumper) ; on retient la longueur
+de tour la plus fréquente.
 
 ## 5. Enfants — `xander/mother.py`
 
@@ -112,3 +113,5 @@ dictionnaire `KNOWLEDGE` (ce que la mère a compris) et une fonction
   tant qu'on joue sur la rangée du bas, l'indice de la case vaut le numéro de
   colonne, et `SINGLE_TARGET_INDEX` est retenu à tort. Des exemples variés
   limitent ce risque.
+- Découpage des tours : un getter de confirmation appelé juste après le coup
+  (`get, play, get`) est rattaché au tour suivant.

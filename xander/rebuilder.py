@@ -52,7 +52,7 @@ def parse_observations(stdout: str) -> dict[int, object]:
         if start == -1:
             continue
         parts = line[start:].split(" ", 3)
-        if len(parts) != 4 or not parts[1].isdigit():
+        if len(parts) != 4 or not (parts[1].isascii() and parts[1].isdecimal()):
             continue  # texte du jeu qui contient le marqueur par hasard
         time, value = int(parts[1]), parts[3]
         try:

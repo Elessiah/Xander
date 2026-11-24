@@ -153,6 +153,9 @@ class HeaderTest(unittest.TestCase):
             # le joueur X ouvre au centre
             #
             #    commentaire indenté
+            # ending, backup, initial : ne sont pas des mots-clés
+            # backup du plateau
+            # -*- coding: utf-8 -*-
             x = game.get()  # integer
             # end player X
         """)
@@ -162,7 +165,8 @@ class HeaderTest(unittest.TestCase):
 
     def test_malformed_headers_are_errors(self):
         for header in ("# player O  (2e tour)", "# player", "# end player X gagne", "# end of setup",
-                       "# back to the board", "# init ialisation", "# include os"):
+                       "# back to the board", "# init ialisation", "# include os",
+                       "# player: O", "# player:O", "# PLAYERS O", "# end-player X", "# init:"):
             with self.subTest(header), self.assertRaisesRegex(ExampleSyntaxError, "ligne 3 : en-tête mal formé"):
                 ExampleParser().parse_text(f"# player X\ngame.play(1)\n{header}\ngame.play(2)\n")
 
