@@ -1,165 +1,129 @@
-import time
-from curses.ascii import isdigit
+"""Morpion (tic-tac-toe) 3x3.
+
+Le plateau est une liste de 9 chaînes : une case libre contient son indice
+(``"0"`` à ``"8"``), une case jouée contient ``"X"`` ou ``"O"`` ::
+
+    0 | 1 | 2
+    3 | 4 | 5
+    6 | 7 | 8
+"""
+
+import random
+
 from Games.Coords import Coords
+
+LINES = (
+    (0, 1, 2), (3, 4, 5), (6, 7, 8),  # lignes
+    (0, 3, 6), (1, 4, 7), (2, 5, 8),  # colonnes
+    (0, 4, 8), (2, 4, 6),             # diagonales
+)
+
+
+def is_free(slot: str) -> bool:
+    return slot.isdigit()
+
+
+def other_player(player: str) -> str:
+    return "O" if player == "X" else "X"
+
+
+def winner_of(board: list) -> str:
+    """Renvoie ``"X"``/``"O"`` si un joueur a aligné trois symboles, ``"D"`` si nul, sinon ``""``."""
+    for a, b, c in LINES:
+        if not is_free(board[a]) and board[a] == board[b] == board[c]:
+            return board[a]
+    if not any(is_free(slot) for slot in board):
+        return "D"
+    return ""
 
 
 class Morpion:
     def __init__(self):
         self.nb_turn = 0
         self.player = "X"
-        self.win = '' # X/O pour la victoire d'un joueur D pour draw
+        self.win = ""  # "X"/"O" : victoire d'un joueur, "D" : match nul
         self.board = []
-        self.previous_board = []
+        self.past = []  # états précédents, pour back()
         self.start_player = "X"
+        self.init(self.start_player)
 
-    # Init functions
-    def init(self, start_player='R'): # Pattern Name
-        self.board.clear()
-        self.previous_board.clear()
-        self.nb_turn = 0
-        self.win = ''
-        for i in range(9):
-            self.board.append(f"{i}")
-        self.previous_board.append(self.board.copy())
+    # Initialisation
+    def init(self, start_player="R"):  # Pattern Name
+        """Vide le plateau. ``start_player`` : ``"X"``, ``"O"`` ou ``"R"`` (aléatoire)."""
         self.start_player = start_player
-        if start_player == 'R':
-            if (int(time.time()) % 2) == 0:
-                self.player = 'X'
-            else:
-                self.player = 'O'
-        else:
-            self.player = start_player
+        self.board = [str(i) for i in range(9)]
+        self.past.clear()
+        self.nb_turn = 0
+        self.win = ""
+        self.player = random.choice("XO") if start_player == "R" else start_player
         return self.board.copy()
 
-    # Play Functions
-    def play(self, move): # Pattern Name
-        if move < 0 or move > len(self.board):
+    # Fonctions de jeu
+    def play(self, move):  # Pattern Name
+        """Joue la case ``move``.
+
+        Renvoie ``False`` si le coup est invalide, ``True`` si la partie est
+        terminée (victoire ou nul), sinon une copie du plateau.
+        """
+        if self.win or type(move) is not int or not 0 <= move < len(self.board):
             return False
-        if '0' <= self.board[move] <= '9':
-            self.previous_board.append(self.board.copy())
-            self.board[move] = self.player
-        else:
+        if not is_free(self.board[move]):
             return False
-        if self.check_win():
-            self.win = self.player
-            return True
-        if self.check_draw(self.board):
-            self.win = 'D'
-            return True
-        if self.player == 'X':
-            self.player = 'O'
-        else:
-            self.player = 'X'
+        self.past.append((self.board.copy(), self.player, self.nb_turn))
+        self.board[move] = self.player
         self.nb_turn += 1
-        return self.board
+        self.win = winner_of(self.board)
+        if self.win:
+            return True
+        self.player = other_player(self.player)
+        return self.board.copy()
 
-
-    def get_game_state(self): # Patter Name
-        if len(self.win) > 0:
+    def get_game_state(self):  # Pattern Name
+        """Renvoie le plateau. Si la partie précédente est finie, en recommence une."""
+        if self.win:
             self.init(self.start_player)
         return self.board.copy()
 
-
-    def get_turn(self): # Pattern Name
+    def get_turn(self):  # Pattern Name
         return self.player
 
+    def get_moves(self):
+        """Cases encore jouables."""
+        return [i for i, slot in enumerate(self.board) if is_free(slot)]
 
-    def print(self): # Pattern Name
-        print(f"Plateau :\n")
+    def print(self):  # Pattern Name
+        print("Plateau :\n")
+        coords = Coords(width=3)
         for y in range(3):
             for x in range(3):
-                print(f"[{self.board[y * 3 + x]}] ", end="")
+                coords.set(x=x, y=y)
+                print(f"[{self.board[coords.i]}] ", end="")
             print("\n")
 
-    # Admin Functions
-    def back(self): # Pattern Name
-        if len(self.previous_board) > 0:
-            self.board = self.previous_board.pop()
-        else:
-            self.board.clear()
-        return self.board
+    # Fonctions d'administration
+    def back(self):  # Pattern Name
+        """Annule le dernier coup et renvoie le plateau."""
+        if self.past:
+            self.board, self.player, self.nb_turn = self.past.pop()
+            self.win = ""
+        return self.board.copy()
 
+    def set_game_state(self, new_board, player=None):
+        """Impose un plateau. ``player`` doit jouer ; s'il est omis, on suppose
+        que X a commencé et on le déduit du nombre de symboles.
 
-    def set_game_state(self, new_board):
-        self.board = new_board.copy()
-        nb_X = 0
-        nb_O = 0
-        for slot in self.board:
-            if slot == 'X':
-                nb_X += 1
-            elif slot == 'O':
-                nb_O += 1
-        if nb_O < nb_X:
-            self.player = 'O'
-        else:
-            self.player = 'X'
-        self.nb_turn = nb_X + nb_O
+        Renvoie ``True`` si ce plateau est gagnant pour l'un des joueurs.
+        """
+        self.board = list(new_board)
+        self.past.clear()
+        nb_x, nb_o = self.board.count("X"), self.board.count("O")
+        self.player = player or ("O" if nb_o < nb_x else "X")
+        self.nb_turn = nb_x + nb_o
+        self.win = winner_of(self.board)
         return self.check_win()
 
-
-    # Games inside tools
-    @staticmethod
-    def manage_encounter(slot, line):
-        if isdigit(slot):
-            return
-        if slot == 'X':
-            line["ally"] += 1
-        else:
-            line["ennemy"] += 1
-
-
-    @staticmethod
-    def check_straight_lines_win(self, gameboard, axe):
-        line = {"ally": 0, "ennemy": 0}
-        coords = Coords()
-        for y in range(3):
-            for x in range(3):
-                if axe == "x":
-                    coords.set(x=x, y=y)
-                else:
-                    coords.set(x=y, y=x)
-                self.manage_encounter(gameboard[coords.i], line)
-            if line["ally"] == 3 or line["ennemy"] == 3:
-                return True
-            line["ally"] = 0
-            line["ennemy"] = 0
-        return False
-
-
-    @staticmethod
-    def check_diagonal_lines_win(self, gameboard, axe):
-        line = {"ally": 0, "ennemy": 0}
-        coords = Coords()
-        if axe == "up":
-            check_range = range(3)
-        else:
-            check_range = range(2, -1, -1)
-        for i in check_range:
-            if axe == "down":
-                coords.set(x=2 - i, y=i)
-            else:
-                coords.set(x=i, y=i)
-            self.manage_encounter(gameboard[coords.i], line)
-        if line["ally"] == 3 or line["ennemy"] == 3:
-            return True
-        return False
-
-
-    @staticmethod
-    def check_draw(gameboard):
-        for slot in gameboard:
-            if isdigit(slot):
-                return False
-        return True
-
-
     def check_win(self):
-        if self.check_straight_lines_win(self, self.board, "x"):
-            return True
-        if self.check_straight_lines_win(self, self.board, "y"):
-            return True
-        if self.check_diagonal_lines_win(self, self.board, "up"):
-            return True
-        if self.check_diagonal_lines_win(self, self.board, "down"):
-            return True
-        return False
+        return self.win in ("X", "O")
+
+    def check_draw(self):
+        return self.win == "D"

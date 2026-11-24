@@ -1,4 +1,0 @@
-
-Terminer de créer Game
-
-Ensuite, trouver un moyen de déterminer les conditions de victoire

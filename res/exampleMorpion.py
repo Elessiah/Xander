@@ -3,7 +3,7 @@ from Games.Morpion import Morpion
 
 # init
 game = Morpion()  # game
-board = game.init()  # array 9
+board = game.init("X")  # array 9
 
 # back
 board = game.back()  # array 9

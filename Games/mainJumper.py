@@ -1,45 +1,66 @@
+"""Jouer à Jumper dans le terminal : ``python -m Games.mainJumper``.
+
+Espace pour sauter, ``q`` (ou ``²``) pour quitter. Fonctionne sous Windows
+(``msvcrt``) et sous Linux / macOS (``termios``).
+"""
+
 import os
-
-from Jumper import Jumper
-
 import sys
-import termios
-import tty
-import select
+import time
 
-def read_key_non_blocking():
-    fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
-    try:
-        tty.setraw(fd)
-        dr, dw, de = select.select([sys.stdin], [], [], 0.1)  # timeout 0.1s
-        if dr:
-            return sys.stdin.read(1)
-        return None
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+from Games.Jumper import Jumper
 
-print("Tape sur une touche pour commencer, ² pour quitter")
+FRAME_DELAY = 0.1
+QUIT_KEYS = ("q", "²")
 
-game = Jumper()
+if os.name == "nt":
+    import msvcrt
 
-key = read_key_non_blocking()
-while not key:
-    key = read_key_non_blocking()
+    def read_key_non_blocking(timeout=FRAME_DELAY):
+        end = time.monotonic() + timeout
+        key = None
+        while time.monotonic() < end:
+            if msvcrt.kbhit():
+                key = msvcrt.getwch()
+            time.sleep(0.01)
+        return key
 
-game.init()
+    def clear_screen():
+        os.system("cls")
+else:
+    import select
+    import termios
+    import tty
 
-while not game.game_over:
-    key = None
-    for i in range(2):
-        tmp_key = read_key_non_blocking()
-        if tmp_key == '²' or tmp_key == ' ':
-            key = tmp_key
-    os.system('clear')
-    if key:
-        if key == ' ':
-            game.play(True)
-        if key == '²':
+    def read_key_non_blocking(timeout=FRAME_DELAY):
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            ready, _, _ = select.select([sys.stdin], [], [], timeout)
+            return sys.stdin.read(1) if ready else None
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+    def clear_screen():
+        os.system("clear")
+
+
+def main():
+    print("Appuie sur une touche pour commencer (espace : sauter, q : quitter)")
+    while read_key_non_blocking() is None:
+        pass
+
+    game = Jumper()
+    while not game.game_over:
+        key = read_key_non_blocking()
+        if key in QUIT_KEYS:
             break
-    else:
-        game.play(False)
+        game.play(key == " ")
+        clear_screen()
+        game.print()
+    print(f"Perdu ! Distance parcourue : {game.ticks}")
+
+
+if __name__ == "__main__":
+    main()
