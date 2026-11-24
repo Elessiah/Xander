@@ -5,7 +5,9 @@ Espace pour sauter, ``q`` (ou ``²``) pour quitter. Fonctionne sous Windows
 """
 
 import os
+import queue
 import sys
+import threading
 import time
 
 from Games.Jumper import Jumper
@@ -13,7 +15,30 @@ from Games.Jumper import Jumper
 FRAME_DELAY = 0.1
 QUIT_KEYS = ("q", "²")
 
-if os.name == "nt":
+# La console « Run » de PyCharm (et toute entrée redirigée) n'est pas un vrai
+# terminal : msvcrt / termios n'y voient aucune touche. On se rabat alors sur
+# une lecture ligne par ligne : Entrée pour sauter, « q » + Entrée pour quitter.
+INTERACTIVE = sys.stdin.isatty()
+
+if not INTERACTIVE:
+    _lines = queue.Queue()
+
+    def _read_lines():
+        for line in sys.stdin:
+            _lines.put(line.strip() or " ")
+        _lines.put("q")  # fin de l'entrée : on quitte proprement
+
+    threading.Thread(target=_read_lines, daemon=True).start()
+
+    def read_key_non_blocking(timeout=FRAME_DELAY):
+        try:
+            return _lines.get(timeout=timeout)[0]
+        except queue.Empty:
+            return None
+
+    def clear_screen():
+        print("\n" * 3)
+elif os.name == "nt":
     import msvcrt
 
     def read_key_non_blocking(timeout=FRAME_DELAY):
@@ -47,7 +72,15 @@ else:
 
 
 def main():
-    print("Appuie sur une touche pour commencer (espace : sauter, q : quitter)")
+    if INTERACTIVE:
+        print("Appuie sur une touche pour commencer (espace : sauter, q : quitter)")
+    else:
+        print(
+            "Console non interactive (ex. : Run de PyCharm) : appuie sur Entrée "
+            "pour commencer et pour sauter, « q » + Entrée pour quitter.\n"
+            "Pour jouer avec la barre d'espace, lance le jeu depuis un vrai "
+            "terminal : python -m Games.mainJumper"
+        )
     while read_key_non_blocking() is None:
         pass
 
