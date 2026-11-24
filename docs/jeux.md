@@ -42,7 +42,22 @@ L'ancienne note « Schématisation Allumettes » cherchait ce motif à l'aide de
 ## Puissance 4 — `Games/Puissance4.py`
 
 7 colonnes × 6 lignes, `play(colonne)`. Victoire par 4 alignés dans les quatre
-directions, nul quand le plateau est plein. Pas encore d'adversaire Minmax.
+directions, nul quand le plateau est plein. `get_moves()` donne les colonnes
+encore jouables.
+
+Adversaire : `Games/MinmaxPuissance4.py`. L'arbre complet est trop grand : un
+negamax avec élagage alpha-bêta explore 6 demi-coups (moins d'une seconde par
+coup), puis note les feuilles. Chaque fenêtre de 4 cases alignées ne contenant
+que les jetons d'un joueur lui rapporte des points (2 pour deux jetons, 5 pour
+trois), et chaque jeton de la colonne centrale rapporte un bonus. Les colonnes
+sont explorées du centre vers les bords. Il ne rate jamais une victoire ou un
+blocage immédiat et bat toujours un joueur aléatoire, mais il n'est pas
+imbattable : au-delà de son horizon, un humain attentif peut le piéger.
+
+Exemple de partie : [`res/examplePuissance4.py`](../res/examplePuissance4.py).
+La mère n'y comprend pas encore `play`. À cause de la gravité, la case modifiée
+n'est la case `colonne` que pour la ligne du bas : il faudra une opération
+« premier emplacement libre d'une colonne ».
 
 ## Jumper — `Games/Jumper.py`
 

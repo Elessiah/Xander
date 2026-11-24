@@ -53,7 +53,7 @@ python -m Games.GamePlayer allumettes --x minmax --o minmax
 ```
 
 ```powershell
-python -m Games.GamePlayer puissance4
+python -m Games.GamePlayer puissance4 --x humain --o minmax
 ```
 
 ```powershell
@@ -75,7 +75,7 @@ avec Python 3.10, 3.12 et 3.13, à chaque push sur `main` et sur chaque PR.
 | Dossier | Contenu |
 |---|---|
 | `xander/` | la logique mère : lecture de l'exemple, rejeu, analyse, création d'enfants |
-| `Games/` | jeux servant de terrain d'essai (Morpion, Allumettes, Puissance 4, Jumper) et adversaires Minmax codés à la main |
+| `Games/` | jeux servant de terrain d'essai (Morpion, Allumettes, Puissance 4, Jumper) et adversaires Minmax codés à la main (un par jeu à deux joueurs) |
 | `res/` | exemples de parties que la mère apprend |
 | `tests/` | tests unitaires (`unittest`) |
 | `docs/` | documentation détaillée |

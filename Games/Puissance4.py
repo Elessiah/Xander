@@ -56,6 +56,11 @@ class Puissance4:
             self.init(self.start_player)
         return self.board.copy()
 
+    def get_moves(self):
+        """Colonnes encore jouables."""
+        top = (self.height - 1) * self.width
+        return [x for x in range(self.width) if self.board[top + x] == EMPTY]
+
     def get_turn(self):  # Pattern Name
         return self.player
 

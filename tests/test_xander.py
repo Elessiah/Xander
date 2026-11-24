@@ -90,6 +90,12 @@ class MotherTest(unittest.TestCase):
         operations = model.report.operations["game.play"]
         self.assertEqual([op.kind for op in operations], [FunctionOperation.QUANTITY_RM])
 
+    def test_learn_puissance4(self):
+        model = Mother().learn(RES / "examplePuissance4.py")
+        self.assertEqual(model.nb_players, 2)
+        self.assertEqual(model.turn_pattern, ["get_game_state", "play"])
+        self.assertEqual(model.winner, "X")
+
     def test_learn_jumper_single_player(self):
         model = Mother().learn(RES / "exampleJumper.py")
         self.assertEqual(model.nb_players, 1)
@@ -113,7 +119,8 @@ class MotherTest(unittest.TestCase):
                          [["score", "play"]] + [["get", "play"]] * 3)
 
     def test_turns_on_examples(self):
-        for name, nb_turns in (("exampleMorpion.py", 5), ("exampleAllumettes.py", 5), ("exampleJumper.py", 17)):
+        for name, nb_turns in (("exampleMorpion.py", 5), ("exampleAllumettes.py", 5), ("examplePuissance4.py", 11),
+                                ("exampleJumper.py", 17)):
             with self.subTest(name):
                 from xander.game_model import split_turns
                 turns = split_turns(parse_example(RES / name))

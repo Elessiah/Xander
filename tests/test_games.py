@@ -6,6 +6,7 @@ from Games.Coords import Coords
 from Games.Jumper import Jumper
 from Games.MinmaxAllumettes import minmax_allumettes_play
 from Games.MinmaxMorpion import best_move, minmax_morpion_play
+from Games.MinmaxPuissance4 import best_move as p4_best_move, minmax_puissance4_play
 from Games.Morpion import Morpion
 from Games.Puissance4 import Puissance4
 
@@ -156,6 +157,42 @@ class Puissance4Test(unittest.TestCase):
         self.game.back()
         self.assertEqual(self.game.board.count(" "), 42 - 5)
         self.assertEqual(self.game.get_turn(), "O")
+
+
+    def test_get_moves(self):
+        self.play_all([0] * 6)
+        self.assertEqual(self.game.get_moves(), [1, 2, 3, 4, 5, 6])
+
+
+class MinmaxPuissance4Test(unittest.TestCase):
+    def test_takes_win_and_blocks(self):
+        board = [" "] * 42
+        board[0:3] = ["X", "X", "X"]  # X a trois jetons en bas à gauche
+        board[7:9] = ["O", "O"]
+        self.assertEqual(p4_best_move(board, "X"), 3)  # gagne
+        self.assertEqual(p4_best_move(board, "O"), 3)  # bloque
+
+    def test_full_board_has_no_move(self):
+        self.assertIsNone(p4_best_move(["X"] * 42, "O"))
+
+    def test_beats_random(self):
+        for seed in range(6):
+            rng = random.Random(seed)
+            game = Puissance4()
+            game.init("XO"[seed % 2])
+            while not game.win:
+                if game.get_turn() == "X":
+                    minmax_puissance4_play(game, verbose=False, depth=4)
+                else:
+                    game.play(rng.choice(game.get_moves()))
+            self.assertEqual(game.win, "X", f"graine {seed}")
+
+    def test_minmax_vs_minmax_ends(self):
+        game = Puissance4()
+        game.init("X")
+        while not game.win:
+            self.assertIsNot(minmax_puissance4_play(game, verbose=False, depth=3), False)
+        self.assertIn(game.win, ("X", "O", "D"))
 
 
 class JumperTest(unittest.TestCase):

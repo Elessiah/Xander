@@ -12,13 +12,14 @@ import argparse
 from Games.Allumettes import Allumettes
 from Games.MinmaxAllumettes import minmax_allumettes_play
 from Games.MinmaxMorpion import minmax_morpion_play
+from Games.MinmaxPuissance4 import minmax_puissance4_play
 from Games.Morpion import Morpion
 from Games.Puissance4 import Puissance4
 
 GAMES = {
     "morpion": (Morpion, minmax_morpion_play),
     "allumettes": (Allumettes, minmax_allumettes_play),
-    "puissance4": (Puissance4, None),
+    "puissance4": (Puissance4, minmax_puissance4_play),
 }
 
 
