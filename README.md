@@ -1,5 +1,7 @@
 # Xander
 
+[![Tests](https://github.com/Elessiah/Xander/actions/workflows/tests.yml/badge.svg)](https://github.com/Elessiah/Xander/actions/workflows/tests.yml)
+
 Xander est une tentative d'IA de jeu **sans réseau de neurones**. Une
 *logique mère* lit un exemple de partie écrit en Python, en déduit à quoi sert
 chaque fonction du jeu (lire l'état, jouer un coup, annuler…), puis, à terme,
@@ -63,6 +65,10 @@ python -m Games.mainJumper
 ```powershell
 python -m unittest discover -s tests -t .
 ```
+
+La CI GitHub Actions ([`.github/workflows/tests.yml`](.github/workflows/tests.yml)) lance ces
+tests et l'apprentissage des trois exemples de `res/` sous Linux et Windows,
+avec Python 3.10, 3.12 et 3.13, à chaque push sur `main` et sur chaque PR.
 
 ## Organisation
 
