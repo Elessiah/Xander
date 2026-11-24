@@ -25,7 +25,10 @@
    partout (indispensable au Puissance 4).
 3. **Vocabulaire découvert.** Aujourd'hui `gagner`, `parer`, `fourchette`…
    sont fournis. La mère pourrait les construire elle-même (« motif à moi à
-   *n* coups de la fin », « motif à lui à *n* coups »).
+   *n* coups de la fin », « motif à lui à *n* coups »). Ils ne s'écrivent
+   déjà qu'avec quatre notions (`possibles`, `apres`, `gagne`, `adversaire`) ;
+   `gagne` doit encore apprendre qu'un coup peut faire perdre celui qui le
+   joue (Allumettes « misère »), ce qui demande de percevoir le trait.
 4. **Autres formes de problèmes.** Jeux à un joueur (Jumper), plus de deux
    joueurs, état qui n'est pas un tableau.
 5. **Plus tard : l'expérience.** Partir des apprentissages réussis (motifs,

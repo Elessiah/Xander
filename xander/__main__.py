@@ -63,6 +63,7 @@ def main(argv: list[str] | None = None) -> int:
         knowledge = education.knowledge
         print(f"\nMotifs compris : {knowledge['patterns']}")
         print(f"Règles : {' > '.join(knowledge['rules']) or 'aucune'} ; souvenirs : {len(knowledge['memories'])}")
+        print(f"Réflexion : au plus {education.max_views} position(s) regardée(s) pour un coup")
         if teacher is not None:
             print("Bilan sans correction :")
             for opponent, score in education.evaluate().items():

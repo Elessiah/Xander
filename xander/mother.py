@@ -7,14 +7,14 @@ Chaîne complète ::
 
 Puis la mère élève un fils (voir :mod:`xander.education`) : il naît sans rien
 savoir, joue, et la mère corrige chacune de ses erreurs en comprenant pourquoi
-c'en était une. Le fils (:mod:`xander.son`) ne garde que des règles et des
-souvenirs ; il ne revient jamais en arrière.
+c'en était une. Le code du fils est écrit par la mère (:mod:`xander.son_writer`) :
+il ne contient que les règles et les souvenirs qu'elle lui a appris, et ne
+revient jamais en arrière.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from pprint import pformat
 
 from xander.analyzer import analyse
 from xander.education import Education
@@ -74,17 +74,5 @@ class Mother:
 
 
 def render_son(name: str, education: Education) -> str:
-    nb_games = len(education.records) - 1
-    return (
-        f'"""Fils « {name} », élevé par la logique mère de Xander.\n\n'
-        f"Leçon de l'exemple, puis {nb_games} partie(s) corrigée(s). Tout ce qu'il sait est\n"
-        "dans KNOWLEDGE ; il joue sans jamais revenir en arrière.\n"
-        "À lancer depuis la racine du dépôt (il importe ``xander``).\n"
-        '"""\n\n'
-        "from xander.son import Son\n\n"
-        f"KNOWLEDGE = {pformat(education.knowledge, sort_dicts=False)}\n\n"
-        "SON = Son(KNOWLEDGE)\n\n\n"
-        "def play(game):\n"
-        '    """Joue un tour sur ``game``."""\n'
-        "    return SON.play(game)\n"
-    )
+    """Le code du fils tel que la mère l'a écrit (fichier autonome, sans import de Xander)."""
+    return education.source(name)

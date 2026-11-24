@@ -60,11 +60,13 @@ partie   1 | fils X contre professeur : défaite  | 1 erreur(s)
       motif compris : [2, 4, 6]
       MMA.A.... : le fils a joué 3 (défaut), le professeur 6 -> parer ; règles : parer
 ...
-Règles : gagner > parer > fourchette > contre_fourchette > carrefour ; souvenirs : 8
+Règles : gagner > parer > fourchette > attaque > contre_fourchette ; souvenirs : 10
+Réflexion : au plus 964 position(s) regardée(s) pour un coup
 ```
 
 `--parties N` (200 par défaut), `--son NOM` écrit le fils dans
-`output/sons/NOM.py`. Pour jouer contre lui :
+`output/sons/NOM.py` : un fichier Python autonome, écrit par la mère, qui ne
+contient que les règles qu'elle lui a apprises. Pour jouer contre lui :
 
 ```powershell
 python -m Games.GamePlayer morpion --x humain --o xander

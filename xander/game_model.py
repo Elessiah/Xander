@@ -22,7 +22,7 @@ class GameModel:
     turn_pattern: list[str] = field(default_factory=list)  # ex. ["get_game_state", "play"]
     winner: str = ""
     report: AnalysisReport | None = None
-    # Ce qu'il faut pour jouer (voir xander/lab.py et xander/son.py)
+    # Ce qu'il faut pour jouer (voir xander/lab.py et xander/son_writer.py)
     getter: Function | None = None                   # lit l'état pendant un tour
     action: Function | None = None                   # joue le coup du tour
     end_signal: object = None                        # valeur renvoyée par le coup qui finit la partie

@@ -17,9 +17,10 @@
       │  education.py       la mère élève le fils : parties, erreurs, explications
       │  lab.py             (une vraie partie qu'elle rejoue et défait avec back)
       ▼
- Son (son.py)   ── motifs, règles ordonnées, souvenirs ; joue sans back
+      │  vocabulary.py      concepts généraux (gagner, parer…) pour expliquer
+      │  son_writer.py      la mère écrit (et réécrit) le code du fils
       ▼
- output/sons/<nom>.py
+ output/sons/<nom>.py ── fichier autonome : perception, règles apprises, squelette
 ```
 
 Point d'entrée : `Mother().learn(chemin)` renvoie un `GameModel` ;
@@ -116,7 +117,10 @@ mère voit quel coup il a choisi sans rien savoir de son fonctionnement.
    joueur qui a fini la partie, la mère rejoue la partie en posant ce pion
    ailleurs. Si la partie ne s'arrête plus, le pion était nécessaire. Le
    dernier coup et les pions nécessaires forment un **motif** (au Morpion, un
-   alignement). Une fin sans motif est un nul.
+   alignement). Une fin sans motif est un nul. Un pion inutile reste déplacé
+   pour les tests suivants, et un pion déplacé est retesté à sa nouvelle
+   place : si le dernier coup complétait deux alignements, la mère en garde
+   un entier.
 3. **Parties.** Le fils joue contre le professeur et contre un joueur au
    hasard, une fois X, une fois O.
 4. **Revue des décisions.** Pour chaque coup du fils, la mère demande son
@@ -124,25 +128,59 @@ mère voit quel coup il a choisi sans rien savoir de son fonctionnement.
    des deux côtés, après chacun des deux coups. Si le coup du professeur mène
    à un meilleur résultat, c'est une **erreur**.
 5. **Explication.** La mère cherche dans son vocabulaire un concept vrai pour
-   le coup du professeur et faux pour celui du fils : `gagner`, `parer`,
-   `fourchette`, `contre_fourchette`, `carrefour` (définis sur les motifs,
-   pas sur un jeu). Le concept devient une **règle**, insérée juste avant la
-   règle qui a trompé le fils : la mère apprend ainsi l'ordre des priorités.
-   Sans explication, la position devient un **souvenir**.
+   le coup du professeur et faux pour celui du fils. Le concept devient une
+   **règle**, insérée juste avant la règle qui a trompé le fils : la mère
+   apprend ainsi l'ordre des priorités. Sans explication, la position devient
+   un **souvenir**. Puis elle **réécrit le code du fils**.
 
-Au Morpion, en partant de zéro (200 parties, moins d'une seconde) : les 8
+Au Morpion, en partant de zéro (200 parties, environ une seconde) : les 8
 alignements sont découverts, les règles finissent dans l'ordre
-`gagner > parer > fourchette > contre_fourchette > carrefour`, avec 8
-souvenirs (surtout des ouvertures). Un test explore toutes les suites de
-coups adverses possibles : le fils ne peut plus perdre.
+`gagner > parer > fourchette > attaque > contre_fourchette`, avec une dizaine
+de souvenirs (surtout des ouvertures). Un test explore toutes les suites de
+coups adverses possibles : le fils ne peut plus perdre. Sur 20 graines
+aléatoires, 17 donnent un fils parfait dès 200 parties et toutes à 400 : les
+autres n'ont pas encore rencontré la position qui corrige l'ordre des règles.
 
-## 7. Le fils — `xander/son.py`
+## 7. Le vocabulaire — `xander/vocabulary.py`
 
-Le fils ne contient que des connaissances (`KNOWLEDGE`) : comment lire l'état
-et jouer, les pions, les motifs, les règles dans l'ordre, les souvenirs. À
-son tour : souvenir de la position, sinon première règle qui s'applique,
-sinon première case libre. Il ne simule rien et n'appelle jamais `back` ; si
-le jeu refuse un coup, l'état n'a pas changé et il en essaie un autre.
+Les concepts s'écrivent **uniquement** avec quatre notions que la mère
+apprend pour chaque jeu : `possibles(etat)`, `apres(etat, action, joueur)`
+(vient de l'Analyzer), `gagne(etat, joueur)` (la fin de partie comprise par
+contre-épreuve) et `adversaire(joueur)`. Aucun concept ne parle de cases ou
+de lignes : un test exécute le même texte sur un mini Puissance 4 (gravité)
+et sur le Nim (quantité).
+
+| Concept | Idée | Ce qui est calculé |
+| --- | --- | --- |
+| `gagner` | je gagne tout de suite | un coup |
+| `parer` | il gagnerait au prochain coup : je l'en empêche | mon coup, puis ses victoires |
+| `fourchette` | je crée deux menaces à la fois | mon coup, puis mes victoires |
+| `attaque` | je menace, il doit parer, et au bout j'ai deux menaces | seulement la suite forcée |
+| `contre_fourchette` | je l'empêche de créer deux menaces (en occupant ou en menaçant) | ses fourchettes, après les coups forcés |
+
+Ils respectent les trois règles du joueur humain (voir `CLAUDE.md`) : les
+règles proposent les coups, on regarde un coup d'avance sur tout, et plus
+loin seulement les coups forcés (une seule parade possible).
+
+## 8. Le fils — `xander/son_writer.py`
+
+Le fils est un **fichier Python autonome**, écrit par la mère, réécrit après
+chaque correction, qui n'importe rien de Xander :
+
+1. **Perception** : `possibles`, `apres`, `gagne`, `adversaire`, écrites à
+   partir de ce qu'elle a compris (pions observés, motifs, action
+   `SINGLE_TARGET_INDEX`), plus `VUES`, le compteur des positions regardées.
+2. **Règles** : le texte des concepts appris, **et seulement ceux-là**,
+   recopié du vocabulaire, `REGLES` dans l'ordre appris et `SOUVENIRS`.
+3. **Squelette** : `choisir` (souvenir, sinon première règle qui s'applique,
+   sinon première action possible) et `play(game)`. C'est ici qu'on pourra
+   plus tard transmettre l'expérience de ses frères.
+
+Le fils exécute son code bêtement : il ne simule que ce que ses règles
+demandent et n'appelle jamais `back` ; si le jeu refuse un coup, l'état n'a
+pas changé et il en essaie un autre. **Budget** : au Morpion, il regarde au
+plus 964 positions pour un coup (un minimax complet en regarde plus de
+500 000 au premier coup) ; un test vérifie qu'il reste sous 1 000.
 
 `Mother.raise_son(exemple, professeur)` renvoie l'éducation (fils, parties,
 leçons) ; `Mother.create_son(nom, exemple, professeur=…)` écrit le fils dans
@@ -165,8 +203,11 @@ leçons) ; `Mother.create_son(nom, exemple, professeur=…)` écrit le fils dans
   une action qui désigne directement une case (`SINGLE_TARGET_INDEX`). Le
   Puissance 4 (gravité) et les Allumettes (quantité) attendent que l'Analyzer
   sache décrire leur action.
-- Le vocabulaire d'explications est fourni à la main. Il est général (motifs,
-  cases), mais la mère devra un jour le découvrir seule.
+- Le vocabulaire d'explications est fourni à la main. Il est général (il ne
+  parle que des quatre notions), mais la mère devra un jour le découvrir seule.
+- `gagne(etat, joueur)` ne sait pas encore dire qu'un coup fait **perdre**
+  celui qui le joue (Allumettes « misère » : prendre la dernière perd). Il
+  faudra que la perception sache qui a le trait.
 - Les motifs sont des ensembles de cases précis : la mère ne généralise pas
   encore un alignement par translation ou symétrie (indispensable au
   Puissance 4).

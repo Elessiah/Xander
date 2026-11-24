@@ -26,7 +26,7 @@ Une fin sans motif est un match nul.
 position, demande son coup au professeur, puis fait finir la partie au
 professeur des deux côtés, après le coup du fils et après celui du professeur.
 Si le coup du professeur mène à un meilleur résultat, c'est une erreur. Elle
-cherche alors dans son vocabulaire (voir :mod:`xander.son`) un concept vrai pour
+cherche alors dans son vocabulaire (voir :mod:`xander.vocabulary`) un concept vrai pour
 le coup du professeur et faux pour celui du fils :
 
 * le concept devient une **règle** du fils, placée juste avant la règle qui
@@ -46,7 +46,7 @@ from xander.game_model import GameModel
 from xander.lab import Lab, LabError
 from xander.model import FunctionOperation
 from xander.parser import ParsedExample
-from xander.son import VOCABULARY, Son, empty_knowledge, memory_key
+from xander import son_writer, vocabulary
 
 RESULTS = {1: "victoire", 0: "nul", -1: "défaite"}
 
@@ -55,7 +55,7 @@ RESULTS = {1: "victoire", 0: "nul", -1: "défaite"}
 class Lesson:
     """Une erreur du fils, et ce que la mère en a tiré."""
 
-    position: str      # memory_key de la position (M : fils, A : adversaire)
+    position: str      # cle(etat, moi) de la position (M : fils, A : adversaire)
     son_cell: int
     son_reason: str
     teacher_cell: int
@@ -109,8 +109,9 @@ class Education:
         self.lab = Lab(parsed, model)
         self.teacher = teacher
         self.rng = random.Random(seed)
-        self.knowledge = empty_knowledge(model)
-        self.son = Son(self.knowledge)
+        self.knowledge = son_writer.empty_knowledge(model)
+        self._son = self._mind = None                # code du fils et espace de pensée, à réécrire
+        self.max_views = 0                           # plus grand nombre de positions regardées par le fils
         self.marks: dict[int, object] = {}          # parité du coup -> pion posé
         self.outcomes: dict[tuple, int | None] = {}  # position -> parité du gagnant (None : nul)
         self.teacher_moves: dict[tuple, tuple] = {}
@@ -133,8 +134,9 @@ class Education:
                 changed = [i for i, (a, b) in enumerate(zip(states[k], states[k + 1])) if a != b]
                 if len(changed) == 1:
                     self.marks[k % 2] = states[k + 1][changed[0]]
-        if len(self.marks) == 2:
+        if len(self.marks) == 2 and self.knowledge["marks"] != [self.marks[0], self.marks[1]]:
             self.knowledge["marks"] = [self.marks[0], self.marks[1]]
+            self.rewrite()
 
     def final_state(self) -> list:
         lab = self.lab
@@ -161,35 +163,60 @@ class Education:
         pattern = self.counter_test(final, mover)
         if pattern is None:
             return None
+        if pattern in self.knowledge["patterns"]:
+            return mover  # la contre-épreuve a retrouvé un motif connu
         self.knowledge["patterns"].append(pattern)
         self.discovered.append(pattern)
+        self.rewrite()
         return mover
 
     def counter_test(self, final: list, mover: int) -> list[int] | None:
-        """Quels pions étaient nécessaires à la fin ? Rejoue la partie sans chacun d'eux."""
+        """Quels pions étaient nécessaires à la fin ? Rejoue la partie sans chacun d'eux.
+
+        Un pion jugé inutile reste déplacé pour la suite des tests : si le
+        dernier coup complétait deux motifs à la fois, on garde ainsi un motif
+        entier au lieu de ce que les deux ont en commun. Un pion déplacé est
+        testé de nouveau à sa nouvelle place, au cas où celle-ci aurait complété
+        un autre motif.
+        """
         lab = self.lab
         moves = list(lab.moves)
         last = self.cell(moves[-1])
         free = [i for i, v in enumerate(final) if v not in self.marks.values() and i != last]
-        needed = [last]
+        current = moves[:-1]
+        needed: set[int] = set()   # indices des coups nécessaires
+        to_test = list(range(mover, len(moves) - 1, 2))
+        moved: set[int] = set()
         try:
-            for index in range(mover, len(moves) - 1, 2):
+            while to_test:
+                index = to_test.pop(0)
+                kept = None   # un déplacement après lequel la partie finit encore
                 tested = necessary = False
                 for replacement in free:
-                    variant = moves[:index] + [(replacement,)] + moves[index + 1:-1]
+                    variant = current[:index] + [(replacement,)] + current[index + 1:]
                     if not lab.goto(variant) or lab.ended:
                         continue
                     tested = True
                     if lab.play(*moves[-1]) != "end":
                         necessary = True
                         break
+                    if kept is None:
+                        kept = replacement
                 if not tested:
                     return None  # impossible à vérifier (plateau plein) : pas d'explication
                 if necessary:
-                    needed.append(self.cell(moves[index]))
+                    needed.add(index)
+                elif index not in moved:
+                    free.remove(kept)
+                    free.append(self.cell(current[index]))
+                    current[index] = (kept,)
+                    moved.add(index)
+                    to_test.append(index)  # à retester à sa nouvelle place
         finally:
             lab.goto(moves)
-        return sorted(needed) if len(needed) > 1 else None
+        if not needed:
+            return None
+        return sorted([last] + [self.cell(current[index]) for index in needed])
 
     # ------------------------------------------------------------------ #
     # Le professeur
@@ -253,6 +280,33 @@ class Education:
         self.records.append(record)
         return record
 
+    # ------------------------------------------------------------------ #
+    # Le code du fils, écrit par la mère
+    # ------------------------------------------------------------------ #
+
+    def rewrite(self) -> None:
+        """Ce que sait la mère a changé : le code du fils sera réécrit."""
+        self._son = self._mind = None
+
+    def source(self, name: str = "fils") -> str:
+        return son_writer.son_source(name, self.knowledge, len(self.records) - 1)
+
+    @property
+    def son(self):
+        """Le fils tel que la mère l'a écrit (module exécuté à partir de son code)."""
+        if self._son is None:
+            self._son = son_writer.load(self.source())
+        return self._son
+
+    @property
+    def mind(self):
+        """La perception du jeu par la mère, avec tout son vocabulaire."""
+        if self._mind is None:
+            self._mind = son_writer.mind(self.knowledge)
+        return self._mind
+
+    # ------------------------------------------------------------------ #
+
     def play_game(self, opponent, son_side: int) -> tuple[int, list]:
         lab = self.lab
         lab.goto([])
@@ -260,8 +314,8 @@ class Education:
         while not lab.ended:
             if len(lab.moves) % 2 == son_side:
                 state = lab.states[-1]
-                me, opp = self.marks[son_side], self.marks[1 - son_side]
-                cell, reason = self.son.choose(state, me, opp)
+                cell, reason = self.son.choisir(list(state), self.marks[son_side])
+                self.max_views = max(self.max_views, self.son.VUES)
                 decisions.append((list(lab.moves), list(state), cell, reason))
                 if lab.play(cell) == "refused":
                     raise LabError(f"le jeu refuse la case {cell}, que le fils croyait libre")
@@ -272,7 +326,7 @@ class Education:
 
     def review(self, decisions: list, son_side: int) -> list[Lesson]:
         lessons = []
-        me, opp = self.marks[son_side], self.marks[1 - son_side]
+        me = self.marks[son_side]
         for moves, state, son_cell, reason in decisions:
             teacher = self.teacher_move(moves)
             teacher_cell = self.cell(teacher)
@@ -280,25 +334,27 @@ class Education:
                 continue
             if self.value(moves + [teacher], son_side) <= self.value(moves + [(son_cell,)], son_side):
                 continue  # autre coup, mais pas meilleur
-            lessons.append(self.correct(state, me, opp, son_cell, reason, teacher_cell))
+            lessons.append(self.correct(state, me, son_cell, reason, teacher_cell))
         return lessons
 
-    def explain(self, state: list, me, opp, son_cell: int, teacher_cell: int) -> str | None:
-        view = self.son.view(state, me, opp)
-        for name, concept in VOCABULARY.items():
-            cells = concept(view)
-            if teacher_cell in cells and son_cell not in cells:
+    def explain(self, state: list, me, son_cell, teacher_cell) -> str | None:
+        """Le premier concept vrai pour le coup du professeur et faux pour celui du fils."""
+        for name in vocabulary.concept_names():
+            actions = getattr(self.mind, name)(list(state), me)
+            if teacher_cell in actions and son_cell not in actions:
                 return name
         return None
 
-    def correct(self, state, me, opp, son_cell, reason, teacher_cell) -> Lesson:
+    def correct(self, state, me, son_cell, reason, teacher_cell) -> Lesson:
+        """Explique l'erreur et réécrit le code du fils en conséquence."""
+        self.rewrite()
         rules, memories = self.knowledge["rules"], self.knowledge["memories"]
-        key = memory_key(state, me, opp)
+        key = self.mind.cle(list(state), me)
         changes = []
         if reason == "souvenir":
             del memories[key]
             changes.append("souvenir faux oublié")
-        explanation = self.explain(state, me, opp, son_cell, teacher_cell)
+        explanation = self.explain(state, me, son_cell, teacher_cell)
         if explanation is None:
             memories[key] = teacher_cell
             changes.append("nouveau souvenir")

@@ -16,9 +16,11 @@ corrige erreur après erreur et finit avec un fils parfait.
 - **La mère crée le fils.** Toute l'intelligence du fils doit venir de ce que
   la mère a appris et corrigé. Ne jamais coder à la main une stratégie de jeu
   (minimax, heuristique, etc.) dans le fils et la présenter comme son œuvre.
-- **Le fils joue, c'est tout.** Il lit l'état, applique ce que la mère lui a
-  donné (par exemple des règles par priorité) et joue. **Il n'utilise jamais
-  `back`** et ne fait pas de force brute avec essai et annulation.
+- **Le fils exécute son code, bêtement.** Son code est **écrit par la mère** :
+  il ne contient que ce qu'elle lui a appris (un fils qui n'a appris que
+  `parer` ne contient que `parer`). Il lit l'état, applique ses règles et joue.
+  **Il n'utilise jamais `back`** et ne fait pas de force brute avec essai et
+  annulation. C'est la mère qui réfléchit et qui corrige ce code.
 - **`back` est l'outil de la mère.** Il lui sert à revenir sur une erreur du
   fils, à comparer avec d'autres coups et à comprendre ce qui s'est passé.
 - **Les Minmax de `Games/`** sont des adversaires et des professeurs (la mère
@@ -37,9 +39,33 @@ corrige erreur après erreur et finit avec un fils parfait.
    fulgurante : une seule défaite doit corriger toute une famille d'erreurs.
 
 Toute connaissance fournie à la main (vocabulaire d'explications, hypothèses)
-doit rester exprimée en termes généraux (motifs, cases, quantités), jamais en
-termes propres à un jeu, et l'objectif est que la mère finisse par la découvrir
-seule.
+doit rester exprimée en termes généraux, jamais en termes propres à un jeu, et
+l'objectif est que la mère finisse par la découvrir seule. Les concepts
+(`gagner`, `parer`, `fourchette`…) s'écrivent uniquement avec trois notions que
+la mère apprend pour chaque jeu : `apres(etat, action, joueur)` (vient de
+l'Analyzer), `gagne(etat, joueur)` (fin de partie comprise par la mère) et
+`possibles(etat)` (actions permises). Ainsi le même `parer` vaut pour tous les
+jeux.
+
+## Penser comme un joueur humain, pas comme un minimax
+
+Les maîtres d'échecs ne calculent pas plus que les amateurs (de Groot) : ils
+**reconnaissent** des configurations apprises (Chase et Simon), n'examinent que
+quelques coups candidats, et ne calculent loin que les suites **forcées**. Le
+fils doit penser ainsi. Trois règles, que la mère respecte quand elle écrit son
+code :
+
+1. **Les règles proposent, le calcul vérifie.** Les coups candidats viennent
+   toujours d'une règle apprise (gagner, parer, fourchette, souvenir…), jamais
+   de « tous les coups possibles » explorés en arbre.
+2. **Un coup d'avance sur tout, plus loin seulement si c'est forcé.** Regarder
+   toutes les réponses adverses au coup suivant, c'est de la perception (voir
+   un échec). Au-delà, le fils ne suit que des suites forcées (« je menace, il
+   doit parer ici, alors… ») ; il n'énumère jamais toutes les réponses.
+3. **Un budget mesurable.** On compte les positions que le fils regarde par
+   coup et un test vérifie que ça reste petit. Si une correction demande de
+   dépasser ce budget, il faut apprendre à **reconnaître** une nouvelle
+   configuration, pas calculer davantage.
 
 ## L'Analyzer doit être le plus général possible
 
@@ -57,7 +83,10 @@ simple tant qu'il n'est pas solide.
 
 Plus tard seulement : réutiliser l'expérience des apprentissages réussis
 (motifs, règles, explications d'un fils devenu parfait) comme base pour un
-nouveau fils, sur un autre jeu ou un autre problème.
+nouveau fils, sur un autre jeu ou un autre problème. Le squelette du fils
+(ordre de décision, choix par défaut), écrit par la mère à la naissance, est
+l'endroit où l'on pourra lui transmettre l'expérience de ses frères sous forme
+de logiques pré-induites.
 
 ## Pratique
 

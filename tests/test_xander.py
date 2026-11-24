@@ -8,10 +8,10 @@ from xander.analyzer import guess_operation
 from xander.education import Education
 from xander.lab import Lab, LabError
 from xander.model import Function, FunctionOperation, Variable
-from xander.mother import Mother
+from xander.mother import Mother, render_son
 from xander.parser import ExampleParser, parse_example
 from xander.rebuilder import ReplayError, build_pool_test, parse_observations, replay
-from xander.son import Son
+from xander import son_writer, vocabulary
 
 RES = Path(__file__).resolve().parent.parent / "res"
 
@@ -136,13 +136,15 @@ class MotherTest(unittest.TestCase):
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
             path = Mother().create_son("fils", RES / "exampleMorpion.py", directory)  # sans professeur
-            namespace = {}
-            exec(path.read_text(encoding="utf-8"), namespace)
-            self.assertEqual(namespace["KNOWLEDGE"]["patterns"], [[1, 4, 7]])  # leçon de l'exemple
-            self.assertEqual(namespace["KNOWLEDGE"]["rules"], [])
+            source = path.read_text(encoding="utf-8")
+            self.assertNotIn("xander", source.split('"""', 2)[2])  # fichier autonome
+            self.assertNotIn("def parer", source)  # né sans règle : rien d'autre que la perception
+            son = son_writer.load(source)
+            self.assertEqual(son.MOTIFS, [[1, 4, 7]])  # leçon de l'exemple
+            self.assertEqual(son.REGLES, [])
             game = NoBackMorpion()
             game.init("X")
-            self.assertIsInstance(namespace["play"](game), list)
+            self.assertIsInstance(son.play(game), list)
             self.assertEqual(game.board[0], "X")  # sans règle : première case libre
 
 
@@ -157,9 +159,10 @@ def education(nb_games: int = 0) -> Education:
     return Mother().raise_son(RES / "exampleMorpion.py", minmax_morpion_play, nb_games)
 
 
-def possible_defeats(knowledge: dict) -> list[list[int]]:
-    """Toutes les suites de coups adverses qui battent le fils (il joue X puis O)."""
-    defeats = []
+def possible_defeats(son) -> tuple[list[list[int]], int]:
+    """Toutes les suites de coups adverses qui battent le fils (il joue X puis O),
+    et le plus grand nombre de positions qu'il a regardées pour un coup."""
+    defeats, views = [], [0]
 
     def explore(board, turn, me, path):
         result = winner_of(board)
@@ -167,9 +170,9 @@ def possible_defeats(knowledge: dict) -> list[list[int]]:
             if result not in ("D", me):
                 defeats.append(path)
             return
-        opp = "O" if me == "X" else "X"
         if turn == me:
-            cells = [Son(knowledge).choose(board, me, opp)[0]]
+            cells = [son.choisir(list(board), me)[0]]
+            views[0] = max(views[0], son.VUES)
         else:
             cells = [c for c in range(9) if is_free(board[c])]
         for cell in cells:
@@ -180,7 +183,12 @@ def possible_defeats(knowledge: dict) -> list[list[int]]:
     empty = [str(i) for i in range(9)]
     explore(empty, "X", "X", [])
     explore(empty, "X", "O", [])
-    return defeats
+    return defeats, views[0]
+
+
+#: Budget de réflexion : positions regardées au plus par le fils pour un coup.
+#: Un minimax complet du Morpion en regarde plus de 500 000 au premier coup.
+BUDGET = 1000
 
 
 class LabTest(unittest.TestCase):
@@ -221,7 +229,7 @@ class EducationTest(unittest.TestCase):
         teaching = education()
         teaching.knowledge["patterns"].append([0, 1, 2])
         state = ["X", "X", "2", "3", "O", "5", "6", "7", "8"]  # O doit parer en 2
-        lesson = teaching.correct(state, "O", "X", 3, "défaut", 2)
+        lesson = teaching.correct(state, "O", 3, "défaut", 2)
         self.assertEqual(lesson.explanation, "parer")
         self.assertEqual(teaching.knowledge["rules"], ["parer"])
 
@@ -230,14 +238,14 @@ class EducationTest(unittest.TestCase):
         teaching.knowledge["patterns"] += [[0, 1, 2], [3, 4, 5]]
         teaching.knowledge["rules"] = ["parer"]
         state = ["X", "X", "2", "O", "O", "5", "6", "7", "8"]  # O peut gagner en 5 ou parer en 2
-        lesson = teaching.correct(state, "O", "X", 2, "parer", 5)
+        lesson = teaching.correct(state, "O", 2, "parer", 5)
         self.assertEqual(lesson.explanation, "gagner")
         self.assertEqual(teaching.knowledge["rules"], ["gagner", "parer"])
 
     def test_unexplained_move_becomes_a_memory(self):
         teaching = education()
         teaching.knowledge["patterns"] = []  # aucun motif connu : rien n'explique le coup
-        lesson = teaching.correct(["0"] * 9, "X", "O", 0, "défaut", 4)
+        lesson = teaching.correct(["0"] * 9, "X", 0, "défaut", 4)
         self.assertEqual(lesson.explanation, "souvenir")
         self.assertEqual(teaching.knowledge["memories"], {".........": 4})
 
@@ -245,8 +253,18 @@ class EducationTest(unittest.TestCase):
         teaching = education(200)
         self.assertEqual(sorted(map(sorted, teaching.knowledge["patterns"])),
                          sorted(map(list, LINES)))  # les 8 alignements, découverts seuls
-        self.assertEqual(possible_defeats(teaching.knowledge), [])
+        defeats, views = possible_defeats(teaching.son)
+        self.assertEqual(defeats, [])
         self.assertEqual(teaching.evaluate(20)["professeur"]["défaite"], 0)
+        self.assertLessEqual(views, BUDGET)  # il reconnaît, il ne calcule pas tout
+        self.assertLessEqual(teaching.max_views, BUDGET)
+
+    def test_son_contains_only_what_he_learned(self):
+        teaching = education(200)
+        source = teaching.source()
+        for name in vocabulary.concept_names():
+            self.assertEqual(f"def {name}(" in source, name in teaching.knowledge["rules"], name)
+        self.assertNotIn("import", source.split("# --- Perception")[1])
 
     def test_learning_curve_drops(self):
         records = education(60).records[1:]
@@ -254,7 +272,7 @@ class EducationTest(unittest.TestCase):
         self.assertGreater(sum(len(r.lessons) for r in first), sum(len(r.lessons) for r in last))
 
     def test_saved_son_plays_against_minmax_without_back(self):
-        son = Son(education(200).knowledge)
+        son = son_writer.load(render_son("fils", education(200)))  # le fichier écrit par la mère
         for start in "XO":
             game = NoBackMorpion()
             game.init(start)
@@ -262,6 +280,51 @@ class EducationTest(unittest.TestCase):
                 game.get_game_state()
                 (son.play if game.get_turn() == "X" else minmax_morpion_play)(game)
             self.assertEqual(game.win, "D")
+
+    @staticmethod
+    def think(possibles, apres, gagne, adversaire) -> dict:
+        """Le vocabulaire de la mère, exécuté avec les quatre notions d'un autre jeu."""
+        notions = {"possibles": possibles, "apres": apres, "gagne": gagne, "adversaire": adversaire}
+        source = "\n\n".join([vocabulary.tools_source()] + [vocabulary.concept_source(name)
+                                                             for name in vocabulary.concept_names()])
+        exec(source, notions)
+        return notions
+
+    def test_concepts_are_general_gravity(self):
+        """Le même texte vaut avec la gravité : un mini Puissance 4 (4 x 4, aligner 3)."""
+        size = 4
+        lines = [[(r + k * dr) * size + c + k * dc for k in range(3)]
+                 for r in range(size) for c in range(size)
+                 for dr, dc in ((0, 1), (1, 0), (1, 1), (1, -1))
+                 if 0 <= r + 2 * dr < size and 0 <= c + 2 * dc < size]
+
+        def apres(etat, colonne, joueur):
+            ligne = next(r for r in range(size) if etat[r * size + colonne] == ".")  # le jeton tombe
+            suite = list(etat)
+            suite[ligne * size + colonne] = joueur
+            return suite
+
+        mind = self.think(
+            possibles=lambda etat: [c for c in range(size) if etat[(size - 1) * size + c] == "."],
+            apres=apres,
+            gagne=lambda etat, joueur: any(all(etat[i] == joueur for i in line) for line in lines),
+            adversaire=lambda joueur: "O" if joueur == "X" else "X")
+        board = list("XX.." + "O..." + "...." + "....")  # ligne du bas d'abord
+        self.assertEqual(mind["gagner"](board, "X"), {2})
+        self.assertEqual(mind["parer"](board, "O"), {2})  # le même parer qu'au Morpion
+        board = list(".X.." + ".O.." + "...." + "....")
+        self.assertEqual(mind["fourchette"](board, "X"), {2})  # X X au milieu : deux bouts libres
+
+    def test_concepts_are_general_quantity(self):
+        """Et avec une quantité : le Nim (prendre 1 à 3 allumettes, la dernière gagne)."""
+        mind = self.think(
+            possibles=lambda n: list(range(1, min(3, n) + 1)),
+            apres=lambda n, prises, joueur: n - prises,
+            gagne=lambda n, joueur: n == 0,
+            adversaire=lambda joueur: 1 - joueur)
+        self.assertEqual(mind["gagner"](3, 0), {3})
+        self.assertEqual(mind["gagner"](6, 0), set())
+        self.assertEqual(mind["parer"](6, 0), set())  # aucune menace à parer
 
     def test_unsupported_game(self):
         with self.assertRaisesRegex(LabError, "SINGLE_TARGET_INDEX"):
