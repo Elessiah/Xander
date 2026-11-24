@@ -2,8 +2,9 @@
 from Games.Jumper import Jumper
 
 # init
-game = Jumper() # game
-game.init()
+# graine 0 : les obstacles sont les mêmes à chaque rejeu
+game = Jumper(0)  # game
+board = game.init()  # array 200
 
 # back
 board = game.back() # array 200

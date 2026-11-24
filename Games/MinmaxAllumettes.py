@@ -1,32 +1,36 @@
-from Games.Allumettes import Allumettes
+"""Joueur Minmax pour le jeu des allumettes (adversaire de référence).
+
+Stratégie gagnante de la variante misère avec des prises de 1 à 3 : laisser
+à l'adversaire un nombre d'allumettes ``n`` tel que ``(n - 1) % 4 == 0``
+(1, 5, 9, 13...). Depuis ``n`` allumettes, il faut donc en retirer
+``(n - 1) % 4``. Si ce reste vaut 0, la position est perdante : on retire 1
+en espérant une erreur de l'adversaire.
+
+L'ancienne version raisonnait en « tiers » (``% 3`` puis ``% 2``, voir
+``docs/allumettes.md``) et se trompait sur une partie des positions.
+"""
+
+from Games.Allumettes import MAX_TAKE, Allumettes
 
 
-def define_choice_score(nb_allumettes, scored_choice: dict, turn: str):
-    tier_part = (nb_allumettes - 1) % 3
-    if tier_part == 0:
-        if ((nb_allumettes - 1) % 2) == 1:
-            scored_choice[3] = 1
-        else:
-            scored_choice[2] = 1
-    else:
-        scored_choice[1] = 1
+def define_choice_score(nb_allumettes: int) -> dict:
+    """Note de chaque prise possible (1 pour le bon coup, 0 sinon)."""
+    scored_choice = {take: 0 for take in range(1, MAX_TAKE + 1)}
+    winning_take = (nb_allumettes - 1) % (MAX_TAKE + 1)
+    scored_choice[winning_take or 1] = 1
+    return scored_choice
 
 
-def get_best_choice(scored_choice: dict):
-    best_score = -1
-    best_index = 0
-    index = 0
-    for score in scored_choice.values():
-        if score > best_score:
-            best_score = score
-            best_index = index
-        index += 1
-    return best_index + 1
+def get_best_choice(scored_choice: dict) -> int:
+    return max(scored_choice, key=scored_choice.get)
 
-def minmax_allumettes_play(game: Allumettes):
+
+def minmax_allumettes_play(game: Allumettes, verbose: bool = True):
+    """Fait jouer Minmax sur ``game``. Renvoie le gagnant si le coup termine la partie."""
     turn = game.get_turn()
     nb_allumettes = game.get_game_state()
-    scored_choice = {1: 0, 2: 0, 3: 0}
-    define_choice_score(nb_allumettes, scored_choice, turn)
-    game.play(get_best_choice(scored_choice))
-    print(f"Minmax {turn} a joué {get_best_choice(scored_choice)}")
+    choice = min(get_best_choice(define_choice_score(nb_allumettes)), nb_allumettes)
+    result = game.play(choice)
+    if verbose:
+        print(f"Minmax {turn} a retiré {choice} allumette(s)")
+    return game.win if result is True else None

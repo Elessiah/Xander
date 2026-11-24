@@ -1,138 +1,106 @@
-import time
-from curses.ascii import isdigit
+"""Joueur Minmax pour le Morpion (adversaire de référence, codé à la main).
 
-from Games.Coords import Coords
-from Games.Morpion import Morpion
+Deux étages :
+
+1. une **heuristique** qui note chaque case libre selon les lignes qui la
+   traversent (préparer un alignement, bloquer l'adversaire...) ;
+2. un **minimax** avec élagage alpha-bêta qui explore l'arbre de jeu complet
+   (le morpion est assez petit) ; l'heuristique sert à départager les coups
+   de même valeur et à ordonner l'exploration.
+
+Le joueur ne perd donc jamais ; deux Minmax font toujours match nul.
+"""
+
+from functools import lru_cache
+
+from Games.Morpion import LINES, Morpion, is_free, other_player, winner_of
+
+COEFS = {"close": 2, "block": 4, "end": 3}
+WIN_SCORE = 10
 
 
-def manage_encounter(slot: str, line: dict, turn: str):
-    if not isdigit(slot):
-        if slot == turn:
-            line["ally"] += 1
-        else:
-            line["ennemy"] += 1
+# --------------------------------------------------------------------------- #
+# Heuristique
+# --------------------------------------------------------------------------- #
 
-
-def calcul_score(line: dict, coefs: dict):
+def line_score(board: list, line: tuple, turn: str) -> int:
+    """Intérêt d'une ligne pour ``turn`` selon les symboles déjà posés."""
+    ally = sum(board[i] == turn for i in line)
+    enemy = sum(not is_free(board[i]) and board[i] != turn for i in line)
     score = 0
-    if line["ally"] == 0 and line["ennemy"] == 0:
-        score += 1 * coefs["close"]
-    if line["ennemy"] == 0:
-        score += line["ally"] * coefs["end"]
-    if line["ally"] == 0:
-        score += line["ennemy"] * coefs["block"]
-    if line["ally"] == 3:
-        score += 500
+    if ally == 0 and enemy == 0:
+        score += COEFS["close"]          # ligne encore vierge
+    if enemy == 0:
+        score += ally * COEFS["end"]     # on prépare / termine un alignement
+    if ally == 0:
+        score += enemy * COEFS["block"]  # on gêne l'adversaire
     return score
 
-def check_line(turn: str, board: list, coords: Coords, axe, coefs):
-    if axe == "up" or axe == "down":
-        # On vérifie que la diagonale est possible
-        if (coords.x == 1 and (coords.y == 0 or coords.y == 2)) or (coords.y == 1 and (coords.x == 0 or coords.x == 2)):
-            return 0
-        if axe == "up" and ((coords.y == 0 and coords.x == 2) or (coords.y == 2 and coords.x == 0)):
-            return 0
-        if axe == "down" and ((coords.y == 0 and coords.x == 0) or (coords.y == 2 and coords.x == 2)):
-            return 0
-    line = {"ally": 0, "ennemy": 0}
-    if axe == "x" or axe == "y" or axe == "up":
-        check_range = range(3)
-    else:
-        check_range = range(2, -1, -1)
-    for i in check_range:
-        if axe == "x":
-            coords.set(x=i)
-        elif axe == "y":
-            coords.set(y=i)
-        elif axe == "up":
-            coords.set(x=i, y=i)
-        else:
-            coords.set(x=2 - i, y=i)
-        manage_encounter(board[coords.i], line, turn)
-    return calcul_score(line, coefs)
 
-
-def get_score_from_long_range(scored_board: list):
-    best_score = -1000
-    nb_best = 0 # si plusieurs meilleurs résultats
-    for slot in scored_board:
-        if best_score < slot:
-            best_score = best_score
-            nb_best = 1
-        elif best_score == slot:
-            nb_best += 1
-    return best_score + nb_best
-
-
-def simulate_next_moves(turn: str, board: list, coords: Coords, scored_board: list, coefs: dict):
-    board[coords.i] = turn
-    new_game = Morpion()
-    if new_game.set_game_state(board):
-        scored_board[coords.i] += 100000
-        return # Coup gagnant
-    turn_value = -1 # Détermine si ce sont des points gagné ou perdu. Adversaire fait perdre
-    tmp_scored_board = new_scored_board()
-    n_turn = 0
-    turn = new_game.get_turn()
-    tmp_score = 0
-    while n_turn < 3 and not new_game.check_win() and turn != 'D':
-        define_board_score(new_game.get_turn(), new_game.get_game_state(), tmp_scored_board, new_game.nb_turn)
-        tmp_score += get_score_from_long_range(tmp_scored_board) * turn_value * coefs["longRange"]
-        new_game.play(get_first_best_move(scored_board))
-        new_game.get_turn()
-        turn_value *= -1
-        n_turn += 1
-    if turn == 'W':
-        scored_board[coords.i] += turn_value * coefs["endLongRange"]
-        if turn_value == -1: # coup perdant, on y va pas
-            tmp_score = 0
-    scored_board[coords.i] += tmp_score
-
-
-def define_slot_score(turn: str, board: list, coords: Coords, scored_board: list, coefs: dict, nb_turn: int):
-    if isdigit(board[coords.i]):
-        scored_board[coords.i] += check_line(turn, board, coords.copy(), "x", coefs)
-        scored_board[coords.i] += check_line(turn, board, coords.copy(), "y", coefs)
-        scored_board[coords.i] += check_line(turn, board, coords.copy(), "up", coefs)
-        scored_board[coords.i] += check_line(turn, board, coords.copy(), "down", coefs)
-        if nb_turn > 1:
-            simulate_next_moves(turn, board.copy(), coords, scored_board, coefs)
-    else:
-        scored_board[coords.i] = -1
-
-def define_board_score(turn: str, board: list, scored_board: list, nb_turn: int):
-    coords = Coords()
-    coefs = {"close": 2, "block": 4, "end": 3, "longRange": 2, "endLongRange": 100}
-    for index in range(len(board)):
-        coords.set(i=index)
-        define_slot_score(turn, board, coords, scored_board, coefs, nb_turn)
-
-def new_scored_board():
+def define_board_score(turn: str, board: list) -> list:
+    """Note de chaque case (``-1`` pour une case occupée)."""
     scored_board = []
-    for index in range(9):
-        scored_board.append(0)
+    for index, slot in enumerate(board):
+        if not is_free(slot):
+            scored_board.append(-1)
+            continue
+        scored_board.append(sum(line_score(board, line, turn) for line in LINES if index in line))
     return scored_board
 
 
-def get_first_best_move(scored_board: list):
-    best_score = -1
-    best_index = 0
-    for index in range(len(scored_board)):
-        score = scored_board[index]
-        if score > best_score:
-            best_score = score
-            best_index = index
-    return best_index
+# --------------------------------------------------------------------------- #
+# Minimax
+# --------------------------------------------------------------------------- #
+
+def ordered_moves(board: list, turn: str) -> list:
+    scores = define_board_score(turn, board)
+    moves = [i for i, slot in enumerate(board) if is_free(slot)]
+    return sorted(moves, key=lambda move: -scores[move])
 
 
-def minmax_morpion_play(game: Morpion):
+@lru_cache(maxsize=None)
+def negamax(board: tuple, turn: str, alpha: int = -WIN_SCORE - 10, beta: int = WIN_SCORE + 10) -> int:
+    """Valeur du plateau pour le joueur ``turn`` qui doit jouer (gagner vite vaut plus)."""
+    result = winner_of(board)
+    if result == "D":
+        return 0
+    if result:  # le joueur précédent vient de gagner (plus tôt = pire pour nous)
+        return -WIN_SCORE - _free_count(board)
+    best = -WIN_SCORE - 10
+    for move in ordered_moves(list(board), turn):
+        child = list(board)
+        child[move] = turn
+        value = -negamax(tuple(child), other_player(turn), -beta, -alpha)
+        best = max(best, value)
+        alpha = max(alpha, value)
+        if alpha >= beta:
+            break
+    return best
+
+
+def _free_count(board) -> int:
+    return sum(is_free(slot) for slot in board)
+
+
+def best_move(board: list, turn: str) -> int:
+    """Coup optimal ; à valeur égale, celui que l'heuristique préfère."""
+    best, best_value = None, None
+    for move in ordered_moves(board, turn):
+        child = list(board)
+        child[move] = turn
+        value = -negamax(tuple(child), other_player(turn))
+        if best_value is None or value > best_value:
+            best, best_value = move, value
+    return best
+
+
+def minmax_morpion_play(game: Morpion, verbose: bool = False):
+    """Fait jouer Minmax sur ``game``. Renvoie le gagnant si le coup termine la partie."""
     turn = game.get_turn()
     board = game.get_game_state()
-    scored_board = new_scored_board()
-    nb_turn = game.nb_turn
-    define_board_score(turn, board, scored_board, nb_turn)
-    print(scored_board)
-    if type(game.play(get_first_best_move(scored_board))) == type(True):
-        return turn
-    else:
-        return None
+    move = best_move(board, turn)
+    if verbose:
+        print(f"Minmax {turn} joue {move} (notes : {define_board_score(turn, board)})")
+    if game.play(move) is True:
+        return game.win
+    return None

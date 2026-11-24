@@ -1,99 +1,21 @@
+"""Jumper : un coureur qui saute par-dessus des obstacles (jeu à un joueur).
+
+L'écran fait 40 x 5 caractères (200 cases, ``y = 0`` en haut, sol en
+``y = 4``). À chaque ``play`` le décor avance d'une case ; ``play(True)``
+fait sauter le joueur s'il est au sol. Toucher un obstacle termine la partie.
+
+Symboles : ``*`` joueur, ``T`` obstacle, ``-`` sol, espace vide.
+"""
+
+import copy
 import random
 
 from Games.Coords import Coords
 
-class Jumper:
-    def __init__(self):
-        self.ticks = 0
-        self.board = []
-        self.previous_boards = []
-        self.obstacles = set()
-        self.last_obstacle = 0
-        self.board_size = Coords(x=40, y=5)
-        self.player_pos = Coords(width=40)
-        self.player_pos.set(x=1, y=4)
-        self.player_ascending = False
-        self.game_over = False
+WIDTH, HEIGHT = 40, 5
+FLOOR = HEIGHT - 1
+PLAYER_X = 1
 
-    def init(self):
-        self.ticks = 0
-        self.board.clear()
-        self.previous_boards.clear()
-        self.obstacles = set()
-        self.last_obstacle = 0
-        self.player_pos.set(x=1, y=4)
-        self.player_ascending = False
-        self.game_over = False
-        for y in range(5):
-            content = " "
-            if y == 4:
-                content = "-"
-            for x in range(40):
-                self.board.append(content)
-
-    def play(self, do_jump=False):
-        self.ticks += 1
-        # Manage input
-        if do_jump and self.player_pos.y == 4:
-            self.player_ascending = True
-
-        # Go next tick
-
-        # Manage player
-        if self.player_ascending:
-            self.player_pos.set(y=self.player_pos.y - 1)
-            if self.player_pos.y == 0:
-                self.player_ascending = False
-        elif self.player_pos.y != 4:
-            self.player_pos.set(y=self.player_pos.y + 1)
-
-        # Update board
-        self.shift_left_board()
-
-        # Draw the board
-        print_board = self.board.copy()
-
-        #   Draw obstacles and manage player hits
-        for obstacle in self.obstacles:
-            obstacle.draw(print_board, self.board_size.x, 4)
-            if self.player_pos.y == 4 and obstacle.position <= self.player_pos.x <= (obstacle.position + obstacle.length):
-                self.game_over = True
-                return False
-
-        #   Draw Player
-        print_board[self.player_pos.i] = '*'
-
-        #   Print
-        print(f"Distance: {self.ticks}")
-        i = 0
-        for y in range(5):
-            for x in range(40):
-                print(print_board[i], end='')
-                i += 1
-            print("\n", end='')
-
-        return print_board
-
-
-    def shift_left_board(self):
-        self.previous_boards.append(self.board)
-        if (self.ticks - self.last_obstacle) > 10:
-            if random.randint(1, 5) == 1:
-                self.last_obstacle = self.ticks
-                self.obstacles.add(Obstacle(self.ticks, self.board_size.x, random.randint(1, 3)))
-        for obstacle in self.obstacles.copy():
-            if obstacle.shift_left_board() is False:
-                self.obstacles.discard(obstacle)
-
-
-    def back(self):
-        if len(self.previous_boards):
-            self.board = self.previous_boards.pop()
-            self.game_over = False
-        return self.board.copy()
-
-    def get_board(self):
-        return self.board.copy()
 
 class Obstacle:
     def __init__(self, creation_date, board_length, length):
@@ -105,17 +27,103 @@ class Obstacle:
         return hash(self.creation_date)
 
     def __eq__(self, other):
-        return self.creation_date == other.creation_date
+        return isinstance(other, Obstacle) and self.creation_date == other.creation_date
 
-    def draw(self, board, width, floor=4):
+    def covers(self, x):
+        return self.position <= x < self.position + self.length
+
+    def draw(self, board, width, floor=FLOOR):
         coords = Coords(width=width)
-        coords.set(x=self.position, y=floor)
         for i in range(self.length):
-            if 40 > coords.x + i >= 0:
-                board[coords.i + i] = 'T'
+            x = self.position + i
+            if 0 <= x < width:
+                coords.set(x=x, y=floor)
+                board[coords.i] = "T"
 
     def shift_left_board(self):
+        """Décale l'obstacle ; renvoie ``False`` quand il est sorti de l'écran."""
         self.position -= 1
-        if (self.position + self.length) < 0:
+        return self.position + self.length > 0
+
+
+class Jumper:
+    def __init__(self, seed=None):
+        self.random = random.Random(seed)
+        self.ticks = 0
+        self.board = []  # décor fixe (vide + sol)
+        self.past = []
+        self.obstacles = []
+        self.last_obstacle = 0
+        self.player_pos = Coords(width=WIDTH)
+        self.player_ascending = False
+        self.game_over = False
+        self.init()
+
+    def init(self):  # Pattern Name
+        self.ticks = 0
+        self.board = [" "] * (WIDTH * FLOOR) + ["-"] * WIDTH
+        self.past.clear()
+        self.obstacles = []
+        self.last_obstacle = 0
+        self.player_pos.set(x=PLAYER_X, y=FLOOR)
+        self.player_ascending = False
+        self.game_over = False
+        return self.get_board()
+
+    def play(self, do_jump=False):  # Pattern Name
+        """Avance d'une image. Renvoie l'écran, ou ``False`` si le joueur est touché."""
+        if self.game_over:
             return False
-        return True
+        self.past.append(self._snapshot())
+        self.ticks += 1
+
+        if do_jump and self.player_pos.y == FLOOR:
+            self.player_ascending = True
+        if self.player_ascending:
+            self.player_pos.set(y=self.player_pos.y - 1)
+            if self.player_pos.y == 0:
+                self.player_ascending = False
+        elif self.player_pos.y != FLOOR:
+            self.player_pos.set(y=self.player_pos.y + 1)
+
+        self.shift_left_board()
+
+        if self.player_pos.y == FLOOR and any(o.covers(self.player_pos.x) for o in self.obstacles):
+            self.game_over = True
+            return False
+        return self.get_board()
+
+    def shift_left_board(self):
+        if self.ticks - self.last_obstacle > 10 and self.random.randint(1, 5) == 1:
+            self.last_obstacle = self.ticks
+            self.obstacles.append(Obstacle(self.ticks, WIDTH, self.random.randint(1, 3)))
+        self.obstacles = [o for o in self.obstacles if o.shift_left_board()]
+
+    def get_board(self):  # Pattern Name
+        """Écran courant : décor + obstacles + joueur (liste de 200 caractères)."""
+        frame = self.board.copy()
+        for obstacle in self.obstacles:
+            obstacle.draw(frame, WIDTH)
+        frame[self.player_pos.i] = "*"
+        return frame
+
+    def print(self):  # Pattern Name
+        frame = self.get_board()
+        print(f"Distance: {self.ticks}")
+        for y in range(HEIGHT):
+            print("".join(frame[y * WIDTH:(y + 1) * WIDTH]))
+
+    def back(self):  # Pattern Name
+        """Revient à l'image précédente et renvoie l'écran."""
+        if self.past:
+            state = self.past.pop()
+            self.ticks, self.last_obstacle, self.player_ascending, self.obstacles = state[:4]
+            self.player_pos.set(x=state[4], y=state[5])
+            self.random.setstate(state[6])
+            self.game_over = False
+        return self.get_board()
+
+    def _snapshot(self):
+        return (self.ticks, self.last_obstacle, self.player_ascending,
+                copy.deepcopy(self.obstacles), self.player_pos.x, self.player_pos.y,
+                self.random.getstate())
