@@ -14,7 +14,10 @@
       │  game_model.py      synthèse : joueurs, déroulé d'un tour, annulation
       ▼
  GameModel
-      │  mother.py          (à faire) génération et correction des enfants
+      │  education.py       la mère élève le fils : parties, erreurs, explications
+      │  lab.py             (une vraie partie qu'elle rejoue et défait avec back)
+      ▼
+ Son (son.py)   ── motifs, règles ordonnées, souvenirs ; joue sans back
       ▼
  output/sons/<nom>.py
 ```
@@ -94,18 +97,61 @@ le tour a agi, quand arrive un getter ou la fonction qui a ouvert le tour
 (nécessaire pour les jeux à un joueur comme Jumper) ; on retient la longueur
 de tour la plus fréquente.
 
-## 5. Enfants — `xander/mother.py`
+## 5. Le laboratoire de la mère — `xander/lab.py`
 
-`Mother.create_son(nom, exemple)` écrit `output/sons/<nom>.py` avec un
-dictionnaire `KNOWLEDGE` (ce que la mère a compris) et une fonction
-`play(game)` encore vide. C'est le point de départ de la suite du projet.
+Une vraie partie, créée en exécutant les sections `# include` et `# init` de
+l'exemple. La mère y tient la liste des coups joués et l'état avant chaque
+coup ; `goto(coups)` amène la partie à n'importe quelle suite de coups en
+annulant (`back`) puis en rejouant. **C'est le seul endroit où `back` sert.**
+
+Le professeur (un Minmax de `Games/`) joue à travers un espion (`Spy`) : la
+mère voit quel coup il a choisi sans rien savoir de son fonctionnement.
+
+## 6. L'éducation du fils — `xander/education.py`
+
+1. **Leçon de l'exemple.** La mère rejoue l'exemple, vérifie que l'action
+   modifie bien la case annoncée par l'Analyzer, apprend quel pion pose
+   chaque joueur, puis comprend pourquoi la partie finit (ci-dessous).
+2. **Comprendre une fin de partie (contre-épreuve).** Pour chaque pion du
+   joueur qui a fini la partie, la mère rejoue la partie en posant ce pion
+   ailleurs. Si la partie ne s'arrête plus, le pion était nécessaire. Le
+   dernier coup et les pions nécessaires forment un **motif** (au Morpion, un
+   alignement). Une fin sans motif est un nul.
+3. **Parties.** Le fils joue contre le professeur et contre un joueur au
+   hasard, une fois X, une fois O.
+4. **Revue des décisions.** Pour chaque coup du fils, la mère demande son
+   coup au professeur. S'il diffère, elle fait finir la partie au professeur
+   des deux côtés, après chacun des deux coups. Si le coup du professeur mène
+   à un meilleur résultat, c'est une **erreur**.
+5. **Explication.** La mère cherche dans son vocabulaire un concept vrai pour
+   le coup du professeur et faux pour celui du fils : `gagner`, `parer`,
+   `fourchette`, `contre_fourchette`, `carrefour` (définis sur les motifs,
+   pas sur un jeu). Le concept devient une **règle**, insérée juste avant la
+   règle qui a trompé le fils : la mère apprend ainsi l'ordre des priorités.
+   Sans explication, la position devient un **souvenir**.
+
+Au Morpion, en partant de zéro (200 parties, moins d'une seconde) : les 8
+alignements sont découverts, les règles finissent dans l'ordre
+`gagner > parer > fourchette > contre_fourchette > carrefour`, avec 8
+souvenirs (surtout des ouvertures). Un test explore toutes les suites de
+coups adverses possibles : le fils ne peut plus perdre.
+
+## 7. Le fils — `xander/son.py`
+
+Le fils ne contient que des connaissances (`KNOWLEDGE`) : comment lire l'état
+et jouer, les pions, les motifs, les règles dans l'ordre, les souvenirs. À
+son tour : souvenir de la position, sinon première règle qui s'applique,
+sinon première case libre. Il ne simule rien et n'appelle jamais `back` ; si
+le jeu refuse un coup, l'état n'a pas changé et il en essaie un autre.
+
+`Mother.raise_son(exemple, professeur)` renvoie l'éducation (fils, parties,
+leçons) ; `Mother.create_son(nom, exemple, professeur=…)` écrit le fils dans
+`output/sons/<nom>.py`.
 
 ## Limites connues
 
 - Les hypothèses sont codées en dur : un jeu dont l'état défile (Jumper)
   n'est compris par aucune d'elles, et c'est attendu à ce stade.
-- La mère ne déduit pas encore les **conditions de victoire** (le gagnant de
-  l'exemple est seulement lu dans `# end`).
 - La première hypothèse compatible l'emporte : au Morpion, où la case *n*
   contient le texte `"n"`, `SINGLE_TARGET_INDEX` et `SINGLE_TARGET_NAME` sont
   toutes deux vraies, seule la première est retenue.
@@ -115,3 +161,12 @@ dictionnaire `KNOWLEDGE` (ce que la mère a compris) et une fonction
   limitent ce risque.
 - Découpage des tours : un getter de confirmation appelé juste après le coup
   (`get, play, get`) est rattaché au tour suivant.
+- Éducation : seulement pour deux joueurs qui alternent, un état en tableau et
+  une action qui désigne directement une case (`SINGLE_TARGET_INDEX`). Le
+  Puissance 4 (gravité) et les Allumettes (quantité) attendent que l'Analyzer
+  sache décrire leur action.
+- Le vocabulaire d'explications est fourni à la main. Il est général (motifs,
+  cases), mais la mère devra un jour le découvrir seule.
+- Les motifs sont des ensembles de cases précis : la mère ne généralise pas
+  encore un alignement par translation ou symétrie (indispensable au
+  Puissance 4).

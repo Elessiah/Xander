@@ -2,11 +2,16 @@ import textwrap
 import unittest
 from pathlib import Path
 
+from Games.MinmaxMorpion import minmax_morpion_play
+from Games.Morpion import LINES, Morpion, is_free, winner_of
 from xander.analyzer import guess_operation
+from xander.education import Education
+from xander.lab import Lab, LabError
 from xander.model import Function, FunctionOperation, Variable
 from xander.mother import Mother
 from xander.parser import ExampleParser, parse_example
 from xander.rebuilder import ReplayError, build_pool_test, parse_observations, replay
+from xander.son import Son
 
 RES = Path(__file__).resolve().parent.parent / "res"
 
@@ -130,10 +135,137 @@ class MotherTest(unittest.TestCase):
     def test_create_son(self):
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
-            path = Mother().create_son("fils", RES / "exampleMorpion.py", directory)
+            path = Mother().create_son("fils", RES / "exampleMorpion.py", directory)  # sans professeur
             namespace = {}
             exec(path.read_text(encoding="utf-8"), namespace)
-            self.assertEqual(namespace["KNOWLEDGE"]["players"], ["X", "O"])
+            self.assertEqual(namespace["KNOWLEDGE"]["patterns"], [[1, 4, 7]])  # leçon de l'exemple
+            self.assertEqual(namespace["KNOWLEDGE"]["rules"], [])
+            game = NoBackMorpion()
+            game.init("X")
+            self.assertIsInstance(namespace["play"](game), list)
+            self.assertEqual(game.board[0], "X")  # sans règle : première case libre
+
+
+class NoBackMorpion(Morpion):
+    """Un Morpion qui interdit ``back`` : le fils ne doit jamais s'en servir."""
+
+    def back(self):
+        raise AssertionError("le fils a utilisé back")
+
+
+def education(nb_games: int = 0) -> Education:
+    return Mother().raise_son(RES / "exampleMorpion.py", minmax_morpion_play, nb_games)
+
+
+def possible_defeats(knowledge: dict) -> list[list[int]]:
+    """Toutes les suites de coups adverses qui battent le fils (il joue X puis O)."""
+    defeats = []
+
+    def explore(board, turn, me, path):
+        result = winner_of(board)
+        if result:
+            if result not in ("D", me):
+                defeats.append(path)
+            return
+        opp = "O" if me == "X" else "X"
+        if turn == me:
+            cells = [Son(knowledge).choose(board, me, opp)[0]]
+        else:
+            cells = [c for c in range(9) if is_free(board[c])]
+        for cell in cells:
+            child = list(board)
+            child[cell] = turn
+            explore(child, "O" if turn == "X" else "X", me, path + [cell])
+
+    empty = [str(i) for i in range(9)]
+    explore(empty, "X", "X", [])
+    explore(empty, "X", "O", [])
+    return defeats
+
+
+class LabTest(unittest.TestCase):
+    def setUp(self):
+        parsed, model = Mother().understand(RES / "exampleMorpion.py")
+        self.lab = Lab(parsed, model)
+
+    def test_goto_and_undo(self):
+        self.assertTrue(self.lab.goto([(4,), (0,), (8,)]))
+        self.assertEqual(self.lab.state[8], "X")
+        self.assertTrue(self.lab.goto([(4,), (2,)]))  # revient en arrière puis rejoue
+        self.assertEqual(self.lab.state[:5], ["0", "1", "O", "3", "X"])
+        self.assertEqual(self.lab.play(2), "refused")  # case prise : rien n'est noté
+        self.assertEqual(len(self.lab.moves), 2)
+
+    def test_end_and_teacher(self):
+        self.assertTrue(self.lab.goto([(0,), (3,), (1,), (4,), (2,)]))
+        self.assertTrue(self.lab.ended)
+        self.lab.goto([(0,), (3,), (1,), (4,)])
+        self.assertEqual(self.lab.ask(minmax_morpion_play), (2,))  # le professeur gagne
+        self.assertTrue(self.lab.ended)
+
+
+class EducationTest(unittest.TestCase):
+    def test_first_lesson_understands_the_example(self):
+        teaching = education()
+        self.assertEqual(teaching.knowledge["marks"], ["X", "O"])
+        self.assertEqual(teaching.knowledge["patterns"], [[1, 4, 7]])  # par contre-épreuve
+        self.assertEqual(teaching.records[0].patterns, [[1, 4, 7]])
+
+    def test_draw_is_not_a_win(self):
+        teaching = education()
+        draw = [(0,), (1,), (2,), (4,), (3,), (5,), (7,), (6,), (8,)]
+        teaching.lab.goto(draw)
+        self.assertIsNone(teaching.winner())
+
+    def test_error_becomes_a_rule(self):
+        teaching = education()
+        teaching.knowledge["patterns"].append([0, 1, 2])
+        state = ["X", "X", "2", "3", "O", "5", "6", "7", "8"]  # O doit parer en 2
+        lesson = teaching.correct(state, "O", "X", 3, "défaut", 2)
+        self.assertEqual(lesson.explanation, "parer")
+        self.assertEqual(teaching.knowledge["rules"], ["parer"])
+
+    def test_priority_is_learned(self):
+        teaching = education()
+        teaching.knowledge["patterns"] += [[0, 1, 2], [3, 4, 5]]
+        teaching.knowledge["rules"] = ["parer"]
+        state = ["X", "X", "2", "O", "O", "5", "6", "7", "8"]  # O peut gagner en 5 ou parer en 2
+        lesson = teaching.correct(state, "O", "X", 2, "parer", 5)
+        self.assertEqual(lesson.explanation, "gagner")
+        self.assertEqual(teaching.knowledge["rules"], ["gagner", "parer"])
+
+    def test_unexplained_move_becomes_a_memory(self):
+        teaching = education()
+        teaching.knowledge["patterns"] = []  # aucun motif connu : rien n'explique le coup
+        lesson = teaching.correct(["0"] * 9, "X", "O", 0, "défaut", 4)
+        self.assertEqual(lesson.explanation, "souvenir")
+        self.assertEqual(teaching.knowledge["memories"], {".........": 4})
+
+    def test_son_becomes_unbeatable(self):
+        teaching = education(200)
+        self.assertEqual(sorted(map(sorted, teaching.knowledge["patterns"])),
+                         sorted(map(list, LINES)))  # les 8 alignements, découverts seuls
+        self.assertEqual(possible_defeats(teaching.knowledge), [])
+        self.assertEqual(teaching.evaluate(20)["professeur"]["défaite"], 0)
+
+    def test_learning_curve_drops(self):
+        records = education(60).records[1:]
+        first, last = records[:20], records[-20:]
+        self.assertGreater(sum(len(r.lessons) for r in first), sum(len(r.lessons) for r in last))
+
+    def test_saved_son_plays_against_minmax_without_back(self):
+        son = Son(education(200).knowledge)
+        for start in "XO":
+            game = NoBackMorpion()
+            game.init(start)
+            while not game.win:
+                game.get_game_state()
+                (son.play if game.get_turn() == "X" else minmax_morpion_play)(game)
+            self.assertEqual(game.win, "D")
+
+    def test_unsupported_game(self):
+        with self.assertRaisesRegex(LabError, "SINGLE_TARGET_INDEX"):
+            Mother().raise_son(RES / "exampleAllumettes.py")
 
 
 if __name__ == "__main__":

@@ -5,9 +5,10 @@ Chaîne complète ::
     fichier d'exemple --parse--> ParsedExample --rejeu--> observations
         --analyse--> AnalysisReport --synthèse--> GameModel --> enfant
 
-La création d'un enfant (un joueur autonome qui réutilise les fonctions du jeu)
-et sa correction par la mère ne sont pas encore implémentées : ``create_son``
-génère pour l'instant un squelette qui contient ce que la mère a compris.
+Puis la mère élève un fils (voir :mod:`xander.education`) : il naît sans rien
+savoir, joue, et la mère corrige chacune de ses erreurs en comprenant pourquoi
+c'en était une. Le fils (:mod:`xander.son`) ne garde que des règles et des
+souvenirs ; il ne revient jamais en arrière.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from pathlib import Path
 from pprint import pformat
 
 from xander.analyzer import analyse
+from xander.education import Education
 from xander.game_model import GameModel
 from xander.parser import parse_example
 from xander.rebuilder import PROJECT_ROOT, replay
@@ -33,54 +35,56 @@ class Mother:
 
     def learn(self, example_path: str | Path, keep_pool_test: bool = False) -> GameModel:
         """Analyse l'exemple ``example_path`` et renvoie le modèle du jeu."""
+        return self.understand(example_path, keep_pool_test)[1]
+
+    def understand(self, example_path: str | Path, keep_pool_test: bool = False):
+        """Comme :meth:`learn`, mais renvoie aussi l'exemple lu : ``(parsed, model)``."""
         parsed = parse_example(example_path)
         self.log(parsed.summary())
         script = OUTPUT_DIR / "poolTest.py" if keep_pool_test else None
         observations = replay(parsed, script)
         self.log(f"{len(observations)} valeurs observées pendant le rejeu")
-        report = analyse(parsed, observations)
-        return GameModel.from_analysis(parsed, report)
+        return parsed, GameModel.from_analysis(parsed, analyse(parsed, observations))
+
+    def raise_son(self, example_path: str | Path, teacher=None, nb_games: int = 200,
+                  seed: int = 0, on_game=None) -> Education:
+        """Fait naître un fils (il ne sait rien), lui montre l'exemple, puis le corrige.
+
+        Sans ``teacher``, le fils ne reçoit que la leçon de l'exemple.
+        """
+        parsed, model = self.understand(example_path)
+        education = Education(parsed, model, teacher, seed)
+        lesson = education.first_lesson()
+        if on_game:
+            on_game(lesson)
+        if teacher is not None and nb_games:
+            education.train(nb_games, on_game)
+        return education
 
     def create_son(self, name: str, example_path: str | Path,
-                   output_dir: str | Path = OUTPUT_DIR / "sons") -> Path:
-        """Apprend le jeu puis écrit le squelette de l'enfant ``name``.
-
-        TODO : générer une stratégie de jeu à partir des getters / setters,
-        faire jouer l'enfant, puis le corriger à l'aide de ``back_function``.
-        """
-        model = self.learn(example_path)
+                   output_dir: str | Path = OUTPUT_DIR / "sons", teacher=None,
+                   nb_games: int = 200, on_game=None) -> Path:
+        """Élève un fils (voir :meth:`raise_son`) et l'écrit dans ``output_dir/<name>.py``."""
+        education = self.raise_son(example_path, teacher, nb_games, on_game=on_game)
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         path = output_dir / f"{name}.py"
-        path.write_text(render_son(name, model), encoding="utf-8")
+        path.write_text(render_son(name, education), encoding="utf-8")
         return path
 
 
-def render_son(name: str, model: GameModel) -> str:
-    knowledge = {
-        "players": model.players_names,
-        "actions_per_turn": model.turn_pattern,
-        "back": model.back_function.call_source() if model.back_function else None,
-        "variables": {
-            v.name: {
-                "kind": v.kind,
-                "size": v.size,
-                "getters": sorted({f.short_name for f in v.getters}),
-                "setters": sorted({f.short_name for f in v.setters}),
-            }
-            for v in model.env
-        },
-        "operations": {
-            function: [(op.kind.name, op.variable.name) for op in operations]
-            for function, operations in (model.report.operations.items() if model.report else [])
-        },
-    }
+def render_son(name: str, education: Education) -> str:
+    nb_games = len(education.records) - 1
     return (
-        f'"""Enfant « {name} » généré par la logique mère de Xander.\n\n'
-        "Squelette : la stratégie n'est pas encore générée.\n"
+        f'"""Fils « {name} », élevé par la logique mère de Xander.\n\n'
+        f"Leçon de l'exemple, puis {nb_games} partie(s) corrigée(s). Tout ce qu'il sait est\n"
+        "dans KNOWLEDGE ; il joue sans jamais revenir en arrière.\n"
+        "À lancer depuis la racine du dépôt (il importe ``xander``).\n"
         '"""\n\n'
-        f"KNOWLEDGE = {pformat(knowledge, sort_dicts=False)}\n\n\n"
+        "from xander.son import Son\n\n"
+        f"KNOWLEDGE = {pformat(education.knowledge, sort_dicts=False)}\n\n"
+        "SON = Son(KNOWLEDGE)\n\n\n"
         "def play(game):\n"
-        '    """Joue un tour sur ``game``. À générer par la mère."""\n'
-        "    raise NotImplementedError\n"
+        '    """Joue un tour sur ``game``."""\n'
+        "    return SON.play(game)\n"
     )

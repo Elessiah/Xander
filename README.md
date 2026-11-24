@@ -7,9 +7,10 @@ Xander est une tentative d'IA de jeu **sans réseau de neurones**. Une
 chaque fonction du jeu (lire l'état, jouer un coup, annuler…), puis, à terme,
 crée des *enfants* qui jouent seuls et qu'elle corrige.
 
-> **État : prototype inachevé.** La mère sait lire un exemple, le rejouer et
-> déduire le rôle des fonctions. La génération d'enfants qui jouent vraiment, et
-> leur correction, restent à écrire (voir [la feuille de route](docs/feuille-de-route.md)).
+> **État : prototype.** La mère sait lire un exemple, le rejouer, déduire le
+> rôle des fonctions, puis élever un fils qui part de zéro en corrigeant chacune
+> de ses erreurs. Au Morpion, le fils devient imbattable. Les autres jeux
+> attendent un Analyzer plus général (voir [la feuille de route](docs/feuille-de-route.md)).
 
 ## Démarrage rapide
 
@@ -39,8 +40,35 @@ n'est « pas compris » parce qu'il renvoie `True` (fin de partie) au lieu du
 plateau : il n'y a pas d'état « après » à comparer.
 
 Options : `-v` (détail de l'analyse), `--keep` (garde le script de rejeu dans
-`output/poolTest.py`), `--son NOM` (écrit le squelette d'un enfant dans
-`output/sons/NOM.py`).
+`output/poolTest.py`).
+
+### Élever un fils
+
+```powershell
+python -m xander res/exampleMorpion.py --prof Games.MinmaxMorpion:minmax_morpion_play --son morpion
+```
+
+Le fils naît sans rien savoir. La mère lui montre l'exemple, le fait jouer
+contre le professeur (le Minmax) et contre un joueur au hasard, puis revient
+sur chacune de ses erreurs : pourquoi le professeur a-t-il préféré un autre
+coup ? pour gagner ? pour parer ? L'explication devient une règle. Chaque
+partie est affichée avec ses leçons (`-q` pour ne voir que le bilan), suivie
+de la courbe d'apprentissage :
+
+```text
+partie   1 | fils X contre professeur : défaite  | 1 erreur(s)
+      motif compris : [2, 4, 6]
+      MMA.A.... : le fils a joué 3 (défaut), le professeur 6 -> parer ; règles : parer
+...
+Règles : gagner > parer > fourchette > contre_fourchette > carrefour ; souvenirs : 8
+```
+
+`--parties N` (200 par défaut), `--son NOM` écrit le fils dans
+`output/sons/NOM.py`. Pour jouer contre lui :
+
+```powershell
+python -m Games.GamePlayer morpion --x humain --o xander
+```
 
 ### Jouer aux jeux de test
 
@@ -74,7 +102,7 @@ avec Python 3.10, 3.12 et 3.13, à chaque push sur `main` et sur chaque PR.
 
 | Dossier | Contenu |
 |---|---|
-| `xander/` | la logique mère : lecture de l'exemple, rejeu, analyse, création d'enfants |
+| `xander/` | la logique mère : lecture de l'exemple, rejeu, analyse, laboratoire, éducation du fils, le fils |
 | `Games/` | jeux servant de terrain d'essai (Morpion, Allumettes, Puissance 4, Jumper) et adversaires Minmax codés à la main (un par jeu à deux joueurs) |
 | `res/` | exemples de parties que la mère apprend |
 | `tests/` | tests unitaires (`unittest`) |

@@ -5,9 +5,17 @@ Exemples ::
     python -m Games.GamePlayer morpion --x humain --o minmax
     python -m Games.GamePlayer allumettes --x minmax --o minmax --score 3
     python -m Games.GamePlayer puissance4
+    python -m Games.GamePlayer morpion --x xander --o humain
+
+``xander`` : le fils élevé par la logique mère, lu dans ``output/sons/<jeu>.py``.
+Il faut d'abord l'élever, par exemple ::
+
+    python -m xander res/exampleMorpion.py --prof Games.MinmaxMorpion:minmax_morpion_play --son morpion
 """
 
 import argparse
+import importlib.util
+from pathlib import Path
 
 from Games.Allumettes import Allumettes
 from Games.MinmaxAllumettes import minmax_allumettes_play
@@ -15,6 +23,8 @@ from Games.MinmaxMorpion import minmax_morpion_play
 from Games.MinmaxPuissance4 import minmax_puissance4_play
 from Games.Morpion import Morpion
 from Games.Puissance4 import Puissance4
+
+SONS = Path(__file__).resolve().parent.parent / "output" / "sons"
 
 GAMES = {
     "morpion": (Morpion, minmax_morpion_play),
@@ -74,8 +84,9 @@ def duo_game_player(game, score_for_win: int, players: dict, minmax=None, xander
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Lance une série de parties.")
     parser.add_argument("game", choices=GAMES)
-    parser.add_argument("--x", default="humain", choices=["humain", "minmax"])
-    parser.add_argument("--o", choices=["humain", "minmax"], help="défaut : minmax s'il existe, sinon humain")
+    parser.add_argument("--x", default="humain", choices=["humain", "minmax", "xander"])
+    parser.add_argument("--o", choices=["humain", "minmax", "xander"],
+                        help="défaut : minmax s'il existe, sinon humain")
     parser.add_argument("--score", type=int, default=3, help="points nécessaires pour gagner la série")
     parser.add_argument("--start", default="R", choices=["X", "O", "R"], help="premier joueur (R : aléatoire)")
     args = parser.parse_args(argv)
@@ -86,8 +97,18 @@ def main(argv=None):
     players = {"X": args.x.capitalize(), "O": args.o.capitalize()}
     if minmax is None and "Minmax" in players.values():
         parser.error(f"pas encore de Minmax pour {args.game}")
+    xander = None
+    if "Xander" in players.values():
+        path = SONS / f"{args.game}.py"
+        if not path.exists():
+            parser.error(f"pas de fils pour {args.game} dans {path} : élevez-le d'abord avec "
+                         f"python -m xander res/example<Jeu>.py --prof <module:fonction> --son {args.game}")
+        spec = importlib.util.spec_from_file_location(f"fils_{args.game}", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        xander = module.play
     try:
-        duo_game_player(game_class(), args.score, players, minmax, start_player=args.start)
+        duo_game_player(game_class(), args.score, players, minmax, xander, start_player=args.start)
     except (KeyboardInterrupt, EOFError):
         print("\nPartie interrompue.")
 

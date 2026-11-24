@@ -44,3 +44,8 @@ jobs:
             python -m xander "$example"
             echo "::endgroup::"
           done
+
+      - name: Éducation d'un fils au Morpion
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python -m xander res/exampleMorpion.py --prof Games.MinmaxMorpion:minmax_morpion_play -q

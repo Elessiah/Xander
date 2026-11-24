@@ -9,25 +9,27 @@
 | Déduire l'effet des fonctions (opérations) | fait, hypothèses codées en dur |
 | Associer getters et setters aux variables | fait |
 | Comprendre le déroulé d'un tour | fait |
-| Déduire les conditions de victoire | **à faire** |
-| Générer un enfant qui joue | **à faire** (squelette seulement) |
-| Faire jouer l'enfant, le corriger avec `back` | **à faire** |
+| Déduire les conditions de victoire | fait : motifs trouvés par contre-épreuve |
+| Créer un fils qui part de zéro | fait |
+| Corriger le fils en expliquant ses erreurs | fait, Morpion : fils imbattable |
+| Réutiliser l'expérience d'un fils pour un autre | **plus tard** |
 
 ## Prochaines étapes proposées
 
-1. **Conditions de victoire.** Comparer l'état final de l'exemple (et la valeur
-   `True` renvoyée par le coup gagnant) avec les états précédents pour trouver
-   ce qui distingue une fin de partie.
-2. **Premier enfant.** À partir de `KNOWLEDGE`, générer un `play(game)` qui lit
-   l'état avec le getter du tour, choisit un paramètre compatible avec
-   l'opération (`SINGLE_TARGET_INDEX` sur un tableau de taille 9 → un indice
-   entre 0 et 8) et appelle le setter jusqu'à ce que le coup soit accepté.
-3. **Correction par la mère.** Faire jouer l'enfant contre les Minmax de
-   `Games/`, utiliser `back_function` pour revenir sur les coups perdants et
-   ajuster sa règle de choix.
-4. **Hypothèses.** Ajouter des opérations (décalage d'un tableau pour Jumper,
-   booléen de fin de partie…) et laisser plusieurs hypothèses coexister quand
-   elles sont toutes vraies.
+1. **Analyzer plus général.** C'est lui qui donne à la mère le vocabulaire
+   pour percevoir un jeu. Il doit décrire l'action du Puissance 4 (« le jeton
+   tombe dans la colonne *p* »), celle des Allumettes (quantité), et laisser
+   coexister plusieurs hypothèses vraies.
+2. **Motifs généraux.** Passer de « les cases 0, 4, 8 » à « trois cases
+   alignées », par translation et symétrie, pour qu'un motif appris serve
+   partout (indispensable au Puissance 4).
+3. **Vocabulaire découvert.** Aujourd'hui `gagner`, `parer`, `fourchette`…
+   sont fournis. La mère pourrait les construire elle-même (« motif à moi à
+   *n* coups de la fin », « motif à lui à *n* coups »).
+4. **Autres formes de problèmes.** Jeux à un joueur (Jumper), plus de deux
+   joueurs, état qui n'est pas un tableau.
+5. **Plus tard : l'expérience.** Partir des apprentissages réussis (motifs,
+   règles) d'un fils pour en élever un autre plus vite.
 
 ## Nettoyage et corrections de cette révision
 

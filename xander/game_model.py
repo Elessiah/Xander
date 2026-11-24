@@ -22,6 +22,10 @@ class GameModel:
     turn_pattern: list[str] = field(default_factory=list)  # ex. ["get_game_state", "play"]
     winner: str = ""
     report: AnalysisReport | None = None
+    # Ce qu'il faut pour jouer (voir xander/lab.py et xander/son.py)
+    getter: Function | None = None                   # lit l'état pendant un tour
+    action: Function | None = None                   # joue le coup du tour
+    end_signal: object = None                        # valeur renvoyée par le coup qui finit la partie
 
     @property
     def nb_players(self) -> int:
@@ -32,7 +36,12 @@ class GameModel:
         turns = split_turns(parsed)
         nb_actions = most_common_turn_length(turns)
         pattern = next((turn for turn in turns if len(turn) == nb_actions), [])
+        getter = next((f for f in pattern if f.kind is FunctionKind.OUTPUT), None)
+        action = next((f for f in pattern if f.kind in ACTING), None)
         return cls(
+            getter=getter,
+            action=action,
+            end_signal=end_signal(parsed, report, action),
             game=next((v for v in report.variables.values() if v.kind == "game"), None),
             back_function=parsed.back_function,
             env=[v for v in report.variables.values() if v.kind != "game"],
@@ -96,6 +105,19 @@ def split_turns(parsed: ParsedExample) -> list[list[Function]]:
         turns[-1].append(function)
         has_acted = has_acted or function.kind in ACTING
     return turns
+
+
+def end_signal(parsed: ParsedExample, report: AnalysisReport, action: Function | None):
+    """Valeur renvoyée par le coup qui finit l'exemple, si elle change de type.
+
+    Au Morpion, ``play`` renvoie le plateau, sauf au dernier coup : ``True``.
+    """
+    if action is None:
+        return None
+    calls = [f for f in parsed.player_functions() if f.name == action.name]
+    usual = Counter(f.return_value.kind for f in calls).most_common(1)[0][0]
+    last = calls[-1]
+    return report.observations.get(last.time) if last.return_value.kind != usual else None
 
 
 def most_common_turn_length(turns: list[list[Function]]) -> int:
