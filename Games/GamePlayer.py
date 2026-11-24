@@ -35,7 +35,11 @@ def player_turn(game, score: dict, score_for_win: int):
         answer = input(f"Quelle est ta prochaine action, {turn} ? (q pour quitter)\n --> ").strip()
         if answer.lower() == "q":
             raise KeyboardInterrupt
-        if answer.lstrip("-").isdigit() and game.play(int(answer)) is not False:
+        try:
+            move = int(answer)
+        except ValueError:
+            move = None
+        if move is not None and game.play(move) is not False:
             return
         print("Coup invalide.")
 

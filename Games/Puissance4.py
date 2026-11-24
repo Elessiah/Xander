@@ -37,7 +37,7 @@ class Puissance4:
         Renvoie ``False`` si le coup est invalide, ``True`` si la partie est
         terminée, sinon une copie du plateau.
         """
-        if self.win or not isinstance(column, int) or not 0 <= column < self.width:
+        if self.win or type(column) is not int or not 0 <= column < self.width:
             return False
         coords = self.set_token(column)
         if coords is None:

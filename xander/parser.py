@@ -99,7 +99,7 @@ def parse_type_comment(comment: str) -> tuple[str, int]:
 def literal_or_none(node: ast.expr):
     try:
         return ast.literal_eval(node)
-    except ValueError:
+    except (ValueError, TypeError):
         return None
 
 
@@ -129,7 +129,7 @@ def parse_call_line(code: str, comment: str) -> tuple[Variable, str, list[str], 
         raise ValueError("un appel de fonction est attendu")
     if call.keywords:
         raise ValueError("les arguments nommés ne sont pas encore gérés")
-    if any(isinstance(arg, ast.Call) for arg in call.args):
+    if any(isinstance(node, ast.Call) for arg in call.args for node in ast.walk(arg)):
         raise ValueError("les appels imbriqués ne sont pas encore gérés")
 
     name = ast.get_source_segment(code, call.func)
@@ -160,7 +160,7 @@ class ExampleParser:
 
     def parse_file(self, path: str | Path) -> ParsedExample:
         path = Path(path)
-        result = self.parse_text(path.read_text(encoding="utf-8"))
+        result = self.parse_text(path.read_text(encoding="utf-8-sig"))
         result.source = path
         return result
 
@@ -177,29 +177,27 @@ class ExampleParser:
         return self.result
 
     def _parse_header(self, line: str, number: int) -> None:
+        """Reconnaît un en-tête de section ; tout autre commentaire est ignoré.
+
+        Les formes sont strictes, pour qu'un commentaire libre comme
+        ``# player jumps here`` ou ``# end of setup`` ne change pas de section.
+        """
         words = line[1:].split()
-        if not words:
-            return
-        keyword = words[0].lower()
-        if keyword == self.INCLUDE:
-            self.section = self.INCLUDE
-        elif keyword == self.INIT:
-            self.section = self.INIT
-        elif keyword == self.BACK:
-            self.section = self.BACK
-        elif keyword == self.PLAYER:
-            if len(words) < 2:
-                raise ExampleSyntaxError("nom du joueur manquant", number, line)
+        lowered = [word.lower() for word in words]
+        if lowered in ([self.INCLUDE], [self.INIT], [self.BACK]):
+            self.section = lowered[0]
+        elif len(words) == 2 and lowered[0] == self.PLAYER:
             self.section = self.PLAYER
             self.current_player = words[1]
             self.result.players.setdefault(self.current_player, Player(self.current_player))
-        elif keyword == self.END:
+        elif lowered == [self.END]:
             self.section = self.END
-            if len(words) >= 3 and words[1].lower() == self.PLAYER:
-                self.result.winner = words[2]
-            elif len(words) >= 2 and words[1].lower() in ("draw", "nul", "d"):
-                self.result.winner = "D"
-        # Les autres commentaires en début de ligne sont ignorés.
+        elif len(words) == 3 and lowered[:2] == [self.END, self.PLAYER]:
+            self.section = self.END
+            self.result.winner = words[2]
+        elif len(words) == 2 and lowered[0] == self.END and lowered[1] in ("draw", "nul"):
+            self.section = self.END
+            self.result.winner = "D"
 
     def _parse_code(self, line: str, number: int) -> None:
         if self.section == self.INCLUDE:

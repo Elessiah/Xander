@@ -6,7 +6,7 @@ from xander.analyzer import guess_operation
 from xander.model import Function, FunctionKind, FunctionOperation, Variable
 from xander.mother import Mother
 from xander.parser import ExampleParser, ExampleSyntaxError, parse_example
-from xander.rebuilder import build_pool_test, parse_observations
+from xander.rebuilder import ReplayError, build_pool_test, parse_observations, replay
 
 RES = Path(__file__).resolve().parent.parent / "res"
 
@@ -58,12 +58,36 @@ class ParserTest(unittest.TestCase):
     def test_draw(self):
         self.assertEqual(parse("# player A\ngame.play(1)\n# end draw\n").winner, "D")
 
+    def test_free_comments_are_not_headers(self):
+        parsed = parse("""
+            # player X
+            # player jumps over here
+            # end of setup
+            # back to the board
+            x = game.get()  # integer
+            # end player X
+        """)
+        self.assertEqual(parsed.players_name, ["X"])
+        self.assertEqual(len(parsed.players["X"].functions_used), 1)
+        self.assertIsNone(parsed.back_function)
+        self.assertEqual(parsed.winner, "X")
+
+    def test_utf8_bom(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "bom.py"
+            path.write_bytes(b"\xef\xbb\xbf" + (RES / "exampleMorpion.py").read_bytes())
+            parsed = parse_example(path)
+        self.assertEqual(parsed.imports, ["from Games.Morpion import Morpion"])
+
     def test_errors(self):
         cases = {
             "type manquant": "# player A\nx = game.get()\n",
             "type inconnu": "# player A\nx = game.get()  # float\n",
             "taille": "# player A\nx = game.get()  # array neuf\n",
             "aucun joueur": "# init\ngame = Game()  # game\n",
+            "imbriqués": "# player A\ngame.play([g(1)])\n",
+            "invalide": "# player A\ngame.play({[1]: 2}\n",
         }
         for message, text in cases.items():
             with self.subTest(message), self.assertRaisesRegex(ExampleSyntaxError, message):
@@ -76,8 +100,26 @@ class RebuilderTest(unittest.TestCase):
         source = build_pool_test(parsed)
         self.assertIn("board = game.play(4)", source)
         self.assertNotIn("'game'", source)  # la variable de jeu n'est pas observée
-        observations = parse_observations("bruit\n@@xander 3 board ['0', 'X']\n@@xander 4 b True\n")
+        observations = parse_observations("bruit\n@@xander 3 board ['0', 'X']\nprompt> @@xander 4 b True\n")
         self.assertEqual(observations, {3: ["0", "X"], 4: True})
+
+    def test_unhashable_literal_is_not_a_crash(self):
+        parsed = parse("# player A\ngame.play({[1]: 2})\n")
+        self.assertEqual(parsed.players["A"].functions_used[0].arguments, [None])
+
+    def test_long_example_replays(self):
+        turn = "# player {}\nnb = game.get_game_state()  # integer\nnb = game.play(1)  # integer\n"
+        text = ("# include\nfrom Games.Allumettes import Allumettes\n# init\ngame = Allumettes()  # game\n"
+                "game.set_max_nb_allumettes(1000)\nnb = game.init('X')  # integer\n"
+                + "".join(turn.format(p) for p in "XO" * 250))
+        parsed = ExampleParser().parse_text(text)
+        self.assertGreater(len(build_pool_test(parsed)), 40_000)  # au-delà de la limite Windows de -c
+        self.assertEqual(len(replay(parsed)), 1001)
+
+    def test_replay_timeout(self):
+        parsed = ExampleParser().parse_text("# include\nimport time\n# player A\ntime.sleep(5)\n")
+        with self.assertRaisesRegex(ReplayError, "dépassé"):
+            replay(parsed, timeout=1)
 
 
 class GuessOperationTest(unittest.TestCase):
@@ -126,6 +168,20 @@ class MotherTest(unittest.TestCase):
         model = Mother().learn(RES / "exampleJumper.py")
         self.assertEqual(model.nb_players, 1)
         self.assertEqual(model.nb_actions_per_turn, 2)
+
+    def test_none_call_stays_in_turn(self):
+        from xander.game_model import split_turns
+        parsed = parse("""
+            # player A
+            b = game.get_board()  # array 3
+            b = game.play(1)  # array 3
+            game.print()
+            b = game.get_board()  # array 3
+            b = game.play(2)  # array 3
+            game.print()
+        """)
+        self.assertEqual([[f.short_name for f in turn] for turn in split_turns(parsed)],
+                         [["get_board", "play", "print"]] * 2)
 
     def test_create_son(self):
         import tempfile

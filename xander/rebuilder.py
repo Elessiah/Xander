@@ -13,6 +13,7 @@ import ast
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from xander.model import Function
@@ -47,9 +48,10 @@ def parse_observations(stdout: str) -> dict[int, object]:
     """Lit la sortie du pool test : ``{time: valeur}``."""
     observations = {}
     for line in stdout.splitlines():
-        if not line.startswith(MARKER + " "):
+        start = line.find(MARKER + " ")  # le jeu a pu écrire sans retour à la ligne
+        if start == -1:
             continue
-        _, time, _name, value = line.split(" ", 3)
+        _, time, _name, value = line[start:].split(" ", 3)
         try:
             observations[int(time)] = ast.literal_eval(value)
         except (ValueError, SyntaxError):
@@ -61,16 +63,22 @@ def replay(parsed: ParsedExample, script_path: str | Path | None = None,
            timeout: float = 30) -> dict[int, object]:
     """Écrit (optionnellement) puis exécute le pool test, renvoie les observations."""
     source = build_pool_test(parsed)
-    if script_path is not None:
-        script_path = Path(script_path)
-        script_path.parent.mkdir(parents=True, exist_ok=True)
-        script_path.write_text(source, encoding="utf-8")
+    if script_path is None:
+        with tempfile.TemporaryDirectory() as directory:
+            return replay(parsed, Path(directory) / "poolTest.py", timeout)
+    script_path = Path(script_path)
+    script_path.parent.mkdir(parents=True, exist_ok=True)
+    script_path.write_text(source, encoding="utf-8")
 
     env = dict(os.environ)
     env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(PROJECT_ROOT), env.get("PYTHONPATH")]))
     env["PYTHONIOENCODING"] = "utf-8"
-    result = subprocess.run([sys.executable, "-c", source], cwd=PROJECT_ROOT, env=env,
-                            capture_output=True, text=True, encoding="utf-8", timeout=timeout)
+    try:
+        result = subprocess.run([sys.executable, str(script_path)], cwd=PROJECT_ROOT, env=env,
+                                stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                                encoding="utf-8", timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise ReplayError(f"le rejeu a dépassé {timeout} s (boucle infinie ou appel à input() ?)") from None
     if result.returncode != 0:
         raise ReplayError(f"le rejeu de l'exemple a échoué :\n{result.stderr}")
     return parse_observations(result.stdout)

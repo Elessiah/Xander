@@ -65,7 +65,7 @@ class Morpion:
         Renvoie ``False`` si le coup est invalide, ``True`` si la partie est
         terminée (victoire ou nul), sinon une copie du plateau.
         """
-        if self.win or not isinstance(move, int) or not 0 <= move < len(self.board):
+        if self.win or type(move) is not int or not 0 <= move < len(self.board):
             return False
         if not is_free(self.board[move]):
             return False
@@ -108,15 +108,16 @@ class Morpion:
             self.win = ""
         return self.board.copy()
 
-    def set_game_state(self, new_board):
-        """Impose un plateau ; le joueur courant est déduit du nombre de symboles.
+    def set_game_state(self, new_board, player=None):
+        """Impose un plateau. ``player`` doit jouer ; s'il est omis, on suppose
+        que X a commencé et on le déduit du nombre de symboles.
 
         Renvoie ``True`` si ce plateau est gagnant pour l'un des joueurs.
         """
         self.board = list(new_board)
         self.past.clear()
         nb_x, nb_o = self.board.count("X"), self.board.count("O")
-        self.player = "O" if nb_o < nb_x else "X"
+        self.player = player or ("O" if nb_o < nb_x else "X")
         self.nb_turn = nb_x + nb_o
         self.win = winner_of(self.board)
         return self.check_win()

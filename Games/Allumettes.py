@@ -21,7 +21,7 @@ class Allumettes:
         self.player = "X"
         self.start_nb_allumettes = 50
         self.nb_allumettes = self.start_nb_allumettes
-        self.past = []  # (allumettes, joueur) avant chaque coup, pour back()
+        self.past = []  # (allumettes, joueur, nb_turn) avant chaque coup, pour back()
         self.start_player = "X"
 
     # Initialisation
@@ -46,11 +46,11 @@ class Allumettes:
         Renvoie ``False`` si le coup est invalide, ``True`` si la partie est
         terminée, sinon le nombre d'allumettes restantes.
         """
-        if self.win or not isinstance(quantity, int) or not MIN_TAKE <= quantity <= MAX_TAKE:
+        if self.win or type(quantity) is not int or not MIN_TAKE <= quantity <= MAX_TAKE:
             return False
         if quantity > self.nb_allumettes:
             return False
-        self.past.append((self.nb_allumettes, self.player))
+        self.past.append((self.nb_allumettes, self.player, self.nb_turn))
         self.nb_allumettes -= quantity
         self.nb_turn += 1
         self.check_win()
@@ -79,12 +79,13 @@ class Allumettes:
         self.nb_allumettes = allumettes
         self.player = player
         self.past.clear()
+        self.nb_turn = 0
         self.win = ""
 
     def back(self):  # Pattern Name
         """Annule le dernier coup et renvoie le nombre d'allumettes."""
         if self.past:
-            self.nb_allumettes, self.player = self.past.pop()
+            self.nb_allumettes, self.player, self.nb_turn = self.past.pop()
             self.win = ""
         return self.nb_allumettes
 

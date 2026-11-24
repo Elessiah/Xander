@@ -22,7 +22,7 @@ def main(argv: list[str] | None = None) -> int:
         print(model.describe())
         if args.son:
             print(f"\nEnfant écrit dans {mother.create_son(args.son, args.example)}")
-    except (ExampleSyntaxError, ReplayError, OSError) as error:
+    except (ExampleSyntaxError, ReplayError, OSError, UnicodeDecodeError) as error:
         print(f"Erreur : {error}", file=sys.stderr)
         return 1
     return 0

@@ -36,7 +36,9 @@ board = game.play(5)  # array 9
 | `# player <nom>` | les appels faits par le joueur `<nom>` pendant **un** tour. On répète l'en-tête à chaque tour |
 | `# end player <nom>` | fin de partie, `<nom>` a gagné. `# end draw` pour un match nul |
 
-Les autres lignes qui commencent par `#` sont des commentaires libres, ignorés.
+Les en-têtes doivent avoir exactement ces formes (`# player` suivi d'un seul
+mot, etc.). Toute autre ligne qui commence par `#` est un commentaire libre,
+ignoré : `# player jumps here` ou `# end of setup` ne changent pas de section.
 
 ## Lignes de code
 
@@ -62,7 +64,7 @@ pour un tableau, sa **taille** : `# <type> [taille]`.
 | `back` | réservé |
 
 Pas encore géré : les arguments nommés (`Jumper(seed=0)` → écrire
-`Jumper(0)`), les appels imbriqués (`f(g(x))`) et les affectations multiples.
+`Jumper(0)`), les appels imbriqués (`f(g(x))`, `f([g(x)])`) et les affectations multiples.
 Une erreur indique alors le numéro de ligne fautif.
 
 ## Le temps

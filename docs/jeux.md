@@ -1,15 +1,17 @@
 # Les jeux de test
 
-Les jeux de `Games/` servent de terrain d'entraînement à la mère. Ils suivent
-tous la même interface (les méthodes marquées `# Pattern Name` dans le code),
-ce qui permet d'écrire des exemples de partie semblables :
+Les jeux de `Games/` servent de terrain d'entraînement à la mère. Les jeux à
+deux joueurs (Morpion, Allumettes, Puissance 4) suivent la même interface (les
+méthodes marquées `# Pattern Name` dans le code), ce qui permet d'écrire des
+exemples de partie semblables. Jumper, à un joueur, a sa propre interface
+(voir plus bas).
 
 | Méthode | Rôle |
 |---|---|
 | `init(start_player="R")` | nouvelle partie ; `"X"`, `"O"` ou `"R"` (aléatoire) |
 | `get_game_state()` | renvoie l'état ; **relance une partie** si la précédente est finie |
 | `get_turn()` | joueur qui doit jouer |
-| `play(coup)` | `False` si coup invalide, `True` si la partie est finie, sinon le nouvel état |
+| `play(coup)` | `False` si coup invalide (un booléen est refusé), `True` si la partie est finie, sinon le nouvel état |
 | `back()` | annule le dernier coup (état et joueur) et renvoie l'état |
 | `print()` | affiche le jeu |
 
@@ -45,7 +47,9 @@ directions, nul quand le plateau est plein. Pas encore d'adversaire Minmax.
 ## Jumper — `Games/Jumper.py`
 
 Jeu à un joueur : un coureur saute (`play(True)`) par-dessus des obstacles qui
-défilent. `get_board()` renvoie l'écran complet (200 caractères : décor,
+défilent. Interface : `init()`, `play(saut)`, `get_board()`, `back()`,
+`print()` et l'attribut `game_over`. `play` renvoie l'écran, ou `False` quand
+le joueur est touché (jamais `True`). `get_board()` renvoie l'écran complet (200 caractères : décor,
 obstacles, joueur). Les obstacles sont aléatoires ; `Jumper(graine)` les rend
 reproductibles, ce qui est nécessaire pour un exemple de partie.
 `python -m Games.mainJumper` pour y jouer (Windows, Linux et macOS).

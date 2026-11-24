@@ -53,7 +53,8 @@ Chaque appel devient une `Function` (voir `xander/model.py`) :
 dans l'ordre chronologique et imprime chaque valeur renvoyée sous la forme
 `@@xander <time> <variable> <repr(valeur)>`. Le script est lancé avec
 l'interpréteur courant, depuis la racine du dépôt ; seules les lignes marquées
-sont lues (le jeu peut afficher ce qu'il veut). `--keep` conserve le script
+sont lues (le jeu peut afficher ce qu'il veut ; l'entrée standard est fermée,
+un `input()` échoue). Le rejeu est interrompu après 30 s. `--keep` conserve le script
 dans `output/poolTest.py` pour le déboguer.
 
 ## 3. Analyse — `xander/analyzer.py`
@@ -107,3 +108,7 @@ dictionnaire `KNOWLEDGE` (ce que la mère a compris) et une fonction
 - La première hypothèse compatible l'emporte : au Morpion, où la case *n*
   contient le texte `"n"`, `SINGLE_TARGET_INDEX` et `SINGLE_TARGET_NAME` sont
   toutes deux vraies, seule la première est retenue.
+- Le lissage majoritaire peut généraliser une coïncidence : au Puissance 4,
+  tant qu'on joue sur la rangée du bas, l'indice de la case vaut le numéro de
+  colonne, et `SINGLE_TARGET_INDEX` est retenu à tort. Des exemples variés
+  limitent ce risque.

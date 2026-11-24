@@ -6,7 +6,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 
 from xander.analyzer import AnalysisReport
-from xander.model import Function, Variable
+from xander.model import Function, FunctionKind, Variable
 from xander.parser import ParsedExample
 
 
@@ -67,22 +67,29 @@ class GameModel:
         return "\n".join(lines)
 
 
+ACTING = (FunctionKind.INPUT, FunctionKind.INOUT)
+
+
 def split_turns(parsed: ParsedExample) -> list[list[Function]]:
     """Découpe la chronologie en tours.
 
-    Un nouveau tour commence quand le joueur change, ou quand un appel « qui
-    lit » suit un appel « qui agit » (utile pour les jeux à un seul joueur :
-    ``get_board, play, get_board, play`` -> deux tours).
+    Un nouveau tour commence quand le joueur change, ou quand un getter
+    (OUTPUT) arrive alors que le tour en cours a déjà agi (INPUT/INOUT) : utile
+    pour les jeux à un seul joueur (``get_board, play, get_board, play`` -> deux
+    tours). Un appel NONE comme ``print()`` reste dans le tour en cours.
     """
     owner = {f.time: name for name, player in parsed.players.items() for f in player.functions_used}
     turns: list[list[Function]] = []
-    previous: Function | None = None
+    previous_owner = None
+    has_acted = False
     for function in parsed.player_functions():
-        if (previous is None or owner[function.time] != owner[previous.time]
-                or (previous.parameters and not function.parameters)):
+        if (owner[function.time] != previous_owner
+                or (has_acted and function.kind is FunctionKind.OUTPUT)):
             turns.append([])
+            previous_owner = owner[function.time]
+            has_acted = False
         turns[-1].append(function)
-        previous = function
+        has_acted = has_acted or function.kind in ACTING
     return turns
 
 

@@ -43,6 +43,15 @@ class MorpionTest(unittest.TestCase):
             self.assertIs(self.game.play(move), False)
         self.assertEqual(self.game.get_turn(), "O")
 
+    def test_booleans_are_not_moves(self):
+        self.assertIs(self.game.play(True), False)
+        self.assertIs(Allumettes().play(True), False)
+        self.assertIs(Puissance4().play(True), False)
+
+    def test_set_game_state_with_player(self):
+        self.game.set_game_state(["X", "O", "2", "3", "4", "5", "6", "7", "8"], "O")
+        self.assertEqual(self.game.get_turn(), "O")
+
     def test_back_restores_player(self):
         self.game.play(4)
         self.assertEqual(self.game.back(), [str(i) for i in range(9)])
@@ -101,6 +110,7 @@ class AllumettesTest(unittest.TestCase):
         game.play(3)
         self.assertEqual(game.back(), 50)
         self.assertEqual(game.get_turn(), "X")
+        self.assertEqual(game.nb_turn, 0)
 
     def test_minmax_wins_from_winning_positions(self):
         rng = random.Random(0)

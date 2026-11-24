@@ -7,7 +7,7 @@ Stratégie gagnante de la variante misère avec des prises de 1 à 3 : laisser
 en espérant une erreur de l'adversaire.
 
 L'ancienne version raisonnait en « tiers » (``% 3`` puis ``% 2``, voir
-``docs/allumettes.md``) et se trompait sur une partie des positions.
+``docs/jeux.md``) et se trompait sur une partie des positions.
 """
 
 from Games.Allumettes import MAX_TAKE, Allumettes
