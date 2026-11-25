@@ -145,8 +145,8 @@ pour un jeu à la plus structurelle :
 | `valant` compare aussi le texte (`"4"` et `4`), une conversion cachée pensée pour le Morpion | reste ; à rendre explicite (une brique `texte(x)`). Coût : au Morpion, `case(arg0)` et `valant(arg0)` ne seraient plus départageables du tout, et le jeu d'essai qui les départage est à refaire |
 | Une case changée reçoit le pion du joueur | **retirée** : elle décrit la valeur écrite (constante, argument ou propre à chaque joueur) |
 | Une case libre est une case sans pion | **retirée** : elle le déduit des coups joués et refusés (toujours, une valeur, ou la valeur du début) |
-| Pions appris par parité de coup | **vérifiée** : la parité ne sert que si l'exemple montre deux joueurs qui alternent ; reste propre aux jeux à deux joueurs |
-| Positions lues en `M` / `A` / `.` | reste, mais `.` est la case libre apprise et `#` le reste : c'est la position vue de son côté, générale pour deux joueurs |
+| Pions appris par parité de coup | **généralisée** : la mère lit dans l'exemple l'ordre des joueurs, un cycle de n joueurs (la parité en est le cas n = 2) ; le joueur d'un coup est sa place dans le cycle. Reste supposé : un ordre fixe (personne ne passe ni ne rejoue) |
+| Positions lues en `M` / `A` / `.` | reste, mais `.` est la case libre apprise et `#` le reste : c'est la position vue de son côté ; à plus de deux joueurs, `A` est le suivant, `B` celui d'après, etc. (à deux, les mêmes clés) |
 
 **Réglages fixés à la main.** Les nombres qu'on donne à la mère font aussi
 partie de son équipement de naissance. Ils sont listés ici avec leur origine,
@@ -174,6 +174,10 @@ comparant des résultats.
 | Confirmations pour garder un petit motif | au moins la moitié, et r+ ≥ (1 + r−) / 2 contre le groupe témoin | `holds` | réglé au Puissance 4 (écarter le coup au centre joué par habitude) |
 | Désaccords jugés par petit motif | 2 | `holds` | réglé au Puissance 4 (temps) |
 | Adversaires de l'éducation | professeur, hasard, mixte (le professeur une fois sur deux) | `train`, `mixed_player` | a priori |
+| Plus de deux joueurs : rotation de l'éducation | chaque sorte d'adversaire une partie à chaque place (n parties), toutes les autres places tenues par lui | `train`, `evaluate` | a priori (à deux : inchangé) |
+| Plus de deux joueurs : coups adverses revus en variantes | ceux du joueur qui joue juste avant le fils | `variations` | a priori (à deux : inchangé) |
+| Plus de deux joueurs : joueurs dont parle un concept | tous ceux du cycle vu dans l'exemple (`moi`, `lui`, `lui2`…) | `concepts.joueurs` | principe (le jeu dit combien ils sont) |
+| Plus de deux joueurs : pion du fils quand tous ont autant de pions | celui du premier joueur de l'exemple | `son_writer.qui_suis_je` | a priori (à deux : inchangé) |
 | Durée maximale du rejeu d'un exemple | 30 s | `rebuilder.replay` | a priori (plomberie) |
 | Défilement : profondeur de l'entrée par le bord / part de l'état qu'elle peut couvrir | 2 \|d\| cases / la moitié (4 \|d\| ≤ n) | `effets._defilement` | 2 \|d\| réglé à Jumper (un obstacle naît une case avant le bord) ; la moitié réglée au Puissance 4 (sans elle, un faux décalage de −28 y « expliquait » l'exemple) |
 | Un joueur : coups d'une partie du labo (au-delà, survie) | 300 | `un_joueur.COUPS_MAX` | a priori |
