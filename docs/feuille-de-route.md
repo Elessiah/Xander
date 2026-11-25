@@ -116,6 +116,39 @@ pour un jeu à la plus structurelle :
 | Pions appris par parité de coup | **vérifiée** : la parité ne sert que si l'exemple montre deux joueurs qui alternent ; reste propre aux jeux à deux joueurs |
 | Positions lues en `M` / `A` / `.` | reste, mais `.` est la case libre apprise et `#` le reste : c'est la position vue de son côté, générale pour deux joueurs |
 
+**Réglages fixés à la main.** Les nombres qu'on donne à la mère font aussi
+partie de son équipement de naissance. Ils sont listés ici avec leur origine,
+pour savoir lesquels ont été choisis en regardant des résultats. Règle : un
+réglage n'est **jamais** changé d'après le score d'un examen blanc, et un
+réglage changé d'après les résultats d'un jeu d'entraînement le dit ici.
+« Principe » : la valeur découle d'une règle de `CLAUDE.md`. « A priori » :
+choisie sans mesure, jamais remise en question. « Réglé » : choisi en
+comparant des résultats.
+
+| Réglage | Valeur | Où | Origine |
+|---|---|---|---|
+| Cas distincts pour garder une explication (effet, refactor, souvenirs libérés) | 2 | `effets.MIN_CAS`, `refactor_once` | principe : un seul cas peut être une coïncidence |
+| Positions regardées par le fils pour un coup | 1 000 | `education.BUDGET` | principe (budget mesurable) ; valeur a priori, loin du minimax complet (500 000) |
+| Taille d'un programme d'effet | 5 nœuds | `effets.MAX_TAILLE` | a priori ; suffit pour la gravité (5 nœuds) |
+| Constantes retenues de chaque sorte | 8 | `effets.MAX_CONSTANTES` | a priori |
+| Expériences pour réfuter l'effet / parties d'exploration / nouvelles recherches / refus avant d'arrêter d'explorer | 40 / 8 / 3 / 2 | `EXPERIENCES`, `PARTIES_D_ESSAI`, `REPRISES`, `PATIENCE` | a priori |
+| Taille et profondeur d'un concept | 6 nœuds, 2 `AuMoins` | `Education.max_size`, `max_depth` | réglé au Morpion |
+| k dans `AuMoins(k, …)` | 1 seulement | `Education.counts` | réglé au Morpion (tableau de `docs/architecture.md`, § 6) |
+| Positions imaginées pour départager des concepts | 120 | `concepts.echantillon` | a priori |
+| Autres coups adverses revus (variantes) | tous | `Education.variants` | réglé au Morpion (toute autre valeur y est pire) |
+| Parties au hasard pour vérifier une symétrie / renumérotations candidates au plus | 20 / 5 000 | `probe_games`, `symmetries.candidates` | a priori |
+| Petits motifs essayés avant d'oublier les cases une à une | 100 | `Education.combinations` | réglé (taille du plateau du Morpion contre Puissance 4) |
+| Positions imaginées pour vérifier un petit motif / tamis avant la vérification complète | 20 / 5 | `holds`, `Education.sieve` | 20 a priori ; 5 réglé au Puissance 4 (temps) |
+| Confirmations pour garder un petit motif | au moins la moitié, et r+ ≥ (1 + r−) / 2 contre le groupe témoin | `holds` | réglé au Puissance 4 (écarter le coup au centre joué par habitude) |
+| Désaccords jugés par petit motif | 2 | `holds` | réglé au Puissance 4 (temps) |
+| Adversaires de l'éducation | professeur, hasard, mixte (le professeur une fois sur deux) | `train`, `mixed_player` | a priori |
+| Durée maximale du rejeu d'un exemple | 30 s | `rebuilder.replay` | a priori (plomberie) |
+
+Les réglages « réglés » sont les premiers à remettre en cause quand un
+nouveau problème échoue. L'objectif, à terme, est que la mère choisisse
+elle-même ces bornes (par exemple chercher plus grand seulement quand rien
+de plus petit n'explique les cas), ce qui rejoint le jalon 2.
+
 1. **Analyzer plus général.** C'est lui qui donne à la mère le vocabulaire
    pour percevoir un jeu. La mère construit la description de l'action avec
    un petit langage (étape 1 : elle retrouve seule les anciennes hypothèses,
