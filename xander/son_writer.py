@@ -23,6 +23,16 @@ import types
 from pprint import pformat
 
 from xander import concepts
+from xander.model import FunctionOperation
+
+
+def target_knowledge(model) -> dict:
+    """Comment l'action désigne la case qu'elle remplit, d'après l'Analyzer."""
+    target = model.target
+    if target is not None and target.kind is FunctionOperation.SEQUENCE_TARGET_INDEX:
+        offset, step = target.parameters
+        return {"kind": "file", "offset": offset, "step": step}
+    return {"kind": "case"}
 
 
 def empty_knowledge(model) -> dict:
@@ -31,11 +41,14 @@ def empty_knowledge(model) -> dict:
         "getter": model.getter.short_name,
         "action": model.action.short_name,
         "end_signal": model.end_signal,
+        "target": target_knowledge(model),  # l'action désigne une case, ou une file de cases
+        "size": 0,          # nombre de cases du plateau
+        "actions": [],      # actions que le jeu accepte au départ (essayées dans le labo)
         "marks": [],        # pions posés par chaque joueur (« X », « O »)
         "patterns": [],     # motifs qui finissent la partie, compris par contre-épreuve
         "concepts": {},     # nom -> arbre de concept construit par la mère (une brique)
         "rules": [],        # concepts appris comme règles, du plus prioritaire au moins prioritaire
-        "memories": {},     # cle(etat, moi) -> action
+        "memories": {},     # cle(etat, moi) -> case à jouer ; « ? » dans la clé : case qui ne compte pas
         "symmetries": [],   # renumérotations des cases qui ne changent rien au jeu (vérifiées)
     }
 
@@ -44,15 +57,60 @@ def symmetries_literal(knowledge: dict) -> str:
     return pformat([None] + knowledge["symmetries"], compact=True, width=70)
 
 
-def perception_source(knowledge: dict) -> str:
-    """Les quatre notions, pour un état en tableau dont l'action désigne une case."""
-    return f'''# --- Perception (écrite par la mère) -------------------------------------
-# L'Analyzer a compris que l'action désigne une case (SINGLE_TARGET_INDEX) ;
-# la mère a vu quel pion pose chaque joueur et quels motifs finissent la partie.
+def target_source(knowledge: dict) -> str:
+    """Ce que désigne une action : une case (Morpion) ou une file de cases (gravité)."""
+    target = knowledge["target"]
+    if target["kind"] == "file":
+        return f'''# L'Analyzer a compris que l'action désigne une file de cases (SEQUENCE_TARGET_INDEX) :
+# action {target["offset"]:+d}, puis {target["step"]:+d} à chaque case ; le pion prend la première case libre.
 
-PIONS = {knowledge["marks"]!r}
-MOTIFS = {pformat(knowledge["patterns"], compact=True, width=70)}
-VUES = 0  # positions regardées pendant le coup en cours
+ACTIONS = {knowledge["actions"]!r}  # acceptées par le jeu au départ (essayées dans le labo)
+TAILLE, DECALAGE, PAS = {knowledge["size"]}, {target["offset"]}, {target["step"]}
+
+
+def _file(action):
+    cases, case = [], action + DECALAGE
+    while 0 <= case < TAILLE:
+        cases.append(case)
+        case += PAS
+    return cases
+
+
+FILES = {{action: _file(action) for action in ACTIONS}}
+ACTION_DE = {{case: action for action in reversed(ACTIONS) for case in FILES[action]}}
+
+
+def case_jouee(etat, action):
+    """La case que remplit l'action : la première case libre de sa file."""
+    return next((case for case in FILES[action] if etat[case] not in PIONS), None)
+
+
+def action_pour(case):
+    """L'action qui vise la file de cette case."""
+    return ACTION_DE.get(case)
+
+
+def possibles(etat):
+    return [action for action in ACTIONS if case_jouee(etat, action) is not None]
+
+
+def apres(etat, action, joueur):
+    global VUES
+    VUES += 1
+    suite = list(etat)
+    suite[case_jouee(etat, action)] = joueur
+    return suite
+'''
+    return '''# L'Analyzer a compris que l'action désigne une case (SINGLE_TARGET_INDEX).
+
+
+def case_jouee(etat, action):
+    """La case que remplit l'action : celle qu'elle désigne, si elle est libre."""
+    return action if etat[action] not in PIONS else None
+
+
+def action_pour(case):
+    return case
 
 
 def possibles(etat):
@@ -65,6 +123,19 @@ def apres(etat, action, joueur):
     suite = list(etat)
     suite[action] = joueur
     return suite
+'''
+
+
+def perception_source(knowledge: dict) -> str:
+    """Les quatre notions, pour un état en tableau dont chaque action remplit une case."""
+    return f'''# --- Perception (écrite par la mère) -------------------------------------
+# La mère a vu quel pion pose chaque joueur et quels motifs finissent la partie.
+
+PIONS = {knowledge["marks"]!r}
+MOTIFS = {pformat(knowledge["patterns"], compact=True, width=70)}
+VUES = 0  # positions regardées pendant le coup en cours
+
+{target_source(knowledge)}
 
 
 def gagne(etat, joueur):
@@ -92,14 +163,35 @@ def transformer(etat, sigma):
     return image
 
 
+def contient(motif, k):
+    """La position (sa clé) contient-elle ce petit motif ? « ? » : une case qui ne compte pas."""
+    return all(m == "?" or m == v for m, v in zip(motif, k))
+
+
+def jouable(etat, case, sigma):
+    """L'action qui remplit ici la case d'un souvenir (vu sous sigma), si elle est jouable."""
+    if sigma is not None:
+        case = sigma.index(case)
+    action = action_pour(case)
+    return action if action is not None and case_jouee(etat, action) == case else None
+
+
 def rappel(etat, moi, souvenirs):
-    """Un souvenir de cette position, ou d'une position équivalente : (sa clé, mon coup ici)."""
+    """Un souvenir de cette position, d'une position équivalente, ou d'un petit motif
+    qu'elle contient (où qu'il soit, sous chaque façon de la voir) : (sa clé, mon coup ici).
+    Un souvenir dit quelle case occuper ; il ne vaut que si une action la remplit."""
     for sigma in SYMETRIES:
         vue = etat if sigma is None else transformer(etat, sigma)
         k = cle(vue, moi)
         if k in souvenirs:
-            coup = souvenirs[k]
-            return k, (coup if sigma is None else sigma.index(coup))
+            action = jouable(etat, souvenirs[k], sigma)
+            if action is not None:
+                return k, action
+        for motif in souvenirs:
+            if "?" in motif and contient(motif, k):
+                action = jouable(etat, souvenirs[motif], sigma)
+                if action is not None:
+                    return motif, action
     return None, None
 
 

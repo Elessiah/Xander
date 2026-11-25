@@ -14,33 +14,48 @@
 | Corriger le fils cas par cas (souvenirs) | fait |
 | Refactoriser : des souvenirs aux règles, concepts construits par la mère | fait, Morpion : fils imbattable |
 | Découvrir les symétries (positions équivalentes) | fait, vérifiées dans le labo |
+| Petits motifs : un souvenir réduit à ce qui comptait, reconnu partout | fait, vérifiés dans le labo |
 | Réutiliser l'expérience d'un fils pour un autre | **plus tard** |
 
 ## Prochaines étapes proposées
 
 1. **Analyzer plus général.** C'est lui qui donne à la mère le vocabulaire
-   pour percevoir un jeu. Il doit décrire l'action du Puissance 4 (« le jeton
-   tombe dans la colonne *p* »), celle des Allumettes (quantité), et laisser
-   coexister plusieurs hypothèses vraies.
-2. **Configurations n'importe où.** Les motifs de fin se décalent déjà
-   (vérifiés dans le labo). Il reste à faire de même pour ce qu'elle apprend :
-   un souvenir ou une règle qui porte sur quelques cases, reconnu partout où
-   cette configuration apparaît (indispensable au Puissance 4, dont le plateau
-   n'a qu'une symétrie).
-3. **Symétries plus générales.** Aujourd'hui des renumérotations de cases.
+   pour percevoir un jeu. Il décrit maintenant la gravité du Puissance 4
+   (`SEQUENCE_TARGET_INDEX` : une file de cases, la première libre change).
+   Il reste celle des Allumettes (quantité) et à laisser coexister plusieurs
+   hypothèses vraies.
+2. **Puissance 4 : une éducation praticable.** Tout fonctionne de bout en
+   bout : l'Analyzer comprend la gravité, la mère retrouve des alignements
+   horizontaux, verticaux et diagonaux et le miroir gauche-droite, corrige et
+   réduit les souvenirs. Deux problèmes. Les petits motifs y sont mal
+   vérifiés : après 3 parties, 391 souvenirs, presque tous des motifs décalés
+   que les positions imaginées au hasard « confirment » parce que le
+   professeur y joue souvent le centre. Et une partie prend 2 à 8 minutes : chaque
+   jugement fait finir la partie deux fois au professeur (environ 0,7 s), et
+   la réduction d'un souvenir en petit motif demande des centaines de
+   jugements. Pistes : juger moins de positions (variantes, positions
+   imaginées), réutiliser les jugements entre positions équivalentes, et des
+   concepts qui regardent plus loin (les pièges du Puissance 4 sont plus
+   profonds que deux coups).
+3. **Petits motifs dans les règles.** Les motifs de fin et les souvenirs se
+   décalent déjà : un souvenir est réduit aux cases qui comptaient, puis
+   reconnu partout (vérifié dans le labo). Il reste à en faire des briques
+   (« jouer un coup qui crée cette configuration »), et à les essayer sur un
+   grand plateau. Au Morpion, presque toutes les cases comptent, et les
+   petits motifs gardent 6 à 7 cases sur 9.
+4. **Symétries plus générales.** Aujourd'hui des renumérotations de cases.
    Il faudra des équivalences qui ne sont pas des permutations (échanger les
-   deux joueurs, une quantité décalée), et des motifs généraux (translation)
-   pour le Puissance 4.
-4. **Concepts plus lisibles.** La mère construit ses concepts, mais certains
+   deux joueurs, une quantité décalée).
+5. **Concepts plus lisibles.** La mère construit ses concepts, mais certains
    sont des combinaisons difficiles à lire, ou des coïncidences validées sur
    peu de cas. Pistes : préférer le concept qui explique le plus de cas,
    relire les concepts quand une nouvelle brique apparaît, et dire ce que le
    langage fournit encore à la main (les nœuds `Non`, `Et`, `AuMoins` avec
    k = 1, la forme « jouer une action après laquelle… »). `gagne` doit aussi apprendre qu'un coup peut faire perdre celui qui
    le joue (Allumettes « misère »), ce qui demande de percevoir le trait.
-5. **Autres formes de problèmes.** Jeux à un joueur (Jumper), plus de deux
+6. **Autres formes de problèmes.** Jeux à un joueur (Jumper), plus de deux
    joueurs, état qui n'est pas un tableau.
-6. **Plus tard : l'expérience.** Partir des apprentissages réussis (motifs,
+7. **Plus tard : l'expérience.** Partir des apprentissages réussis (motifs,
    règles) d'un fils pour en élever un autre plus vite.
 
 ## Nettoyage et corrections de cette révision
