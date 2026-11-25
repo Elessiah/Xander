@@ -124,3 +124,17 @@ avec Python 3.10, 3.12 et 3.13, à chaque push sur `main` et sur chaque PR.
 - [Architecture](docs/architecture.md) : la chaîne d'apprentissage étape par étape et les heuristiques d'analyse.
 - [Les jeux](docs/jeux.md) : règles, interface commune et adversaires Minmax.
 - [Feuille de route](docs/feuille-de-route.md) : ce qui reste à faire et ce qui a été corrigé.
+
+## Licence
+
+Xander est un projet de recherche publié sous la
+[PolyForm Noncommercial License 1.0.0](LICENSE.md) :
+
+- le code est libre d'accès, d'étude, de modification et de redistribution ;
+- l'usage est réservé aux fins **non commerciales** (recherche, étude,
+  enseignement, loisir, organismes à but non lucratif…) ;
+- toute copie ou œuvre dérivée doit conserver la licence et la mention
+  `Required Notice:` qui crédite l'auteur.
+
+Copyright (c) 2024-2026 Elessiah et les contributeurs de Xander. Pour un usage
+commercial, contacter l'auteur.
