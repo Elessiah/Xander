@@ -123,6 +123,39 @@ class EffectDiscoveryTest(unittest.TestCase):
         self.assertEqual(len(found), 3)
 
 
+class EffectSourceTest(unittest.TestCase):
+    """Ce que la mère a vérifié est exactement ce que le fils exécute."""
+
+    def test_translation_matches_evaluation(self):
+        cas = [effets.Cas(["0", "X", "2", "O"], (2, 1), ["0", "X", "X", "O"]),
+               effets.Cas(["a", "b", "c", "d"], ("b", 3), ["a", "Y", "c", "d"]),
+               effets.Cas(10, (3, 2), 7)]
+        nb = 0
+        for terme, _ in effets.termes(cas, 2):
+            expression = effets.traduire(terme)
+            for c in cas:
+                attendu = effets.evaluer(terme, c)
+                if attendu is effets.INDEFINI:
+                    continue
+                obtenu = eval(expression, {"avant": c.valeur_avant, "args": c.arguments})
+                self.assertEqual(obtenu, attendu, f"{terme!r} sur {c}")
+                nb += 1
+        self.assertGreater(nb, 50)
+
+    def test_apres_from_a_quantity(self):
+        """Aux Allumettes, le apres écrit par la mère retire ce que dit l'argument."""
+        module = son_writer.load(son_writer.apres_source(RETIRER) + "\nVUES = 0\n")
+        self.assertEqual(module.apres(10, 3, "X"), 7)
+
+    def test_son_apres_is_the_discovered_program(self):
+        source = render_son("fils", education())
+        self.assertIn("def changees(avant, args):", source)
+        self.assertIn("return {args[0]}", source)
+        self.assertNotIn("suite[action] = joueur", source)  # plus de gabarit
+        son = son_writer.load(source)
+        self.assertEqual(son.apres(["0", "1", "2"], 1, "X"), ["0", "X", "2"])
+
+
 class MotherTest(unittest.TestCase):
     def test_learn_morpion(self):
         model = Mother().learn(RES / "exampleMorpion.py")
@@ -497,8 +530,8 @@ class EducationTest(unittest.TestCase):
         self.assertEqual(pensee.choix(PARER, 5, 0), {1})
 
     def test_unsupported_game(self):
-        with self.assertRaisesRegex(LabError, r"case\(arg0\)"):
-            Mother().raise_son(RES / "exampleAllumettes.py")
+        with self.assertRaisesRegex(LabError, "quelles cases change"):
+            Mother().raise_son(RES / "exampleAllumettes.py")  # elle a trouvé apres = moins(avant, arg0)
 
 
 if __name__ == "__main__":

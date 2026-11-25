@@ -138,7 +138,7 @@ mère voit quel coup il a choisi sans rien savoir de son fonctionnement.
 ## 6. L'éducation du fils — `xander/education.py`
 
 1. **Leçon de l'exemple.** La mère rejoue l'exemple, vérifie que l'action
-   modifie bien la case annoncée par l'Analyzer, apprend quel pion pose
+   change bien les cases que prédit son programme, apprend quel pion pose
    chaque joueur, puis comprend pourquoi la partie finit (ci-dessous).
 2. **Comprendre une fin de partie (contre-épreuve).** Pour chaque pion du
    joueur qui a fini la partie, la mère rejoue la partie en posant ce pion
@@ -271,10 +271,14 @@ Le fils est un **fichier Python autonome**, écrit par la mère, réécrit aprè
 chaque correction, qui n'importe rien de Xander :
 
 1. **Perception** : `possibles`, `apres`, `gagne`, `adversaire`, écrites à
-   partir de ce qu'elle a compris (pions observés, motifs, action
-   `changees = case(arg0)`), plus `VUES`, le compteur des positions regardées.
-   Ce gabarit est encore écrit à la main : la mère vérifie seulement que
-   `changees = case(arg0)` fait partie des programmes qu'elle a trouvés.
+   partir de ce qu'elle a compris, plus `VUES`, le compteur des positions
+   regardées. `apres` recopie le programme qu'elle a construit pour décrire
+   l'action (§ 3), traduit en Python (`changees(avant, args)`, ou
+   `valeur_apres` pour un nombre) : ce qu'elle a vérifié sur les cas est
+   exactement ce que le fils exécute. Les cases changées reçoivent le pion du
+   joueur (encore supposé à la main). La mère pense avec la même perception.
+   Si plusieurs programmes de même taille coexistent, elle prend le premier
+   trouvé.
 2. **Règles** : les concepts qu'elle a construits et appris au fils, **et
    seulement ceux-là** (avec les briques dont ils dépendent), traduits en
    Python, `REGLES` dans l'ordre appris, `SOUVENIRS` et `SYMETRIES`.
@@ -304,7 +308,10 @@ fils dans `output/sons/<nom>.py`.
 - Découpage des tours : un getter de confirmation appelé juste après le coup
   (`get, play, get`) est rattaché au tour suivant.
 - Éducation : seulement pour deux joueurs qui alternent, un état en tableau et
-  une action qui désigne directement une case (`changees = case(arg0)`). Le
+  une action qui désigne directement une case (`changees = case(arg0)`) : le
+  `apres` vient du programme trouvé, mais `possibles`, la contre-épreuve, les
+  symétries et la lecture du coup du professeur supposent encore que
+  l'argument d'un coup est la case jouée. Le
   Puissance 4 (gravité) et les Allumettes (quantité) attendent que l'Analyzer
   sache décrire leur action.
 - Les concepts sont construits par la mère, mais leur langage (les quatre

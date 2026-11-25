@@ -298,3 +298,41 @@ def explique(hypothese: Hypothese, cas: Cas) -> bool:
     if cas.forme != hypothese.forme:
         return False
     return _cle(evaluer(hypothese.terme, cas)) == _cle(cas.cible())
+
+
+# ---------------------------------------------------------------------- #
+# Écrire une hypothèse en Python (pour le code du fils)
+# ---------------------------------------------------------------------- #
+
+def traduire(terme: Terme) -> str:
+    """Le terme en expression Python, avec les variables ``avant`` et ``args``.
+
+    ``evaluer`` et l'expression donnent la même chose sur un cas où le terme
+    est défini : ce que la mère a vérifié est exactement ce que le fils exécute.
+    """
+    kind, a = terme.kind, terme.args
+    if kind == "arg":
+        return f"args[{a[0]}]"
+    if kind == "avant":
+        return "avant"
+    if kind == "plus":
+        return f"({traduire(a[0])} + {traduire(a[1])})"
+    if kind == "moins":
+        return f"({traduire(a[0])} - {traduire(a[1])})"
+    if kind == "case":
+        return f"{{{traduire(a[0])}}}"
+    if kind == "valant":
+        x = traduire(a[0])
+        return f"{{i for i, v in enumerate(avant) if v == {x} or str(v) == str({x})}}"
+    if kind == "union":
+        return f"({traduire(a[0])} | {traduire(a[1])})"
+    raise ValueError(kind)
+
+
+def source(hypothese: Hypothese) -> str:
+    """La fonction Python ``changees(avant, args)`` ou ``valeur_apres(avant, args)``."""
+    nom = "changees" if hypothese.forme == CHANGEES else "valeur_apres"
+    quoi = "les cases qui changent" if hypothese.forme == CHANGEES else "la nouvelle valeur"
+    return (f"def {nom}(avant, args):\n"
+            f'    """{quoi.capitalize()} : {hypothese!r} (trouvé par la mère)."""\n'
+            f"    return {traduire(hypothese.terme)}\n")

@@ -22,8 +22,11 @@
    pour percevoir un jeu. La mère construit déjà la description de l'action
    avec un petit langage (étape 1, faite : elle retrouve seule les anciennes
    hypothèses, et celles de même taille coexistent). Suite :
-   - faire du programme trouvé le `apres` que la mère écrit dans le fils, à la
-     place du gabarit `suite[action] = joueur` ;
+   - fait (étape 2) : le programme trouvé est le `apres` que la mère écrit
+     dans le fils et avec lequel elle pense. Reste à décrire la valeur écrite
+     (aujourd'hui le pion du joueur, supposé) et à ne plus supposer ailleurs
+     que l'argument d'un coup est la case jouée (`possibles`, contre-épreuve,
+     symétries) ;
    - quand plusieurs programmes survivent, chercher dans le labo une
      expérience qui les départage ;
    - décrire l'action du Puissance 4 (« le jeton tombe dans la colonne *p* »)

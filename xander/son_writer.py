@@ -4,8 +4,9 @@ Le fils est un fichier Python autonome (il n'importe rien de Xander) que la
 mère écrit, puis réécrit à chaque correction. Il a trois parties :
 
 1. **Perception** : ``possibles``, ``apres``, ``gagne``, ``adversaire``, écrites
-   à partir de ce que la mère a compris du jeu (action décrite par l'Analyzer,
-   pions observés, motifs trouvés par contre-épreuve).
+   à partir de ce que la mère a compris du jeu : ``apres`` recopie le programme
+   qu'elle a construit pour décrire l'action (voir :mod:`xander.effets`), les
+   pions viennent de ce qu'elle a observé, les motifs de la contre-épreuve.
 2. **Règles** : les concepts que la mère a construits et appris au fils, et
    seulement ceux-là (voir :mod:`xander.concepts`), traduits en Python, dans
    l'ordre de priorité appris, plus ses souvenirs.
@@ -22,13 +23,14 @@ from __future__ import annotations
 import types
 from pprint import pformat
 
-from xander import concepts
+from xander import concepts, effets
 
 
 def empty_knowledge(model) -> dict:
     """Ce que la mère sait au départ pour écrire un fils : comment lire et jouer."""
     return {
         "getter": model.getter.short_name,
+        "effect": None,     # le programme qui décrit l'action, construit par la mère (Hypothese)
         "action": model.action.short_name,
         "end_signal": model.end_signal,
         "marks": [],        # pions posés par chaque joueur (« X », « O »)
@@ -44,11 +46,34 @@ def symmetries_literal(knowledge: dict) -> str:
     return pformat([None] + knowledge["symmetries"], compact=True, width=70)
 
 
+def apres_source(effect: effets.Hypothese) -> str:
+    """``apres`` à partir du programme que la mère a trouvé pour décrire l'action.
+
+    Pour un tableau, le programme dit quelles cases changent ; elles reçoivent
+    le pion du joueur (supposé à la main : la mère ne décrit pas encore la
+    valeur écrite). Pour un nombre, il donne directement la nouvelle valeur.
+    """
+    if effect.forme == effets.CHANGEES:
+        body = """    suite = list(etat)
+    for case in changees(etat, (action,)):
+        suite[case] = joueur
+    return suite"""
+    else:
+        body = "    return valeur_apres(etat, (action,))"
+    return f"""{effets.source(effect)}
+
+def apres(etat, action, joueur):
+    global VUES
+    VUES += 1
+{body}
+"""
+
+
 def perception_source(knowledge: dict) -> str:
-    """Les quatre notions, pour un état en tableau dont l'action désigne une case."""
+    """Les quatre notions, pour un état en tableau."""
     return f'''# --- Perception (écrite par la mère) -------------------------------------
-# La mère a compris que l'action désigne une case (changees = case(arg0)) ;
-# la mère a vu quel pion pose chaque joueur et quels motifs finissent la partie.
+# L'action est décrite par le programme que la mère a construit (Analyzer) ;
+# elle a vu quel pion pose chaque joueur et quels motifs finissent la partie.
 
 PIONS = {knowledge["marks"]!r}
 MOTIFS = {pformat(knowledge["patterns"], compact=True, width=70)}
@@ -59,13 +84,7 @@ def possibles(etat):
     return [i for i, valeur in enumerate(etat) if valeur not in PIONS]
 
 
-def apres(etat, action, joueur):
-    global VUES
-    VUES += 1
-    suite = list(etat)
-    suite[action] = joueur
-    return suite
-
+{apres_source(knowledge["effect"])}
 
 def gagne(etat, joueur):
     return any(all(etat[case] == joueur for case in motif) for motif in MOTIFS)
@@ -163,7 +182,9 @@ def play(game):
             return resultat
         suite = getattr(game, GETTER)()
         if suite != etat:  # coup accepté (un coup refusé ne change rien)
-            MEMOIRE["moi"], MEMOIRE["poses"] = suite[action], sum(v in PIONS for v in suite)
+            joue = changees(etat, (action,))  # mon pion : ce qui est apparu là où j'ai joué
+            MEMOIRE["moi"] = next((suite[c] for c in joue if suite[c] in PIONS), moi)
+            MEMOIRE["poses"] = sum(v in PIONS for v in suite)
             return resultat
     raise RuntimeError("le jeu a refusé toutes mes actions")
 '''

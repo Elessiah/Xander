@@ -40,7 +40,8 @@ remplace par la règle. Le concept devient une brique pour les suivants.
 
 Limites : jeux à deux joueurs qui jouent chacun leur tour, état en tableau, et
 action qui désigne directement une case (la mère a trouvé
-``changees = case(arg0)``, voir :data:`CASE_DESIGNEE`).
+``changees = case(arg0)``, voir :data:`CASE_DESIGNEE`). Le ``apres`` du fils
+est le programme trouvé ; les cases changées reçoivent le pion du joueur.
 """
 
 from __future__ import annotations
@@ -56,10 +57,10 @@ from xander.concepts import MOI
 
 RESULTS = {1: "victoire", 0: "nul", -1: "défaite"}
 
-#: Pont provisoire : le gabarit de perception du fils (:mod:`xander.son_writer`)
-#: est encore écrit à la main pour une action qui désigne la case d'indice
-#: ``arg0``. La mère vérifie que c'est l'une des hypothèses qu'elle a trouvées
-#: elle-même ; à terme, c'est le programme trouvé qui deviendra ``apres``.
+#: Pont provisoire : le ``apres`` du fils et de la mère vient du programme
+#: qu'elle a trouvé, mais son raisonnement (contre-épreuve, symétries, coup du
+#: professeur) relie encore l'argument d'un coup à la case jouée. Elle vérifie
+#: donc que « la case d'indice ``arg0`` » fait partie de ses hypothèses.
 CASE_DESIGNEE = effets.Hypothese(effets.CHANGEES, effets.case(effets.arg(0)))
 
 #: Le fils pense comme un joueur humain : il reconnaît, il ne calcule pas tout.
@@ -150,15 +151,24 @@ def mixed_player(teacher, rng: random.Random):
 class Education:
     def __init__(self, parsed: ParsedExample, model: GameModel, teacher, seed: int = 0):
         operations = model.report.operations.get(model.action.name, []) if model.report and model.action else []
-        if not any(op.programme == CASE_DESIGNEE for op in operations):
-            raise LabError("l'Analyzer ne sait pas encore relier un argument de l'action à une case "
-                           f"(il faut {CASE_DESIGNEE!r}) : la mère ne peut pas encore éduquer de fils")
+        state = model.getter.return_value.name if model.getter else None
+        effects = [op.programme for op in operations
+                   if op.variable.name == state and op.programme.forme == effets.CHANGEES]
+        if not effects:
+            raise LabError("l'Analyzer n'a pas trouvé quelles cases change l'action : "
+                           "la mère ne peut pas encore éduquer de fils")
+        if CASE_DESIGNEE not in effects:
+            raise LabError(f"la mère raisonne encore sur la case jouée et il lui faut {CASE_DESIGNEE!r}, "
+                           f"elle a trouvé {effects} : elle ne peut pas encore éduquer de fils")
         self.parsed = parsed
         self.model = model
         self.lab = Lab(parsed, model)
         self.teacher = teacher
         self.rng = random.Random(seed)
         self.knowledge = son_writer.empty_knowledge(model)
+        # Plusieurs programmes de même taille expliquent tous les cas : faute d'expérience
+        # qui les départage, la mère prend le premier trouvé.
+        self.knowledge["effect"] = effects[0]
         self._son = self._mind = None                # code du fils et espace de pensée, à réécrire
         self.max_views = 0                           # plus grand nombre de positions regardées par le fils
         self.marks: dict[int, object] = {}          # parité du coup -> pion posé
@@ -201,9 +211,7 @@ class Education:
         lab = self.lab
         if not lab.ended:
             return list(lab.states[-1])
-        state = list(lab.states[-1])
-        state[self.cell(lab.moves[-1])] = self.marks[(len(lab.moves) - 1) % 2]
-        return state
+        return self.mind.apres(list(lab.states[-1]), *lab.moves[-1], self.marks[(len(lab.moves) - 1) % 2])
 
     # ------------------------------------------------------------------ #
     # Comprendre une fin de partie
@@ -421,10 +429,11 @@ class Education:
                 raise LabError(f"le coup {arguments} de l'exemple est refusé par le jeu")
             if outcome == "moved":  # la mère vérifie qu'elle a bien compris l'action
                 before, after = lab.states[-2], lab.states[-1]
-                changed = [i for i, (a, b) in enumerate(zip(before, after)) if a != b]
-                if changed != [self.cell(arguments)]:
-                    raise LabError(f"{self.model.action.short_name}{arguments} a changé les cases {changed}, "
-                                   f"pas la case {self.cell(arguments)} : l'Analyzer doit d'abord mieux "
+                changed = {i for i, (a, b) in enumerate(zip(before, after)) if a != b}
+                expected = self.mind.changees(list(before), arguments)
+                if changed != expected:
+                    raise LabError(f"{self.model.action.short_name}{arguments} a changé les cases {sorted(changed)}, "
+                                   f"pas {sorted(expected)} : l'Analyzer doit d'abord mieux "
                                    "comprendre l'action, la mère ne peut pas encore éduquer de fils")
         self.learn_marks()
         record = GameRecord(0, "exemple", "-", "terminé" if lab.ended else "inachevé")
