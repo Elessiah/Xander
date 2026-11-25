@@ -28,9 +28,9 @@ pour un jeu à la plus structurelle :
 | Les actions sont les indices du plateau (`range(len(state))`) | **retirée** : elle explore autour des valeurs de l'exemple |
 | L'adversaire au hasard appelle `get_game_state` et `play` | **retirée** : il utilise les noms appris dans l'exemple |
 | `premiere(x, pas, v)`, la gravité toute faite | **retirée** (étape 4) : elle compose `premiere_de(portee(arg0), valant(' '))` |
-| Une seule expérience pour voir une portée : rejouer la même action depuis le début | reste ; à remplacer par des expériences qu'elle choisit (curiosité) ou par un ordre déduit de tout ce qu'elle a vu |
+| Une seule expérience pour voir une portée : rejouer la même action depuis le début | **retirée** : elle explore (curiosité pour les actions surprenantes) et déduit l'ordre de ce qu'elle a vu |
 | `valant` compare aussi le texte (`"4"` et `4`), une conversion cachée pensée pour le Morpion | reste ; à rendre explicite (une brique `texte(x)`). Coût : au Morpion, `case(arg0)` et `valant(arg0)` ne seraient plus départageables du tout, et le jeu d'essai qui les départage est à refaire |
-| Une case changée reçoit le pion du joueur | reste ; la mère devrait décrire la valeur écrite comme elle décrit la case |
+| Une case changée reçoit le pion du joueur | **retirée** : elle décrit la valeur écrite (constante, argument ou propre à chaque joueur) |
 | Une case libre est une case sans pion ; pions appris par parité de coup ; positions lues en `M` / `A` / `.` | reste ; c'est le cadre « plateau à pions » de toute l'éducation, qui touche aussi l'entraînement (à coordonner) |
 
 1. **Analyzer plus général.** C'est lui qui donne à la mère le vocabulaire
@@ -41,8 +41,8 @@ pour un jeu à la plus structurelle :
    met à l'épreuve dans le labo, d'abord par des expériences qui départagent,
    puis pour réfuter ce qui reste (étape 3). Elle compose elle-même la
    gravité du Puissance 4 (étape 4, ci-dessous).
-   Reste à décrire la valeur écrite (aujourd'hui le pion du joueur, supposé)
-   et celle des Allumettes (quantité). Piste : un coup refusé est aussi une
+   La portée et la valeur écrite sont déduites de ce qu'elle voit en
+   explorant. Reste la valeur des Allumettes (quantité). Piste : un coup refusé est aussi une
    observation (`valant(arg0)` annonce qu'une case occupée ne change rien),
    qui pourrait apprendre `possibles`.
 
@@ -67,9 +67,9 @@ pour un jeu à la plus structurelle :
      contre-exemple jusqu'à la gravité.
 
    Ce qui reste fourni à la main : « la première d'une suite qui
-   vérifie… » (une brique d'ordre, générale) et la façon d'observer une
-   portée (rejouer la même action depuis le début). L'Analyzer seul, sans
-   labo, ne comprend plus le Puissance 4 : il faut rejouer les actions.
+   vérifie… » (une brique d'ordre, générale) et la façon de déduire l'ordre
+   d'une portée. L'Analyzer seul, sans labo, ne comprend plus le
+   Puissance 4 : il faut explorer.
 2. **Puissance 4 : une éducation praticable.** Tout fonctionne de bout en
    bout : l'Analyzer comprend la gravité, la mère retrouve des alignements
    horizontaux, verticaux et diagonaux et le miroir gauche-droite, corrige et

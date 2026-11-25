@@ -86,8 +86,8 @@ et des arguments :
 Les programmes s'écrivent avec des feuilles (`arg0`, `arg1`…, `avant` et des
 **constantes mesurées** sur les cas) et sept opérations : `plus`, `moins`,
 `case(x)` (la case d'indice *x*), `valant(x)` (les cases dont la valeur est
-*x*), `union`, `portee(x)` (les cases que l'action *x* remplit quand la mère
-la rejoue depuis le début, dans l'ordre : une **observation** du labo) et
+*x*), `union`, `portee(x)` (les cases que la mère a vu l'action *x* remplir,
+dans l'ordre déduit : une **observation** du labo) et
 `premiere_de(s, e)` (la première case de la suite *s* qui est dans
 l'ensemble *e*). Pour chaque
 fonction et chaque variable, elle garde les plus petits programmes qui
@@ -112,9 +112,14 @@ Elle trouve aussi des combinaisons qu'aucune étiquette ne décrivait
 **La gravité, une composition.** Au Puissance 4, `play(3)` remplit la case 3,
 puis 10, puis 17 : la case changée n'est l'argument que sur la rangée du bas.
 La mère ne connaît ni la gravité ni la forme du plateau, et l'Analyzer seul
-n'explique pas cette action. Dans son labo (§ 6), la mère rejoue chaque
-action depuis le début et note les cases qu'elle remplit : la **portée** de
-`play(3)` est 3, 10, 17, 24, 31, 38. Elle remarque aussi les **constantes**
+n'explique pas cette action. Dans son labo (§ 6), la mère joue des parties
+et note, pour chaque action, les cases qu'elle l'a vue remplir : la
+**portée** de `play(3)`. L'ordre se déduit des positions
+(`portees_observees`) : la case *c* vient avant *d* si l'action a rempli *c*
+alors que *d* était encore dans le même état que *c*. Au Puissance 4, `play(3)`
+n'a rempli la case 10 qu'une fois la case 3 occupée : la portée est
+3, 10, 17, 24, 31, 38. Si les observations se contredisent (un cycle), il n'y a
+pas de suite, donc pas de portée. Elle remarque aussi les **constantes**
 des cas (`constantes`) : les décalages « case changée − argument » et les
 valeurs qu'avaient les cases changées (ici `' '`, la case vide). Avec elles,
 le plus petit programme qui explique tous les coups de l'exemple est
@@ -127,9 +132,16 @@ décrit une gravité vers le haut (la portée va de 38 à 3), un tube ou une
 pile.
 
 Un exemple qui ne joue que sur la rangée du bas se laisse expliquer par
-`case(arg0)`, plus petit. Le labo le réfute dès que la mère joue deux fois
-dans la même colonne ; elle apprend alors du contre-exemple et retrouve la
-gravité (§ 6).
+`case(arg0)`, plus petit. Les coups vus en explorant l'écartent d'emblée ;
+et si la mère n'avait que l'exemple, le labo le réfuterait dès qu'elle joue
+deux fois dans la même colonne, et elle apprendrait du contre-exemple
+jusqu'à la gravité (§ 6).
+
+**La valeur écrite.** La case jouée reçoit une valeur que la mère décrit
+aussi à partir de ce qu'elle a vu (`ecriture`) : une constante (toujours la
+même), sinon un argument de l'action, sinon une valeur propre à chaque joueur,
+différente d'un joueur à l'autre (au Morpion et au Puissance 4, le pion). Si
+aucune ne convient, elle sait qu'elle n'a pas compris ce que l'action écrit.
 
 Au Morpion, `case(arg0)` et
 `valant(arg0)` coexistent (la case *n* contient le texte `"n"`) : l'exemple
@@ -138,9 +150,10 @@ n'est expliqué sont listés dans `AnalysisReport.unknown_calls`.
 
 Ce qui est encore fourni à la main : les deux formes (`apres`, `changees`), les
 feuilles et les sortes de constantes, les sept opérations (dont
-`premiere_de`, une brique d'ordre générale), la façon d'observer une portée
-(rejouer la même action depuis le début), la taille maximale des programmes
-(5 nœuds) et le minimum de deux cas.
+`premiere_de`, une brique d'ordre générale), la façon de déduire l'ordre
+d'une portée (une case remplie alors qu'une autre était dans le même état
+vient avant elle), les trois descriptions de la valeur écrite, la taille
+maximale des programmes (5 nœuds) et le minimum de deux cas.
 
 **Getters / setters.** Enfin, chaque variable (identifiée par son nom) reçoit
 la liste des fonctions qui la renvoient (getters) et de celles dont une
@@ -192,9 +205,13 @@ mère voit quel coup il a choisi sans rien savoir de son fonctionnement.
    de suite ; pour des booléens, les deux. Au Morpion, l'exemple joue 4, 5, 1, 2
    et 7 : elle trouve 0 à 8. L'adversaire « au hasard » joue parmi ces actions.
 
-   Ensuite, elle rejoue chaque action depuis le début pour voir
-   ce qu'elle remplit (sa **portée**), puis cherche de nouveau le programme
-   avec ces portées : c'est ainsi qu'elle comprend la gravité. Quand le labo a
+   Ensuite, elle **explore** : elle rejoue l'exemple, puis 8 parties où elle
+   choisit d'abord les actions **surprenantes** (celles qui viennent de
+   remplir une case qu'on ne leur avait jamais vu remplir), puis les moins
+   jouées. Elle déduit de ce qu'elle a vu les **portées** et la valeur écrite
+   (§ 3), et cherche le programme sur les coups de l'exemple et ceux de
+   l'exploration : c'est ainsi qu'elle comprend la gravité, sans les
+   coïncidences de l'exemple seul. Quand le labo a
    tout réfuté, elle **apprend du contre-exemple** : les coups joués dans le
    labo deviennent des cas de plus, et elle cherche le plus petit programme
    qui les explique avec ceux de l'exemple (au plus 3 fois). Sur la rangée du
@@ -423,11 +440,11 @@ chaque correction, qui n'importe rien de Xander :
    qu'elle a construit pour décrire l'action (§ 3), traduit en Python
    (`changees(avant, args)`, ou `valeur_apres` pour un nombre) : ce qu'elle a
    vérifié sur les cas est exactement ce que le fils exécute. La case jouée est
-   la seule case que le programme annonce, si elle est libre ; elle reçoit le
-   pion du joueur (encore supposé à la main). `possibles` garde les actions
-   que le jeu accepte au départ et qui remplissent une case ; `action_pour`
-   vient des portées mesurées dans le labo (chaque action rejouée depuis le
-   début). La mère pense avec la même perception. Si plusieurs programmes de
+   la seule case que le programme annonce, si elle est libre ; elle reçoit la
+   valeur écrite que la mère a décrite (§ 3 : au Morpion, `joueur`).
+   `possibles` garde les actions que le jeu accepte au départ et qui
+   remplissent une case ; `action_pour` vient des portées déduites de
+   l'exploration. La mère pense avec la même perception. Si plusieurs programmes de
    même taille coexistent, elle prend le premier trouvé.
 2. **Règles** : les concepts qu'elle a construits et appris au fils, **et
    seulement ceux-là** (avec les briques dont ils dépendent), traduits en
@@ -451,9 +468,9 @@ fils dans `output/sons/<nom>.py`.
 
 - Le langage des effets (deux formes, feuilles, constantes mesurées, sept
   opérations dont `premiere_de` et l'observation `portee`) est fourni. La
-  gravité n'y est plus : la mère la compose. Une portée suppose qu'on puisse
-  rejouer la même action depuis le début et qu'elle remplisse une case à la
-  fois. Un jeu dont l'état défile (Jumper) n'est pas encore décrit.
+  gravité n'y est plus : la mère la compose. Une portée suppose que l'action
+  remplisse une case à la fois, et elle n'est complète que si l'exploration a
+  vu l'action remplir chacune de ses cases. Un jeu dont l'état défile (Jumper) n'est pas encore décrit.
 - Les expériences n'essaient que les valeurs vues dans les arguments de
   l'exemple ; un coup qui ne change rien de visible est pris pour un coup
   refusé et n'apprend rien. Deux programmes qui résistent aux 40 expériences

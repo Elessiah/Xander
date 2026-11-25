@@ -56,8 +56,9 @@ imbattable : au-delà de son horizon, un humain attentif peut le piéger.
 
 Exemple de partie : [`res/examplePuissance4.py`](../res/examplePuissance4.py).
 À cause de la gravité, la case modifiée n'est la case `colonne` que pour la
-ligne du bas. La mère le décrit elle-même : en rejouant chaque colonne dans son
-labo, elle voit les cases qu'elle remplit, puis compose
+ligne du bas. La mère le décrit elle-même : en jouant des parties dans son
+labo, elle voit les cases que remplit chaque colonne, et dans quel ordre, puis
+compose
 `changees = premiere_de(portee(arg0), valant(' '))` (la première case vide de
 ce que remplit l'action). Elle peut ensuite y éduquer un fils.
 

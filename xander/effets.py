@@ -23,10 +23,9 @@ Le terme ``t`` est un arbre construit avec :
 * ``case(x)`` : la case d'indice ``x`` ; ``valant(x)`` : les cases dont la
   valeur est ``x`` (ou s'écrit comme ``x``) ; ``union(e, f)`` de deux ensembles
   de cases ;
-* ``portee(x)`` : les cases que remplit l'action ``x`` quand la mère la
-  rejoue depuis le début de la partie, dans l'ordre où elle les remplit.
-  C'est une **observation** faite dans le labo, pas un calcul (voir
-  ``portees``) : au Morpion une seule case, au Puissance 4 la colonne de bas
+* ``portee(x)`` : les cases que la mère a vu l'action ``x`` remplir, dans
+  l'ordre qu'elle en déduit (voir :func:`portees_observees`). C'est une
+  **observation** faite dans le labo, pas un calcul : au Morpion une seule case, au Puissance 4 la colonne de bas
   en haut ;
 * ``premiere_de(s, e)`` : la première case de la suite ``s`` qui appartient à
   l'ensemble ``e`` (aucune s'il n'y en a pas).
@@ -352,6 +351,96 @@ def constantes(cas: list[Cas]) -> tuple:
     return tuple(sorted(retenus, key=lambda n: (abs(n), n))) + tuple(vues)
 
 
+def portees_observees(observations: list[Cas]) -> dict:
+    """Ce que chaque action remplit, et dans quel ordre, déduit de tout ce que la mère a vu.
+
+    Seuls comptent les cas à un argument où une seule case a changé. La portée
+    de l'action ``a`` est l'ensemble des cases qu'on l'a vue remplir. L'ordre se
+    déduit des positions : si ``a`` a rempli la case ``c`` alors que la case
+    ``d`` (de sa portée) était encore dans le même état que ``c``, c'est que
+    ``c`` vient avant ``d``. À égalité, l'ordre dans lequel la mère les a vues.
+    Si aucun ordre ne convient (un cycle), l'action n'a pas de portée : ce
+    qu'elle remplit ne suit pas une suite.
+
+    Au Morpion, chaque action n'a qu'une case ; au Puissance 4, la colonne, de
+    bas en haut, sans que la mère sache ce qu'est une colonne.
+    """
+    vues: dict = {}        # action -> cases, dans l'ordre où elles ont été vues
+    remplissages = []      # (action, case remplie, état avant)
+    for c in observations:
+        if c.forme != CHANGEES or len(c.arguments) != 1:
+            continue
+        changees = c.cible()
+        if len(changees) != 1:
+            continue
+        (case_,) = changees
+        a = c.arguments[0]
+        try:
+            hash(a)
+        except TypeError:
+            continue
+        cases = vues.setdefault(a, [])
+        if case_ not in cases:
+            cases.append(case_)
+        remplissages.append((a, case_, c.valeur_avant))
+    avant_que: dict = {a: {c: set() for c in cases} for a, cases in vues.items()}  # c -> cases après c
+    for a, case_, etat in remplissages:
+        for autre in vues[a]:
+            if autre != case_ and etat[autre] == etat[case_]:
+                avant_que[a][case_].add(autre)
+    portees = {}
+    for a, cases in vues.items():
+        apres = avant_que[a]
+        restantes, ordre = list(cases), []
+        while restantes:
+            libre = next((c for c in restantes
+                          if not any(c in apres[d] for d in restantes if d != c)), None)
+            if libre is None:
+                break  # un cycle : pas d'ordre
+            ordre.append(libre)
+            restantes.remove(libre)
+        if not restantes:
+            portees[a] = ordre
+    return portees
+
+
+def ecriture(observations: list[tuple[Cas, object]]) -> tuple | None:
+    """Quelle valeur l'action écrit-elle dans la case qu'elle change ?
+
+    ``observations`` : des couples (cas, joueur qui a joué). La mère essaie, de
+    la plus simple à la moins simple, les descriptions qu'elle connaît et garde
+    la première qui convient à tous les cas où une seule case a changé :
+
+    * ``("constante", v)`` : toujours la même valeur ;
+    * ``("argument", k)`` : la valeur du k-ième argument ;
+    * ``("joueur",)`` : une valeur propre à chaque joueur, la même à chaque fois
+      qu'il joue et différente de celle des autres (au Morpion, le pion).
+
+    ``None`` si aucune ne convient (ou s'il n'y a aucun cas).
+    """
+    ecrits = []  # (valeur écrite, arguments, joueur)
+    for c, joueur in observations:
+        if c.forme != CHANGEES or len(c.cible()) != 1:
+            continue
+        (case_,) = c.cible()
+        ecrits.append((c.valeur_apres[case_], c.arguments, joueur))
+    if not ecrits:
+        return None
+    valeurs = {_cle(v) for v, _, _ in ecrits}
+    if len(valeurs) == 1:
+        return ("constante", ecrits[0][0])
+    for k in range(min(len(args) for _, args, _ in ecrits)):
+        if all(_cle(v) == _cle(args[k]) for v, args, _ in ecrits):
+            return ("argument", k)
+    par_joueur: dict = {}
+    for v, _, joueur in ecrits:
+        par_joueur.setdefault(_cle(joueur), set()).add(_cle(v))
+    if all(len(vs) == 1 for vs in par_joueur.values()) and \
+            len({next(iter(vs)) for vs in par_joueur.values()}) == len(par_joueur):
+        return ("joueur",)
+    return None
+
+
 def _cle(valeur):
     """Clé hachable et sans ambiguïté de type (``1`` et ``True`` diffèrent)."""
     if isinstance(valeur, (list, tuple)):
@@ -450,6 +539,8 @@ def predictions(hypotheses: list[Hypothese], valeur_avant, arguments: tuple,
 def decisive(hypotheses: list[Hypothese], valeur_avant, arguments: tuple,
              portees: dict | None = None) -> bool:
     """L'expérience départage-t-elle des hypothèses (elles n'annoncent pas toutes la même chose) ?"""
+    if len(hypotheses) < 2:
+        return False  # une hypothèse seule ne se départage de rien
     return len(set(predictions(hypotheses, valeur_avant, arguments, portees))) > 1
 
 

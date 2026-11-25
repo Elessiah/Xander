@@ -7,7 +7,7 @@ from Games.MinmaxMorpion import minmax_morpion_play
 from Games.MinmaxPuissance4 import WINDOWS, minmax_puissance4_play
 from Games.Morpion import LINES, Morpion, is_free, winner_of
 from xander.analyzer import analyse
-from xander.education import Education
+from xander.education import REPRISES, Education
 from xander.game_model import GameModel
 from xander.lab import Lab, LabError
 from xander.model import Function, Variable
@@ -184,12 +184,19 @@ class EffectSourceTest(unittest.TestCase):
 
 
 def example(module: str, game: str, size: int, players: str, moves: list[int]) -> str:
-    """Un exemple de partie : chaque joueur lit le plateau puis joue."""
+    """Un exemple de partie : chaque joueur lit le plateau puis joue ; le dernier coup finit la
+    partie (le jeu renvoie alors un booléen, comme dans les exemples de ``res/``)."""
     turns = "".join(f"# player {p}\nboard = game.get_game_state()  # array {size}\n"
-                    f"board = game.play({n})  # array {size}\n\n" for p, n in zip(players, moves))
+                    f"board = game.play({n})  # {'bool' if i == len(moves) - 1 else f'array {size}'}\n\n"
+                    for i, (p, n) in enumerate(zip(players, moves)))
     return (f"# include\nfrom {module} import {game}\n\n# init\ngame = {game}()  # game\n"
             f"board = game.init({players[0]!r})  # array {size}\n\n# back\nboard = game.back()  # array {size}\n\n"
             + turns + f"# end player {players[0]}\n")
+
+
+def example_cases(model) -> list:
+    """Les coups de l'exemple, tels que l'Analyzer les a vus (sans rien du labo)."""
+    return model.report.cases[model.action.name][model.getter.return_value.name]
 
 
 def understood(text: str):
@@ -214,23 +221,54 @@ class EffectExperimentTest(unittest.TestCase):
         self.assertGreater(trials.played, 10)
 
     def test_experiment_separates_hypotheses(self):
-        """Pions « 1 » et « 2 » : jouer la case 2 quand un « 2 » est posé ne change qu'une case."""
+        """Pions « 1 » et « 2 » : jouer la case 2 quand un « 2 » est posé ne change qu'une case.
+        L'exploration le montre déjà ; une expérience du labo le montre aussi, à partir des seuls
+        coups de l'exemple."""
         parsed, model = understood(example("tests.jeu_chiffres", "MorpionChiffres", 9, "12121", [2, 0, 4, 3, 6]))
         self.assertEqual([op.programme for op in model.report.operations["game.play"]], [CASE_INDICE, CASE_VALANT])
-        trials = Education(parsed, model, None).trials
+        teaching = Education(parsed, model, None)
+        self.assertEqual(teaching.trials.survivors, [CASE_INDICE])
+        positions, _ = teaching.explore()
+        trials = teaching.test_effects([CASE_INDICE, CASE_VALANT], example_cases(model), positions)
         self.assertEqual(trials.survivors, [CASE_INDICE])
         self.assertEqual(list(trials.refutations), [CASE_VALANT])
 
     def test_experiment_refutes_a_coincidence(self):
-        """Puissance 4 joué sur la rangée du bas : l'indice de la case vaut la colonne… jusqu'à ce
-        que la mère joue deux fois dans la même colonne. Elle apprend alors du contre-exemple :
-        avec ce cas en plus, le plus petit programme est la gravité."""
+        """Puissance 4 joué sur la rangée du bas : l'indice de la case vaut la colonne. L'exemple
+        seul fait croire à case(arg0) ; ce que la mère voit en explorant l'écarte d'emblée. Et si
+        elle n'avait que l'exemple, le labo le réfuterait et elle apprendrait du contre-exemple."""
         parsed, model = understood(example("Games.Puissance4", "Puissance4", 42, "XOXOXOX", [0, 4, 1, 5, 2, 6, 3]))
         self.assertEqual([op.programme for op in model.report.operations["game.play"]], [CASE_INDICE])
-        trials = Education(parsed, model, None).trials
+        teaching = Education(parsed, model, None)
+        self.assertEqual(teaching.trials.survivors, [GRAVITE])
+        positions, _ = teaching.explore()
+        trials = teaching.test_effects([CASE_INDICE], example_cases(model), positions)
         self.assertEqual(list(trials.refutations), [CASE_INDICE])
         self.assertEqual(trials.survivors, [GRAVITE])
-        self.assertEqual(trials.retries, 1)
+        self.assertTrue(1 <= trials.retries <= REPRISES)  # elle a dû revoir ses portées en chemin
+
+    def test_reach_is_deduced_from_what_she_saw(self):
+        """L'ordre d'une portée vient des positions : une action n'a rempli la case du haut que
+        lorsque celle du bas n'était plus vide. Aucune expérience « rejouer depuis le début »."""
+        vide = [" "] * 6
+        vus = [effets.Cas(vide, (0,), ["X"] + vide[1:]),
+               effets.Cas(["X", " ", "O", " ", " ", " "], (0,), ["X", " ", "O", " ", "X", " "]),
+               effets.Cas(["X"] + vide[1:], (0,), ["X", " ", "O", " ", " ", " "]),
+               effets.Cas(vide, (1,), [" ", "O", " ", " ", " ", " "])]
+        self.assertEqual(effets.portees_observees(vus), {0: [0, 2, 4], 1: [1]})
+        boucle = [effets.Cas([" ", " "], (0,), ["X", " "]), effets.Cas([" ", " "], (0,), [" ", "X"])]
+        self.assertEqual(effets.portees_observees(boucle), {})  # aucun ordre : pas une suite
+
+    def test_written_value(self):
+        """La valeur écrite : propre à chaque joueur (le pion), un argument, ou une constante."""
+        def vu(apres, args=(0,)):
+            return effets.Cas([" ", " "], args, apres)
+        self.assertEqual(effets.ecriture([(vu(["X", " "]), 0), (vu([" ", "O"], (1,)), 1),
+                                          (vu(["X", " "]), 0)]), ("joueur",))
+        self.assertEqual(effets.ecriture([(vu([7, " "], (0, 7)), 0), (vu([" ", 3], (1, 3)), 1)]), ("argument", 1))
+        self.assertEqual(effets.ecriture([(vu(["#", " "]), 0), (vu([" ", "#"], (1,)), 1)]), ("constante", "#"))
+        self.assertIsNone(effets.ecriture([(vu(["X", " "]), 0), (vu([" ", "O"], (1,)), 0)]))
+        self.assertEqual(education().knowledge["written"], ("joueur",))
 
     def test_gravity_upwards(self):
         """Les jetons montent : la file part de c + 35 et descend de 7. La mère n'a rien à

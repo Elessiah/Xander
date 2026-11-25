@@ -34,7 +34,8 @@ def empty_knowledge(model) -> dict:
         "action": model.action.short_name,
         "end_signal": model.end_signal,
         "actions": [],      # actions que le jeu accepte au départ (essayées dans le labo)
-        "reach": {},        # action -> cases qu'elle remplit quand on la rejoue (mesurées dans le labo)
+        "reach": {},        # action -> cases qu'on l'a vue remplir, dans l'ordre déduit (labo)
+        "written": ("joueur",),  # la valeur que l'action écrit (décrite par la mère, voir effets.ecriture)
         "marks": [],        # pions posés par chaque joueur (« X », « O »)
         "patterns": [],     # motifs qui finissent la partie, compris par contre-épreuve
         "concepts": {},     # nom -> arbre de concept construit par la mère (une brique)
@@ -48,13 +49,23 @@ def symmetries_literal(knowledge: dict) -> str:
     return pformat([None] + knowledge["symmetries"], compact=True, width=70)
 
 
-def apres_source(effect: effets.Hypothese) -> str:
-    """``apres`` (et ``case_jouee``) à partir du programme que la mère a trouvé pour l'action.
+def written_source(written: tuple) -> str:
+    """L'expression Python de la valeur écrite, telle que la mère l'a décrite
+    (voir :func:`xander.effets.ecriture`)."""
+    if written[0] == "constante":
+        return repr(written[1])
+    if written[0] == "argument":
+        return f"(action,)[{written[1]}]"
+    return "joueur"  # une valeur propre à chaque joueur : son pion
+
+
+def apres_source(effect: effets.Hypothese, written: tuple = ("joueur",)) -> str:
+    """``apres`` (et ``case_jouee``) à partir de ce que la mère a compris de l'action.
 
     Pour un tableau, le programme dit quelles cases changent ; la case jouée est
-    la seule qui change, si elle est libre, et elle reçoit le pion du joueur
-    (supposé à la main : la mère ne décrit pas encore la valeur écrite). Pour un
-    nombre, le programme donne directement la nouvelle valeur.
+    la seule qui change, si elle est libre, et elle reçoit la valeur que la mère
+    a décrite (``written`` : au Morpion, une valeur propre à chaque joueur, son
+    pion). Pour un nombre, le programme donne directement la nouvelle valeur.
     """
     if effect.forme != effets.CHANGEES:
         return f"""{effets.source(effect)}
@@ -79,7 +90,7 @@ def apres(etat, action, joueur):
     global VUES
     VUES += 1
     suite = list(etat)
-    suite[case_jouee(etat, action)] = joueur
+    suite[case_jouee(etat, action)] = {written_source(written)}  # {written!r}, vu dans le labo
     return suite
 """
 
@@ -96,11 +107,11 @@ MOTIFS = {pformat(knowledge["patterns"], compact=True, width=70)}
 VUES = 0  # positions regardées pendant le coup en cours
 
 ACTIONS = {knowledge["actions"]!r}  # acceptées par le jeu au départ (essayées dans le labo)
-PORTEES = {pformat(knowledge["reach"], compact=True, width=70)}  # cases remplies en rejouant l'action
+PORTEES = {pformat(knowledge["reach"], compact=True, width=70)}  # cases que chaque action remplit, dans l'ordre
 ACTION_DE = {{case: action for action in reversed(ACTIONS) for case in PORTEES.get(action, [])}}
 
 
-{apres_source(knowledge["effect"])}
+{apres_source(knowledge["effect"], knowledge["written"])}
 
 def action_pour(case):
     """L'action qui peut remplir cette case (vu dans le labo)."""
