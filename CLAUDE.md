@@ -26,26 +26,53 @@ corrige erreur après erreur et finit avec un fils parfait.
 - **Les Minmax de `Games/`** sont des adversaires et des professeurs (la mère
   peut leur demander le coup qu'ils préfèrent). Ils ne font pas partie de Xander.
 
-## Correction par la compréhension
+## Le chemin compte plus que le résultat
 
-À chaque erreur du fils, la mère doit :
+Un fils parfait ne prouve rien si c'est nous qui avons écrit ce qu'il sait.
+Quand une vérification révèle un trou, on ne le bouche pas en codant un
+concept à la main : on cherche ce qui manque à la mère pour le trouver
+elle-même. On accepte un apprentissage plus long si c'est elle qui apprend.
+Toujours dire clairement ce qui est encore fourni à la main.
 
-1. **comprendre l'état de défaite** (au Morpion : trois pions adverses
-   alignés), appris à partir des parties jouées et non codé en dur ;
-2. **comprendre pourquoi un meilleur coup est meilleur** : gain, défense,
-   double menace, parade… ;
-3. **généraliser** cette explication en une règle qui s'applique à toutes les
-   positions semblables. C'est ce qui donne une courbe d'apprentissage
-   fulgurante : une seule défaite doit corriger toute une famille d'erreurs.
+## Correction par la compréhension : le détail, puis la logique générale
 
-Toute connaissance fournie à la main (vocabulaire d'explications, hypothèses)
+La mère apprend comme un développeur : elle corrige d'abord **cas par cas**,
+puis elle **refactorise** en trouvant la logique commune.
+
+1. **Comprendre l'état de défaite** (au Morpion : trois pions adverses
+   alignés), appris à partir des parties jouées et non codé en dur.
+2. **Corriger le cas.** Chaque erreur devient un souvenir précis : dans cette
+   position, il fallait jouer ce coup (celui du professeur, pas celui du fils).
+3. **Refactoriser.** Quand plusieurs cas se ressemblent, la mère cherche la
+   plus petite logique qui les explique tous (pourquoi le meilleur coup est
+   meilleur : gain, défense, double menace, parade…) et remplace ces souvenirs
+   par une règle. Une règle doit expliquer **plusieurs** cas : un seul cas
+   peut être une coïncidence.
+4. **Les souvenirs sont les tests du refactor.** Après un refactor, le fils
+   doit encore jouer le bon coup dans tous les cas enregistrés ; sinon la mère
+   l'abandonne. Une règle trouvée devient une brique pour les suivantes.
+
+Un apprentissage un peu plus long est accepté : mieux vaut une règle sûre,
+tirée de plusieurs cas, qu'une règle rapide tirée d'une coïncidence.
+
+Toute connaissance fournie à la main (briques d'explication, hypothèses)
 doit rester exprimée en termes généraux, jamais en termes propres à un jeu, et
-l'objectif est que la mère finisse par la découvrir seule. Les concepts
-(`gagner`, `parer`, `fourchette`…) s'écrivent uniquement avec trois notions que
-la mère apprend pour chaque jeu : `apres(etat, action, joueur)` (vient de
-l'Analyzer), `gagne(etat, joueur)` (fin de partie comprise par la mère) et
-`possibles(etat)` (actions permises). Ainsi le même `parer` vaut pour tous les
-jeux.
+l'objectif est que la mère finisse par la découvrir seule. Les règles
+s'écrivent uniquement avec quatre notions que la mère apprend pour chaque jeu :
+`apres(etat, action, joueur)` (vient de l'Analyzer), `gagne(etat, joueur)` (fin
+de partie comprise par la mère), `possibles(etat)` (actions permises) et
+`adversaire(joueur)`. Ainsi la même règle vaut pour tous les jeux.
+
+## Situations équivalentes : les symétries
+
+Au Morpion, une position tournée de 90° (ou vue dans un miroir) est la même
+situation : un souvenir ou une règle appris sur l'une vaut pour l'autre. Ces
+symétries ne sont **pas codées à la main** (elles dépendent du jeu : au
+Puissance 4, la gravité interdit de retourner le plateau, seul le miroir
+gauche-droite reste). La mère les **découvre** : ce sont les façons de
+renuméroter les cases qui ne changent rien à ce qu'elle a compris du jeu
+(les motifs de fin restent des motifs de fin, les actions permises restent
+permises), et elle les vérifie dans son laboratoire avant de s'en servir.
 
 ## Penser comme un joueur humain, pas comme un minimax
 
