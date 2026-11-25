@@ -103,7 +103,42 @@ pour un jeu à la plus structurelle :
    le joue (Allumettes « misère »), ce qui demande de percevoir le trait.
 6. **Autres formes de problèmes.** Jeux à un joueur (Jumper), plus de deux
    joueurs, état qui n'est pas un tableau.
-7. **Plus tard : l'expérience.** Partir des apprentissages réussis (motifs,
+7. **Jeux suivants, une fois Morpion, Allumettes et Puissance 4 appris.**
+   Chaque jeu doit apporter de nouvelles notions sans tout changer à la
+   fois, et avoir un professeur fiable.
+   - **Pylos à base 3×3** (9 + 4 + 1 = 14 billes, 7 par joueur). Il réunit
+     ce que les trois premiers jeux ont appris : des carrés (motifs), une
+     réserve de billes (quantité) et des billes qui reposent sur quatre
+     autres (gravité). Il apporte aussi du nouveau : des `possibles` qui
+     dépendent du support, deux sortes d'actions (poser, ou monter une
+     bille d'une case à une autre), un tour dont le nombre d'actions varie
+     (reprendre 1 ou 2 billes après un carré), une défaite qui n'est pas un
+     motif (ne plus pouvoir jouer) et des symétries sur plusieurs étages.
+     La base 3×3 contient déjà toutes les règles, garde des parties courtes
+     et permet un Minmax exact comme professeur. **Fait :** le jeu
+     (`Games/Pylos.py`) et son Minmax exact (`Games/MinmaxPylos.py`). La
+     résolution montre que la base 3×3 n'est pas dégénérée : seul le coup
+     au centre gagne, la partie parfaite passe par un carré, et monter une
+     bille est parfois la seule façon de gagner (voir `docs/jeux.md`).
+     Exemple de partie : `res/examplePylos.py`. La mère y décrit seule
+     les trois actions (poser, monter, reprendre). Reste l'éducation, qui
+     suppose qu'un tour est une seule action d'une seule sorte :
+     comprendre un tour dont la longueur varie (il continue tant que le
+     même joueur a la main), rejouer et proposer toutes les sortes
+     d'actions dans le labo et dans le fils, et comprendre une défaite qui
+     n'est pas un motif (ne plus avoir d'action possible).
+   - **Pylos à base 4×4** (30 billes) ensuite. Le Minmax devra y limiter
+     sa profondeur : il faudra apprendre avec un professeur faillible.
+     C'est un bon test de « configurations n'importe où », et plus tard de
+     la réutilisation de l'expérience du fils 3×3.
+   - **Les échecs, par problèmes bornés.** D'abord des mats en 1 puis en 2
+     (uniquement des suites forcées, budget mesurable), puis des finales
+     Roi + Dame ou Roi + Tour contre Roi (une table de finales à trois
+     pièces se calcule en Python pur : professeur parfait), puis des
+     mini-échecs (5×5 ou 6×6), et seulement ensuite la partie complète.
+     Si les déplacements d'une case à une autre posent problème, les dames
+     sur petit plateau peuvent servir d'étape intermédiaire.
+8. **Plus tard : l'expérience.** Partir des apprentissages réussis (motifs,
    règles) d'un fils pour en élever un autre plus vite.
 
 ## Nettoyage et corrections de cette révision
