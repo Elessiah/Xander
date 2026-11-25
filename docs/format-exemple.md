@@ -94,4 +94,5 @@ permet de comparer une variable « avant » et « après » un coup.
 Exemples fournis : [`res/exampleMorpion.py`](../res/exampleMorpion.py),
 [`res/exampleAllumettes.py`](../res/exampleAllumettes.py),
 [`res/examplePuissance4.py`](../res/examplePuissance4.py),
+[`res/examplePylos.py`](../res/examplePylos.py),
 [`res/exampleJumper.py`](../res/exampleJumper.py).
