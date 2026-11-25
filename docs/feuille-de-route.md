@@ -28,6 +28,23 @@ pas ARC.
    à partir de paires, sur des problèmes que nous inventons dans des
    domaines variés (listes, mots, nombres, plateaux de nos jeux), sans
    recopier ARC. Le fils est alors un programme qui répond, pas un joueur.
+
+   *Fait, première forme* (`docs/architecture.md`, § 10) : format JSON commun
+   (des paires, des questions ; une paire est une observation sans action),
+   recherche du plus petit programme avec 18 briques générales listées, chacune
+   justifiée par deux domaines d'entraînement, deuxième essai réellement
+   différent, « je ne trouve pas » plutôt qu'une invention, fils autonome qui
+   répond. Entraînement (55 problèmes, a servi à régler) : 52 au premier essai,
+   53 en deux. **Lot jamais vu** (34 problèmes écrits après le gel, commit
+   e7e14f3, passés une fois) : **25/34 au premier essai, 25/34 en deux**, moins
+   de 0,5 s par problème. Échecs : 3 programmes trop grands pour la taille 6
+   (écart, allumettes en deux coups, mots de plus de trois lettres : jalon 2),
+   5 notions absentes (moitié, pair, mettre à plat, voyelle, tout sauf le
+   premier), 1 coïncidence (« le mot le plus long » pris pour « le deuxième
+   mot ») ; et 1 bonne réponse pour une mauvaise raison (« les pions du
+   joueur » compris comme « les pions de X »). Ce lot, lu pour ce
+   bilan, compte désormais comme entraînement. À faire : un moteur commun avec
+   `effets.py`, et des briques gardées ou découvertes plutôt que données.
 2. **Un langage qui grandit.** Les concepts que la mère trouve deviennent des
    briques qu'elle garde d'un problème à l'autre (étapes 3 et 5). Ce qui
    reste fourni à la main se réduit à une liste courte et documentée,
@@ -87,7 +104,7 @@ pas ARC.
 | Découvrir les symétries (positions équivalentes) | fait, vérifiées dans le labo |
 | Petits motifs : un souvenir réduit à ce qui comptait, reconnu partout | fait, vérifiés dans le labo |
 | Réutiliser l'expérience d'un fils pour un autre | **plus tard**, nécessaire pour ARC (jalon 5) |
-| Problèmes qui ne sont pas des jeux (une entrée, une sortie) | à faire (jalon 1) |
+| Problèmes qui ne sont pas des jeux (une entrée, une sortie) | fait, première forme : 18 briques listées ; entraînement 52/55 (53 en deux essais), lot jamais vu 25/34 (jalon 1) |
 | Examens blancs sous scellé | à faire (jalon 6) |
 | Branchement ARC (adaptateur et lanceur d'examen) | à faire (jalon 7) |
 | Examen ARC | **le cap** (jalon 8) |

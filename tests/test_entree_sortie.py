@@ -255,5 +255,35 @@ class EntrainementTest(unittest.TestCase):
                 self.assertGreaterEqual(len(domaines.get(brique.nom, ())), 2, domaines.get(brique.nom))
 
 
+class JamaisVusTest(unittest.TestCase):
+    """Une mesure, pas un réglage : le lot ``res/problemes/inedits/``.
+
+    Écrit après le gel des briques et des réglages (commit e7e14f3), passé une
+    seule fois sans rien retoucher : 25/34 au premier essai, 25/34 en deux
+    essais. On ne retouche pas les briques pour ce lot. Ses échecs ont été lus
+    pour en rendre compte : il compte désormais comme de l'entraînement, et la
+    prochaine mesure honnête se fera sur un lot nouveau.
+
+    Le test garde la mesure (pas de régression) ; ce n'est pas un objectif.
+    """
+
+    #: Mesuré une fois au commit e7e14f3 (premier essai, deux essais, sur 34).
+    MESURE = (25, 25, 34)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.bilan = mesure.passer(_lot(INEDITS))
+
+    def test_mesure(self):
+        premier, deux, total = self.MESURE
+        self.assertEqual(len(self.bilan.notes), total)
+        self.assertGreaterEqual(self.bilan.premier_essai, premier, self.bilan.decrire())
+        self.assertGreaterEqual(self.bilan.deux_essais, deux, self.bilan.decrire())
+
+    def test_rapide(self):
+        for r in self.bilan.resultats:
+            self.assertLess(r.comprehension.duree, 5.0, r.probleme.nom)
+
+
 if __name__ == "__main__":
     unittest.main()
