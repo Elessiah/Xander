@@ -342,6 +342,32 @@ de plus petit n'explique les cas), ce qui rejoint le jalon 2.
      mini-échecs (5×5 ou 6×6), et seulement ensuite la partie complète.
      Si les déplacements d'une case à une autre posent problème, les dames
      sur petit plateau peuvent servir d'étape intermédiaire.
+   - **Nim à plusieurs tas** (`Games/Nim.py`, variante misère
+     `Games/NimMisere.py`, professeur exact `Games/MinmaxNim.py`, exemples
+     `res/exampleNim.py` et `res/exampleNimMisere.py`) : un état fait de
+     plusieurs nombres, une action à deux arguments (quel tas, combien), une
+     stratégie qui n'est pas une période (la somme de Nim). La mère y voit
+     déjà quel tas change (`case(arg0)`), pas la valeur écrite.
+   - **Mastermind** (`Games/Mastermind.py`, 3 chiffres de 1 à 6, 8 essais ;
+     professeur `Games/MinmaxMastermind.py`, 5 essais au plus ; exemple
+     `res/exampleMastermind.py`) : un jeu à un joueur qui se gagne, une
+     information cachée, déduire à partir d'indices, compter, une action à
+     trois arguments qui sont des valeurs. La mère n'y comprend encore
+     aucun coup. Détails dans `docs/jeux.md`.
+   - **Tours de Hanoï** (`Games/Hanoi.py`, professeur exact par parcours
+     en largeur, exemple `res/exampleHanoi.py`) : un joueur, une action à
+     deux arguments (départ, arrivée), un déplacement sous contrainte, un
+     but avec une limite de coups. La mère ne décrit pas encore l'action et
+     l'éducation s'arrête avant la première partie (actions à un seul
+     argument) ; détail dans `docs/jeux.md`.
+   - **Le compte est bon, version courte** (un joueur, 4 nombres et une
+     cible) : combiner des quantités pour atteindre un but, une action à
+     trois arguments `play(i, j, op)`. **Fait :** le jeu
+     (`Games/CompteEstBon.py`), son professeur exact
+     (`Games/SolveurCompteEstBon.py`) et `res/exampleCompteEstBon.py`. La
+     mère voit quelles places change un coup, pas ce qu'il calcule ;
+     l'éducation bloque parce qu'elle ne cherche que des actions à un
+     argument (voir `docs/jeux.md`).
 8. **Plus tard : l'expérience.** Partir des apprentissages réussis (motifs,
    règles) d'un fils pour en élever un autre plus vite.
 
