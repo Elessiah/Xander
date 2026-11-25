@@ -1,0 +1,167 @@
+{
+  "lot": "entraînement : listes de nombres",
+  "domaine": "listes",
+  "problemes": [
+    {
+      "nom": "liste-a-l-envers",
+      "enonce": "La liste lue de la fin vers le début.",
+      "paires": [
+        {"entree": [1, 2, 3], "sortie": [3, 2, 1]},
+        {"entree": [5, 9], "sortie": [9, 5]},
+        {"entree": [4, 0, 7, 2], "sortie": [2, 7, 0, 4]}
+      ],
+      "questions": [{"entree": [8, 1, 6], "sortie": [6, 1, 8]}]
+    },
+    {
+      "nom": "liste-dans-l-ordre",
+      "enonce": "Les nombres rangés du plus petit au plus grand.",
+      "paires": [
+        {"entree": [3, 1, 2], "sortie": [1, 2, 3]},
+        {"entree": [9, 4, 7, 1], "sortie": [1, 4, 7, 9]},
+        {"entree": [5, 5, 2], "sortie": [2, 5, 5]}
+      ],
+      "questions": [{"entree": [10, 3, 8], "sortie": [3, 8, 10]}]
+    },
+    {
+      "nom": "le-plus-grand",
+      "enonce": "Le plus grand nombre de la liste.",
+      "paires": [
+        {"entree": [3, 9, 2], "sortie": 9},
+        {"entree": [1, 4], "sortie": 4},
+        {"entree": [7, 5, 6], "sortie": 7}
+      ],
+      "questions": [{"entree": [2, 11, 8, 5], "sortie": 11}]
+    },
+    {
+      "nom": "la-somme",
+      "enonce": "La somme des nombres.",
+      "paires": [
+        {"entree": [1, 2, 3], "sortie": 6},
+        {"entree": [10, 5], "sortie": 15},
+        {"entree": [4, 4, 4, 4], "sortie": 16}
+      ],
+      "questions": [{"entree": [7, 8, 2], "sortie": 17}]
+    },
+    {
+      "nom": "combien-de-nombres",
+      "enonce": "Le nombre d'éléments de la liste.",
+      "paires": [
+        {"entree": [4, 8, 1], "sortie": 3},
+        {"entree": [5, 5, 5, 5, 5], "sortie": 5},
+        {"entree": [9, 3], "sortie": 2}
+      ],
+      "questions": [{"entree": [6, 6, 0, 1], "sortie": 4}]
+    },
+    {
+      "nom": "doubler",
+      "enonce": "Chaque nombre doublé.",
+      "paires": [
+        {"entree": [1, 2, 3], "sortie": [2, 4, 6]},
+        {"entree": [5, 0], "sortie": [10, 0]},
+        {"entree": [7], "sortie": [14]}
+      ],
+      "questions": [{"entree": [4, 10, 1], "sortie": [8, 20, 2]}]
+    },
+    {
+      "nom": "un-de-plus",
+      "enonce": "Ajouter 1 à chaque nombre.",
+      "paires": [
+        {"entree": [1, 2, 3], "sortie": [2, 3, 4]},
+        {"entree": [9, 4], "sortie": [10, 5]},
+        {"entree": [0, 0, 7], "sortie": [1, 1, 8]}
+      ],
+      "questions": [{"entree": [5, 20], "sortie": [6, 21]}]
+    },
+    {
+      "nom": "les-positifs",
+      "enonce": "Garder les nombres plus grands que zéro.",
+      "paires": [
+        {"entree": [3, -1, 4, -5], "sortie": [3, 4]},
+        {"entree": [-2, 6], "sortie": [6]},
+        {"entree": [1, 2, -3, 0], "sortie": [1, 2]}
+      ],
+      "questions": [{"entree": [-7, 8, 0, 9], "sortie": [8, 9]}]
+    },
+    {
+      "nom": "combien-de-zeros",
+      "enonce": "Combien de fois 0 apparaît.",
+      "paires": [
+        {"entree": [0, 1, 0], "sortie": 2},
+        {"entree": [5, 0, 3, 0, 0], "sortie": 3},
+        {"entree": [0, 2], "sortie": 1}
+      ],
+      "questions": [{"entree": [0, 0, 0, 0, 4], "sortie": 4}]
+    },
+    {
+      "nom": "ou-sont-les-zeros",
+      "enonce": "Les positions (à partir de 0) des zéros.",
+      "paires": [
+        {"entree": [0, 1, 0], "sortie": [0, 2]},
+        {"entree": [5, 0, 3], "sortie": [1]},
+        {"entree": [2, 2, 0, 0], "sortie": [2, 3]}
+      ],
+      "questions": [{"entree": [0, 4, 4, 0, 4], "sortie": [0, 3]}]
+    },
+    {
+      "nom": "sans-les-zeros",
+      "enonce": "La liste sans ses zéros.",
+      "paires": [
+        {"entree": [0, 1, 0, 2], "sortie": [1, 2]},
+        {"entree": [-1, 0, 3], "sortie": [-1, 3]},
+        {"entree": [4, 4], "sortie": [4, 4]}
+      ],
+      "questions": [{"entree": [0, 7, 0, -8], "sortie": [7, -8]}]
+    },
+    {
+      "nom": "les-carres",
+      "enonce": "Chaque nombre multiplié par lui-même.",
+      "paires": [
+        {"entree": [1, 2, 3], "sortie": [1, 4, 9]},
+        {"entree": [5], "sortie": [25]},
+        {"entree": [0, 4], "sortie": [0, 16]}
+      ],
+      "questions": [{"entree": [6, 7], "sortie": [36, 49]}]
+    },
+    {
+      "nom": "groupes-separes-par-zero",
+      "enonce": "Les groupes de nombres séparés par des zéros.",
+      "paires": [
+        {"entree": [1, 2, 0, 3], "sortie": [[1, 2], [3]]},
+        {"entree": [4, 0, 5, 6, 0, 7], "sortie": [[4], [5, 6], [7]]},
+        {"entree": [8, 9], "sortie": [[8, 9]]}
+      ],
+      "questions": [{"entree": [1, 0, 1, 0, 1], "sortie": [[1], [1], [1]]}]
+    },
+    {
+      "nom": "l-element-designe",
+      "enonce": "Une liste et un indice : l'élément à cet indice (le premier a l'indice 0).",
+      "paires": [
+        {"entree": [[5, 6, 7], 1], "sortie": 6},
+        {"entree": [[9, 8, 7, 6], 3], "sortie": 6},
+        {"entree": [[4, 2], 0], "sortie": 4}
+      ],
+      "questions": [{"entree": [[3, 1, 4, 1, 5], 2], "sortie": 4}]
+    },
+    {
+      "nom": "premier-plus-dernier",
+      "enonce": "La somme du premier et du dernier nombre.",
+      "paires": [
+        {"entree": [1, 5, 2], "sortie": 3},
+        {"entree": [10, 0, 0, 4], "sortie": 14},
+        {"entree": [7, 9], "sortie": 16}
+      ],
+      "questions": [{"entree": [3, 100, 6], "sortie": 9}]
+    },
+    {
+      "nom": "liste-symetrique",
+      "enonce": "La liste se lit-elle pareil dans les deux sens ?",
+      "paires": [
+        {"entree": [1, 2, 1], "sortie": true},
+        {"entree": [1, 2], "sortie": false},
+        {"entree": [3, 4, 4, 3], "sortie": true},
+        {"entree": [5, 6, 7], "sortie": false}
+      ],
+      "questions": [{"entree": [2, 9, 2], "sortie": true}]
+    }
+  ]
+}
