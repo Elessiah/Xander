@@ -78,7 +78,9 @@ pas ARC.
    développement), puis les passer avec le protocole de l'examen : code figé,
    un fils par problème, aucune retouche, score noté. Un premier examen blanc
    est possible tôt : une variante de jeu jamais montrée à la mère, branchée
-   sans changer une ligne.
+   sans changer une ligne. Depuis le premier, chaque problème fournit son
+   arbitre, et le fils doit faire au moins aussi bien que le professeur à sa
+   place, pour un, deux ou trois joueurs (`docs/architecture.md`, § 11).
 7. **Le branchement ARC.** L'adaptateur (format JSON officiel vers « des
    exemples et une question ») et le lanceur d'examen (commit noté, budget
    de calcul, nombre d'essais, score), écrits d'après la description du
@@ -93,6 +95,13 @@ pas ARC.
 | Date | Examen | Jeu de problèmes | Commit | Score |
 |---|---|---|---|---|
 | 2026-11-25 | Examen blanc n° 1 | 5 problèmes inédits, sous scellé hors du dépôt | `e757e7e` | 1/5 |
+
+L'examen n° 1 a été passé avec l'ancien barème : pas d'arbitre, réussi si le
+fils ne perd aucune des 2 parties contre le professeur ni des 100 contre le
+joueur au hasard de la mère, 30 minutes par problème ; pas de score relatif.
+Le barème a changé ensuite à cause des fragilités du protocole, pas de ce
+score (un réglage ne se change jamais d'après le score d'un examen blanc) :
+le score n° 1 n'est pas comparable à ceux des examens suivants.
 
 ## Où en est le projet
 
@@ -111,7 +120,7 @@ pas ARC.
 | Petits motifs : un souvenir réduit à ce qui comptait, reconnu partout | fait, vérifiés dans le labo |
 | Réutiliser l'expérience d'un fils pour un autre | **plus tard**, nécessaire pour ARC (jalon 5) |
 | Problèmes qui ne sont pas des jeux (une entrée, une sortie) | fait, première forme : 18 briques listées ; entraînement 52/55 (53 en deux essais), lot jamais vu 25/34 (jalon 1) |
-| Examens blancs sous scellé | premier passé (jalon 6) : `python -m xander.examen` |
+| Examens blancs sous scellé | premier passé (jalon 6) : `python -m xander.examen` ; arbitre fourni avec chaque problème, barème « au moins aussi bien que le professeur à sa place » (score binaire et score relatif) |
 | Branchement ARC (adaptateur et lanceur d'examen) | à faire (jalon 7) |
 | Examen ARC | **le cap** (jalon 8) |
 
@@ -172,6 +181,10 @@ comparant des résultats.
 | Un joueur : horizon pour juger un coup | durée d'effet la plus longue vue + 1 | `Solo.measure_horizon` | principe (voir l'effet d'un coup jusqu'au bout) ; le « + 1 » a priori |
 | Un joueur : petits motifs essayés avant d'oublier les cases une à une | 20 000 | `un_joueur.COMBINAISONS` | a priori (vérifier un motif ne coûte ici aucune partie : les cas sont déjà jugés) |
 | Un joueur : choix entre motifs de même taille | la plus grande part de cas qui confirment, puis le plus de confirmations | `Solo.smallest` | réglé à Jumper (l'ordre des cases choisissait une coïncidence à égalité) |
+| Examen : parties d'éducation / graine maîtresse | 200 / 0 | `examen.BUDGET` | a priori (le défaut de `raise_son`) |
+| Examen : graines de mesure par place et par sorte d'adversaires | 10 | `examen.BUDGET` | a priori ; changé (2 parties contre le professeur, 100 contre le hasard) à cause des fragilités du protocole, pas du score |
+| Examen : barème | au moins aussi bien que le professeur à sa place, dans toutes les situations ; aucun coup impossible après la partie 5 | `examen.mesurer`, `BUDGET.rodage` | principe (« le fils ne triche jamais ») ; changé (« ne perdre aucune partie ») à cause des fragilités du protocole, pas du score |
+| Examen : limite de temps par problème | 20 000 fois la tâche de référence (environ 30 minutes sur la machine de développement) | `BUDGET.facteur`, `tache_de_reference` | a priori (les 30 minutes de l'examen n° 1, rapportées à la machine) |
 
 Les réglages « réglés » sont les premiers à remettre en cause quand un
 nouveau problème échoue. L'objectif, à terme, est que la mère choisisse
