@@ -279,3 +279,115 @@ Jeux : `morpion`, `allumettes`, `puissance4`, `pylos`, `nim`, `nim-misere`.
 `--x` / `--o` : `humain` ou `minmax`. Au Pylos, on tape `4` (poser), `2 9` (monter de 2 vers 9),
 `r 5` (reprendre) ou `s` (s'arrêter). Au Nim, `2 3` (3 objets du tas 2). La série s'arrête quand un joueur atteint
 `--score` points, ou après `3 × score` matchs nuls. Tapez `q` pour quitter.
+
+## Tours de Hanoï — `Games/Hanoi.py`
+
+Jeu à **un joueur**, avec des **déplacements**. Trois piquets (`0`, `1`, `2`)
+et `n` disques de tailles différentes (`Hanoi(3)` par défaut, `Hanoi(4)` ou
+`set_nb_disques(4)` avant `init()` pour une pile plus haute). Au départ, toute
+la pile est sur le piquet 0, le plus grand en bas. Un coup prend le disque du
+dessus d'un piquet et le pose sur un autre ; on ne pose jamais un disque sur un
+plus petit. **Le but** : toute la pile sur le piquet 2, ce qui demande au
+moins `2ⁿ − 1` coups (7 pour 3 disques, 15 pour 4). **La limite** : au plus le
+double du minimum (14 coups pour 3 disques, 30 pour 4) ; le coup qui l'atteint
+sans avoir rangé la pile fait perdre. Si ce coup range la pile, la partie est
+gagnée. La limite donne au jeu une fin perdue sans le rendre cruel : depuis le
+départ, on peut gaspiller autant de coups que le minimum.
+
+**L'état observable** : pour chaque disque, du plus petit au plus grand, le
+numéro du piquet où il est. `[0, 0, 0]` au départ, `[2, 2, 2]` au but ;
+`[1, 2, 0]` : le petit sur le piquet 1, le moyen sur le 2, le grand sur le 0.
+Pourquoi ce choix plutôt qu'une liste par piquet :
+
+- c'est une **liste plate de taille fixe** (une case par disque), comme les
+  plateaux des autres jeux, et c'est la plus courte (`n` cases) ;
+- **toute** liste de `0`, `1` et `2` est une position permise : l'ordre des
+  disques sur un piquet n'a pas à être écrit, la règle l'impose (le plus petit
+  en haut). Une liste par piquet aurait une taille variable, et une case par
+  emplacement (3 piquets × `n` étages) beaucoup de positions impossibles et
+  l'allure d'une grille ;
+- un coup change **une seule case** : celle du disque déplacé, qui prend la
+  valeur du piquet d'arrivée.
+
+Le nombre de coups joués (la limite) n'est **pas** dans l'état : comme une
+pendule, il ne compte que pour la fin. `game.coups` le donne.
+
+| Méthode | Rôle |
+|---|---|
+| `init()` | nouvelle partie, renvoie l'état |
+| `get_game_state()` | renvoie l'état ; **relance une partie** si la précédente est finie |
+| `play(depart, arrivee)` | `False` si le coup est refusé (rien ne change), `True` si la partie est finie (gagnée ou perdue), sinon le nouvel état |
+| `back()` | annule le dernier coup (et la fin qu'il a provoquée) et renvoie l'état |
+| `get_moves()` | les coups permis, des couples `(depart, arrivee)` |
+| `get_turn()` | toujours `"J"` : le joueur est seul |
+| `print()` | affiche les piquets |
+| `set_game_state(disques, coups=0)` | impose une position (tests, professeur) |
+
+Un coup est **refusé** (`play` renvoie `False`, l'état et le compte de coups
+ne changent pas, `back` ne le voit pas) quand le piquet de départ est vide,
+quand le disque irait sur un plus petit, quand un piquet n'existe pas, quand
+départ et arrivée sont le même piquet, quand un argument n'est pas un entier
+(un booléen est refusé) et quand la partie est finie. Après la fin,
+`game.finie` est vrai et `game.win` vaut `"J"` si la pile est rangée, `""`
+si la limite est atteinte (personne n'a gagné). `play` renvoie `True` dans
+les deux cas, comme aux jeux à deux : il faut lire `win` pour savoir laquelle.
+
+**Le professeur** — `Games/ProfesseurHanoi.py`. Il y a `3ⁿ` positions (27
+pour 3 disques, 81 pour 4) et un coup se défait par le coup inverse : un
+parcours en largeur **parti du but** donne en une fois la distance au but de
+toutes les positions (0,5 ms pour 3 disques, 1,3 ms pour 4, 0,1 s pour 8).
+`meilleur_coup(etat)` joue le premier coup permis qui rapproche le but d'un
+coup ; `professeur_hanoi_play(game)` lit l'état observable et joue ce coup.
+Il est exact : les tests vérifient, depuis **chacune** des 27 et 81
+positions, qu'il ne joue que des coups permis et range la pile en le nombre
+minimal de coups (au plus `2ⁿ − 1`, la distance la plus longue), et que les
+distances vérifient `d = 1 + min(d des voisins)` (contrôle indépendant du
+parcours).
+
+**Exemple de partie** : [`res/exampleHanoi.py`](../res/exampleHanoi.py),
+3 disques. Une vraie partie, pas parfaite : le joueur pose le disque moyen
+sur le piquet 2 trop tôt, doit l'en retirer, et range la pile en 10 coups
+(les six sortes de déplacements y apparaissent). Elle finit gagnée :
+`# end player joueur`, et le dernier `play` renvoie `True` (`# bool`).
+
+**Les notions nouvelles** : déplacer quelque chose d'un endroit à un autre
+sous une contrainte (jamais sur un plus petit), une action à **deux
+arguments** (départ, arrivée) dont aucun n'est l'indice de la case qui
+change, et un **but à atteindre** plutôt qu'un adversaire, avec deux fins
+possibles (gagnée, perdue). C'est un pas vers les montées de billes du Pylos
+et vers les dames.
+
+**Ce que la mère en comprend déjà** (sans rien changer à `xander/`) :
+
+- `python -m xander res/exampleHanoi.py` : elle voit un joueur seul, un tour
+  `get_game_state -> play`, la fonction d'annulation, le gagnant et la
+  variable `disques` (tableau de 3). Elle **ne décrit pas** l'action :
+  `game.play : inconnue`, les 10 coups sont « non compris ». Aucun terme de
+  `xander/effets.py` ne donne la case qui change : c'est **la première case
+  qui vaut `arg0`** (le plus petit disque du piquet de départ), et
+  `premiere_de` demande une suite ordonnée, que seule `portee(x)` fournit ;
+  or `portees_observees` ne regarde que les cas **à un argument**.
+  Vérifié à part, sans toucher au dépôt : en calculant les portées sur
+  `arg0`, la mère obtient `portee(0) = [0, 1, 2]` et le terme
+  `premiere_de(portee(arg0), valant(arg0))` (taille 4) explique les 10 coups.
+  La forme `changees` ne dit pas non plus la **nouvelle valeur** de la case
+  (`arg1`) : pour prévoir l'état d'après, il faudra une forme « la case
+  changée prend la valeur … ».
+- `python -m xander res/exampleHanoi.py --son hanoi --parties 30` s'arrête
+  aussitôt, avant la première partie, dans `Solo.__init__`
+  (`xander/un_joueur.py`) : « aucun programme n'explique ce que change
+  l'action, même avec ce que la mère a vu dans le labo ». En amont,
+  `Education.discover_actions` (`xander/education.py`) ne regarde que le
+  premier argument (`f.arguments[0]`) et essaie `play(0)` avec **un seul**
+  argument : le jeu lève une erreur, aucune action n'est trouvée, et
+  `explore` ne joue que l'exemple.
+
+Ce qui manquerait, dans l'ordre où la mère le rencontrera : des actions à
+plusieurs arguments (les découvrir, les explorer, les écrire dans le fils
+comme des couples) ; des portées et une description pour ces actions ; une
+forme qui dit ce que devient la case changée ; une fin à **deux issues** —
+`play` renvoie `True` aux deux, et `Solo` lit dans l'exemple une seule
+valeur de fin (« gagnée ») : sans lire `win` ou reconnaître la position but,
+elle prendrait la limite atteinte pour une victoire ; enfin une partie dont
+le compte de coups est caché (deux parties dans le même état visible n'ont
+pas le même nombre de coups restants), limite déjà notée de `Solo`.

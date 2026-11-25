@@ -341,6 +341,12 @@ de plus petit n'explique les cas), ce qui rejoint le jalon 2.
      information cachée, déduire à partir d'indices, compter, une action à
      trois arguments qui sont des valeurs. La mère n'y comprend encore
      aucun coup. Détails dans `docs/jeux.md`.
+   - **Tours de Hanoï** (`Games/Hanoi.py`, professeur exact par parcours
+     en largeur, exemple `res/exampleHanoi.py`) : un joueur, une action à
+     deux arguments (départ, arrivée), un déplacement sous contrainte, un
+     but avec une limite de coups. La mère ne décrit pas encore l'action et
+     l'éducation s'arrête avant la première partie (actions à un seul
+     argument) ; détail dans `docs/jeux.md`.
 8. **Plus tard : l'expérience.** Partir des apprentissages réussis (motifs,
    règles) d'un fils pour en élever un autre plus vite.
 
