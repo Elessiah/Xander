@@ -256,6 +256,19 @@ class MotherTest(unittest.TestCase):
         self.assertEqual(model.turn_pattern, ["get_game_state", "play"])
         self.assertEqual(model.winner, "X")
 
+    def test_learn_pylos_actions(self):
+        """Pylos : trois sortes d'actions, que la mère décrit seule. Poser et
+        reprendre changent une case, monter en change deux. Le tour, lui, n'est
+        pas encore compris (il compte une, deux ou trois actions)."""
+        model = Mother().learn(RES / "examplePylos.py")
+        programmes = {name: [op.programme for op in ops] for name, ops in model.report.operations.items()}
+        une_case = effets.Hypothese(effets.CHANGEES, effets.case(A0))
+        self.assertEqual(programmes["game.play"], [une_case])
+        self.assertEqual(programmes["game.take"], [une_case])
+        self.assertEqual(programmes["game.move"],
+                         [effets.Hypothese(effets.CHANGEES, effets.union(effets.case(A0), effets.case(A1)))])
+        self.assertEqual(model.winner, "X")
+
     def test_learn_jumper_single_player(self):
         model = Mother().learn(RES / "exampleJumper.py")
         self.assertEqual(model.nb_players, 1)

@@ -104,9 +104,13 @@
      résolution montre que la base 3×3 n'est pas dégénérée : seul le coup
      au centre gagne, la partie parfaite passe par un carré, et monter une
      bille est parfois la seule façon de gagner (voir `docs/jeux.md`).
-     Reste à écrire un exemple de partie pour la mère, quand l'Analyzer
-     saura percevoir plusieurs sortes d'actions et un tour à longueur
-     variable.
+     Exemple de partie : `res/examplePylos.py`. La mère y décrit seule
+     les trois actions (poser, monter, reprendre). Reste l'éducation, qui
+     suppose qu'un tour est une seule action d'une seule sorte :
+     comprendre un tour dont la longueur varie (il continue tant que le
+     même joueur a la main), rejouer et proposer toutes les sortes
+     d'actions dans le labo et dans le fils, et comprendre une défaite qui
+     n'est pas un motif (ne plus avoir d'action possible).
    - **Pylos à base 4×4** (30 billes) ensuite. Le Minmax devra y limiter
      sa profondeur : il faudra apprendre avec un professeur faillible.
      C'est un bon test de « configurations n'importe où », et plus tard de

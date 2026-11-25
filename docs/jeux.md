@@ -100,6 +100,14 @@ Ce que dit la résolution de la base 3 × 3 (vérifié par les tests) :
 
 Le jeu n'est donc pas dégénéré : carrés, reprises et montées comptent.
 
+Exemple de partie : [`res/examplePylos.py`](../res/examplePylos.py) (19 tours,
+avec 3 montées, 3 reprises et un arrêt ; X gagne car O ne peut plus jouer).
+La mère y décrit seule les trois actions : `play` et `take` changent
+`case(arg0)`, `move` change `union(case(arg0), case(arg1))`. Il faut au moins
+deux reprises dans l'exemple : une description tirée d'un seul cas n'est pas
+retenue. L'éducation ne marche pas encore : la mère ne connaît qu'une action
+par tour (`get_game_state -> play`) et ne rejoue que `play` dans son labo.
+
 ## Jumper — `Games/Jumper.py`
 
 Jeu à un joueur : un coureur saute (`play(True)`) par-dessus des obstacles qui
