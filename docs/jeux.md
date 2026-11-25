@@ -184,14 +184,39 @@ Exemple de partie : [`res/exampleNim.py`](../res/exampleNim.py) (tas 3, 4,
 5 ; 7 coups ; X se trompe au premier coup, O au sixième, X prend le dernier
 objet). `python -m Games.GamePlayer nim --x humain --o minmax` pour y jouer.
 
-**Ce que la mère en comprend aujourd'hui** (`python -m xander
-res/exampleNim.py`) : deux joueurs, un tour `get_game_state -> play`, la
-variable `tas` (tableau de 3), et `play : changees = case(arg0)` : le
-premier argument désigne le tas qui change. Elle ne décrit pas **la valeur
-écrite** (l'ancienne taille moins `arg1`) : avec `--prof`, l'éducation
-s'arrête sur « la mère ne sait pas décrire la valeur que l'action écrit ».
-Le dernier coup (qui renvoie `True`) reste « non compris », comme dans les
-autres exemples. Même chose pour la variante misère.
+**Ce que la mère en comprend** (`python -m xander res/exampleNim.py`) :
+deux joueurs, un tour `get_game_state -> play`, la variable `tas` (tableau
+de 3), et `play : changees = case(arg0)` : le premier argument désigne le
+tas qui change. Le dernier coup (qui renvoie `True`) reste « non compris »,
+comme dans les autres exemples.
+
+**L'éducation** (`python -m xander res/exampleNim.py --prof
+Games.MinmaxNim:minmax_nim_play --parties 30`), sans rien de propre au Nim
+dans `xander/` (voir `docs/architecture.md`, § 3 et § 6) :
+
+- les actions : les tas 0 à 2 et les nombres 1 à 5, explorés argument par
+  argument à partir de l'exemple ; 12 couples gardés (le jeu les accepte
+  quelque part) ;
+- ce que l'action écrit : `case(arg0)` reçoit `moins(ici, arg1)` (le tas perd
+  ce qu'on y prend), un programme qu'elle construit ;
+- quand un coup est permis : `non inf(ici, arg1)` (le tas a au moins ce qu'on
+  prend), déduit des coups refusés ;
+- la valeur écrite ne dit pas qui a joué : pas de pions, la position porte le
+  trait, comme aux Allumettes ; la fin est l'état `(0, 0, 0)`, gagnée par
+  celui qui vient de jouer (en misère, par celui qui a le trait), comprise
+  par contre-épreuve ;
+- deux règles construites (« après mon coup, tout coup laisse un gain »,
+  celle des Allumettes, et une autre à deux niveaux) et 30 souvenirs ;
+  44 erreurs, presque toutes dans les deux premières parties ; 0 coup
+  impossible ; au plus 301 positions regardées pour un coup.
+
+Le fils gagne en premier contre le professeur, perd en second (la position
+de départ est perdue pour lui), et bat le hasard 196 à 200 fois sur 200. Il
+rate encore le gain dans 16 des 102 positions gagnables à 3, 4 et 5 tas au
+plus : la somme de Nim est hors de portée de ses concepts, et le professeur
+rejoue les mêmes parties (200 parties n'y changent rien). Variante misère :
+même chemin, 48 erreurs, une règle, 35 souvenirs, 17 positions gagnables
+ratées sur 101.
 
 ## Mastermind — `Games/Mastermind.py`
 
@@ -357,40 +382,43 @@ change, et un **but à atteindre** plutôt qu'un adversaire, avec deux fins
 possibles (gagnée, perdue). C'est un pas vers les montées de billes du Pylos
 et vers les dames.
 
-**Ce que la mère en comprend déjà** (sans rien changer à `xander/`) :
+**Ce que la mère en comprend** (`python -m xander res/exampleHanoi.py`) :
+un joueur seul, un tour `get_game_state -> play`, la fonction d'annulation,
+le gagnant et la variable `disques` (tableau de 3). L'Analyzer seul (sur
+l'exemple, sans labo) ne décrit pas l'action : il lui faut des portées, que
+seul le labo donne.
 
-- `python -m xander res/exampleHanoi.py` : elle voit un joueur seul, un tour
-  `get_game_state -> play`, la fonction d'annulation, le gagnant et la
-  variable `disques` (tableau de 3). Elle **ne décrit pas** l'action :
-  `game.play : inconnue`, les 10 coups sont « non compris ». Aucun terme de
-  `xander/effets.py` ne donne la case qui change : c'est **la première case
-  qui vaut `arg0`** (le plus petit disque du piquet de départ), et
-  `premiere_de` demande une suite ordonnée, que seule `portee(x)` fournit ;
-  or `portees_observees` ne regarde que les cas **à un argument**.
-  Vérifié à part, sans toucher au dépôt : en calculant les portées sur
-  `arg0`, la mère obtient `portee(0) = [0, 1, 2]` et le terme
-  `premiere_de(portee(arg0), valant(arg0))` (taille 4) explique les 10 coups.
-  La forme `changees` ne dit pas non plus la **nouvelle valeur** de la case
-  (`arg1`) : pour prévoir l'état d'après, il faudra une forme « la case
-  changée prend la valeur … ».
-- `python -m xander res/exampleHanoi.py --son hanoi --parties 30` s'arrête
-  aussitôt, avant la première partie, dans `Solo.__init__`
-  (`xander/un_joueur.py`) : « aucun programme n'explique ce que change
-  l'action, même avec ce que la mère a vu dans le labo ». En amont,
-  `Education.discover_actions` (`xander/education.py`) ne regarde que le
-  premier argument (`f.arguments[0]`) et essaie `play(0)` avec **un seul**
-  argument : le jeu lève une erreur, aucune action n'est trouvée, et
-  `explore` ne joue que l'exemple.
+**L'éducation** (`python -m xander res/exampleHanoi.py --son hanoi
+--parties 30`), sans rien de propre à Hanoï dans `xander/` (voir
+`docs/architecture.md`, § 3 et § 6) :
 
-Ce qui manquerait, dans l'ordre où la mère le rencontrera : des actions à
-plusieurs arguments (les découvrir, les explorer, les écrire dans le fils
-comme des couples) ; des portées et une description pour ces actions ; une
-forme qui dit ce que devient la case changée ; une fin à **deux issues** —
-`play` renvoie `True` aux deux, et `Solo` lit dans l'exemple une seule
-valeur de fin (« gagnée ») : sans lire `win` ou reconnaître la position but,
-elle prendrait la limite atteinte pour une victoire ; enfin une partie dont
-le compte de coups est caché (deux parties dans le même état visible n'ont
-pas le même nombre de coups restants), limite déjà notée de `Solo`.
+- les actions : les 6 couples `(depart, arrivee)` de piquets différents,
+  explorés argument par argument à partir de l'exemple ;
+- où l'action écrit : avec les portées rangées par argument (`(0, 0)`, partir
+  du piquet 0, remplit les cases 0, 1, 2 dans cet ordre),
+  `premiere_de(portee(arg0), valant(arg0))`, « le premier disque du piquet de
+  départ » ; ce qu'elle écrit : `arg1`, le piquet d'arrivée ;
+- quand un coup est permis :
+  `non inf(premiere_de(portee(arg0), valant(arg1)), cellule)`, « aucun disque
+  du piquet d'arrivée ne vient avant celui qu'on déplace » : jamais sur un
+  plus petit. Déduit des coups refusés, puis mis à l'épreuve dans le labo
+  (l'exploration seule donnait une coïncidence) ;
+- **deux fins au même signal** : `play` renvoie `True` à la victoire et à la
+  limite. La mère comprend l'état de fin de l'exemple, `[2, 2, 2]`, par
+  contre-épreuve ; une fin ailleurs n'est pas comprise et ne vaut rien
+  (jamais une victoire). Elle ne lit pas `win` (l'exemple ne le lit pas) ;
+- un casse-tête : elle juge un coup en cherchant une victoire jusqu'à 10 coups
+  plus loin (la longueur de l'exemple), plus tôt valant mieux.
+
+Résultat (graines 0 à 2, moins d'une seconde) : les parties 1 à 4 finissent
+à la limite, avec 25 erreurs ; dès la partie 5, le fils range la pile en 7
+coups (le minimum) à chaque partie, avec 7 souvenirs, aucun petit motif, 0
+coup impossible. Le fils joué dans le vrai jeu range la pile en 7 coups. Il
+voit 76 des 78 coups permis des 27 positions (aucun interdit) et ne range la
+pile que depuis 15 des 27 positions : il ne reconnaît que les positions de
+son chemin. Le compte de coups caché (la limite) reste confondu : deux
+parties dans le même état visible sont jugées pareil.
+
 ## Le compte est bon (version courte) — `Games/CompteEstBon.py`
 
 Jeu à un joueur, sur des nombres. On dispose de **4 nombres** (de 1 à 10,
@@ -473,34 +501,46 @@ dont un ne désigne pas une case (`op`) ; une partie qui peut finir de deux
 façons (gagnée, perdue) ; chercher sans tout énumérer (pour la mère, plus
 tard : reconnaître « il manque 5, et j'ai un 5 »).
 
-**Ce que la mère en comprend déjà** (`python -m xander
-res/exampleCompteEstBon.py`, sans rien changer à `xander/`) : un seul
-joueur, des tours `get_game_state -> play`, l'annulation, le gagnant, la
-variable `etat` (tableau de 5) que lit `get_game_state` et que modifie
-`play`. Elle décrit `play` par **les cases qui changent** :
-`changees = union(case(arg0), case(arg1))`, les places des deux nombres
-combinés. Elle ne dit pas **ce qu'elles deviennent** (aucun programme
-n'explique la valeur nouvelle : un calcul entre deux cases, choisi par un
-argument), ni le rôle de `arg2`. Une deuxième hypothèse,
-`union(case(arg2), case(3))`, est une coïncidence de l'exemple (seulement
-deux coups qui continuent) ; les essais du labo la réfutent.
+**Ce que la mère en comprend** (`python -m xander res/exampleCompteEstBon.py`) :
+un seul joueur, des tours `get_game_state -> play`, l'annulation, le
+gagnant, la variable `etat` (tableau de 5) que lit `get_game_state` et que
+modifie `play`. Sur l'exemple seul, elle décrit `play` par **les cases qui
+changent** : `changees = union(case(arg0), case(arg1))`, les places des deux
+nombres combinés. Une deuxième hypothèse, `union(case(arg2), case(3))`, est
+une coïncidence de l'exemple ; les essais du labo la réfutent.
 
-**Où l'éducation bloque** (`--son`, `--parties 30`) : dans
-`Solo.__init__` (`xander/un_joueur.py`), avec « la mère ne sait pas dire
-quand une action peut être jouée ». Avant cela, `discover_actions`
-(`xander/education.py`) ne cherche que des actions **à un argument** : elle
-joue `play(3)`, `play(4)`… que le jeu refuse tous, et ne trouve **aucune**
-action. Son exploration ne joue donc rien, les essais de `test_effects`
-(avec trois arguments pris dans l'exemple) se font refuser, et pour une
-action décrite par ses cases changées, elle ne sait dire que « toujours
-permise » quand elle n'a vu aucun refus. Il lui manquerait, dans l'ordre :
-des actions à plusieurs arguments (les découvrir, les rejouer, les écrire
-dans le fils) ; décrire une **valeur calculée** à partir de deux cases
-(`case(arg0) + case(arg1)`, l'opération choisie par un argument) ; une
-liberté qui dépend des valeurs (une case vide, une division qui tombe
-juste) ; deux fins distinctes (le `True` de la victoire et la position sans
-coup possible de la défaite) ; enfin, pour être bonne, reconnaître des
-configurations au lieu d'essayer les 48 coups de chaque position.
+**L'éducation** (`python -m xander res/exampleCompteEstBon.py --son ceb
+--parties 30`), sans rien de propre au jeu dans `xander/` (voir
+`docs/architecture.md`, § 3 et § 6) :
+
+- les actions : les places 0 à 3 et les opérations 0 à 3, explorées argument
+  par argument ; 36 des 64 combinaisons sont acceptées quelque part sur le
+  tirage du labo ;
+- où l'action écrit : `ecrites = union(case(arg0), case(arg1))`, les cases
+  **écrites** (5 × 1 laisse 5 à sa place : la case est écrite sans changer) ;
+- ce qu'elle écrit : `case(arg0)` reçoit, **selon `arg2`**, `plus`, `moins`,
+  `fois` ou `divise(ici, val(arg1))` ; `case(arg1)` reçoit `0`. Elle sépare
+  les coups selon la valeur de l'argument qui choisit l'opération ;
+- quand un coup est permis : `inf(ecrit1, ici) et inf(ecrit1, ecrit)` (la
+  place n'était pas vide, le résultat est positif) ; une division qui ne
+  tombe pas juste n'a pas de sens, ce n'est pas un coup. Avec la graine 0,
+  une coïncidence de même taille gagne : `inf(arg0, ici)` (l'indice de la
+  place est plus petit que son nombre, vrai sur ce tirage) ;
+- les fins : la victoire est l'état final de l'exemple, `[0, 0, 85, 0, 85]`,
+  comprise par contre-épreuve ; la défaite (il ne reste qu'un nombre, `play`
+  renvoie `False` sur un coup joué) se voit comme une partie **bloquée** :
+  aucune action n'est acceptée.
+
+Résultat (graines 0 et 1, 6 à 9 s pour 30 parties) : le labo rejoue toujours
+le tirage de l'exemple (`5 5 10 4 → 85`). Les parties 1 à 3 finissent
+bloquées (une erreur chacune), puis le fils gagne en 3 coups à chaque
+partie, avec 3 souvenirs et 0 coup impossible. **Où elle s'arrête** : sur
+100 tirages jamais vus, le fils gagne 3 fois, sans aucun coup refusé (il voit
+78 % des coups permis, aucun coup interdit). Il ne reconnaît que les états
+exacts de son tirage ; il lui faudrait reconnaître des configurations
+(« il manque 5, et j'ai un 5 »), et comprendre la victoire comme « la cible
+apparaît parmi les nombres » plutôt qu'un état exact. Les petits motifs
+(des cases à des valeurs fixes) et les fins par état n'y suffisent pas.
 
 ## Mot mystère — `Games/MotMystere.py`
 
