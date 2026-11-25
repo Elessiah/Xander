@@ -143,6 +143,16 @@ même), sinon un argument de l'action, sinon une valeur propre à chaque joueur,
 différente d'un joueur à l'autre (au Morpion et au Puissance 4, le pion). Si
 aucune ne convient, elle sait qu'elle n'a pas compris ce que l'action écrit.
 
+**La case libre.** Quand une case peut-elle être jouée ? La mère ne suppose
+pas « une case sans pion » : elle le déduit des coups joués et des coups
+**refusés** qu'elle a notés en explorant (`liberte`). Elle essaie, de la plus
+simple à la moins simple : *toujours* (le programme suffit, il n'annonce
+aucune case pour un coup refusé : au Puissance 4, une colonne pleine), *la
+case valait v* (toujours la même valeur avant d'être remplie), *la case a
+encore sa valeur du début* (au Morpion, la case *n* contient « n » tant que
+personne n'y a joué). Elle garde la première que vérifient toutes les cases
+remplies et aucune des cases annoncées pour un coup refusé.
+
 Au Morpion, `case(arg0)` et
 `valant(arg0)` coexistent (la case *n* contient le texte `"n"`) : l'exemple
 ne les départage pas, le labo s'en charge (§ 6). Les appels dont aucun cas
@@ -152,8 +162,9 @@ Ce qui est encore fourni à la main : les deux formes (`apres`, `changees`), les
 feuilles et les sortes de constantes, les sept opérations (dont
 `premiere_de`, une brique d'ordre générale), la façon de déduire l'ordre
 d'une portée (une case remplie alors qu'une autre était dans le même état
-vient avant elle), les trois descriptions de la valeur écrite, la taille
-maximale des programmes (5 nœuds) et le minimum de deux cas.
+vient avant elle), les trois descriptions de la valeur écrite et les trois de
+la case libre, la taille maximale des programmes (5 nœuds) et le minimum de
+deux cas.
 
 **Getters / setters.** Enfin, chaque variable (identifiée par son nom) reçoit
 la liste des fonctions qui la renvoient (getters) et de celles dont une
@@ -204,12 +215,15 @@ mère voit quel coup il a choisi sans rien savoir de son fonctionnement.
    sens tant que le jeu en accepte (« si 7 marche, et 8 ? »), jusqu'à deux refus
    de suite ; pour des booléens, les deux. Au Morpion, l'exemple joue 4, 5, 1, 2
    et 7 : elle trouve 0 à 8. L'adversaire « au hasard » joue parmi ces actions.
+   Elle vérifie aussi que, dans l'exemple, deux joueurs jouent chacun leur
+   tour : c'est ce qui lui permet ensuite de reconnaître le joueur à la parité
+   du coup. Sinon, elle dit qu'elle ne sait pas encore éduquer de fils.
 
    Ensuite, elle **explore** : elle rejoue l'exemple, puis 8 parties où elle
    choisit d'abord les actions **surprenantes** (celles qui viennent de
    remplir une case qu'on ne leur avait jamais vu remplir), puis les moins
-   jouées. Elle déduit de ce qu'elle a vu les **portées** et la valeur écrite
-   (§ 3), et cherche le programme sur les coups de l'exemple et ceux de
+   jouées. Elle note aussi les coups refusés. Elle déduit de ce qu'elle a vu
+   les **portées**, la valeur écrite et la case libre (§ 3), et cherche le programme sur les coups de l'exemple et ceux de
    l'exploration : c'est ainsi qu'elle comprend la gravité, sans les
    coïncidences de l'exemple seul. Quand le labo a
    tout réfuté, elle **apprend du contre-exemple** : les coups joués dans le
@@ -346,7 +360,8 @@ configurations de quelques pièces (Chase et Simon). La mère fait de même avec
 ses souvenirs, en deux questions, toutes deux vérifiées dans le labo.
 
 **« Qu'est-ce qui comptait ? »** Un souvenir `MM.AA....` → 2 (`M` : mes pions,
-`A` : les siens, `.` : libre) devient un **petit motif** : les cases qui ne
+`A` : les siens, `.` : libre au sens qu'elle a appris, `#` : autre chose)
+devient un **petit motif** : les cases qui ne
 comptent pas deviennent `?`. Un petit motif tient si son coup est le bon
 partout où il apparaît. La mère le vérifie de deux façons :
 
@@ -440,8 +455,10 @@ chaque correction, qui n'importe rien de Xander :
    qu'elle a construit pour décrire l'action (§ 3), traduit en Python
    (`changees(avant, args)`, ou `valeur_apres` pour un nombre) : ce qu'elle a
    vérifié sur les cas est exactement ce que le fils exécute. La case jouée est
-   la seule case que le programme annonce, si elle est libre ; elle reçoit la
-   valeur écrite que la mère a décrite (§ 3 : au Morpion, `joueur`).
+   la seule case que le programme annonce, si elle est libre (`libre`, telle
+   que la mère l'a décrite, § 3) ; elle reçoit la valeur écrite qu'elle a
+   décrite (au Morpion, `joueur`). La clé d'une position (`cle`) se lit sur la
+   position elle-même, puis se renumérote pour chaque symétrie.
    `possibles` garde les actions que le jeu accepte au départ et qui
    remplissent une case ; `action_pour` vient des portées déduites de
    l'exploration. La mère pense avec la même perception. Si plusieurs programmes de

@@ -441,6 +441,45 @@ def ecriture(observations: list[tuple[Cas, object]]) -> tuple | None:
     return None
 
 
+def liberte(hypothese: Hypothese, observations: list[Cas], depart: list,
+            portees: dict | None = None) -> tuple | None:
+    """Quand une case peut-elle recevoir l'action ? Déduit des coups joués et des coups refusés.
+
+    ``observations`` : les coups vus dans le labo ; un coup refusé est un cas où
+    rien n'a changé (``valeur_apres == valeur_avant``). ``depart`` : la position
+    du début de la partie. La mère essaie, de la plus simple à la moins simple,
+    les descriptions qu'elle connaît et garde la première qui convient : chaque
+    case remplie la vérifiait juste avant, et aucune case que le programme
+    annonçait pour un coup refusé ne la vérifiait.
+
+    * ``("toujours",)`` : le programme suffit, il n'annonce aucune case pour un
+      coup refusé (au Puissance 4, une colonne pleine) ;
+    * ``("constante", v)`` : la case valait ``v``, toujours la même valeur ;
+    * ``("depart",)`` : la case avait encore sa valeur du début de la partie (au
+      Morpion, la case *n* contient « n » tant que personne n'y a joué).
+
+    ``None`` si aucune ne convient (ou si aucune case n'a été remplie).
+    """
+    remplies, annoncees = [], []  # (état avant, case)
+    for c in observations:
+        if c.forme == CHANGEES and len(c.cible()) == 1:
+            remplies.append((c.valeur_avant, next(iter(c.cible()))))
+        elif c.forme is None and isinstance(c.valeur_avant, list) and c.valeur_apres == c.valeur_avant:
+            cases = evaluer(hypothese.terme, Cas(c.valeur_avant, tuple(c.arguments), None), None, portees)
+            if cases is not INDEFINI and len(cases) == 1:
+                annoncees.append((c.valeur_avant, next(iter(cases))))
+    if not remplies:
+        return None
+    etat, case_ = remplies[0]
+    conditions = [(("toujours",), lambda e, c: True),
+                  (("constante", etat[case_]), lambda e, c: _cle(e[c]) == _cle(etat[case_])),
+                  (("depart",), lambda e, c: c < len(depart) and _cle(e[c]) == _cle(depart[c]))]
+    for description, vraie in conditions:
+        if all(vraie(e, c) for e, c in remplies) and not any(vraie(e, c) for e, c in annoncees):
+            return description
+    return None
+
+
 def _cle(valeur):
     """Clé hachable et sans ambiguïté de type (``1`` et ``True`` diffèrent)."""
     if isinstance(valeur, (list, tuple)):

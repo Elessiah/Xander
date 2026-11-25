@@ -31,7 +31,9 @@ pour un jeu à la plus structurelle :
 | Une seule expérience pour voir une portée : rejouer la même action depuis le début | **retirée** : elle explore (curiosité pour les actions surprenantes) et déduit l'ordre de ce qu'elle a vu |
 | `valant` compare aussi le texte (`"4"` et `4`), une conversion cachée pensée pour le Morpion | reste ; à rendre explicite (une brique `texte(x)`). Coût : au Morpion, `case(arg0)` et `valant(arg0)` ne seraient plus départageables du tout, et le jeu d'essai qui les départage est à refaire |
 | Une case changée reçoit le pion du joueur | **retirée** : elle décrit la valeur écrite (constante, argument ou propre à chaque joueur) |
-| Une case libre est une case sans pion ; pions appris par parité de coup ; positions lues en `M` / `A` / `.` | reste ; c'est le cadre « plateau à pions » de toute l'éducation, qui touche aussi l'entraînement (à coordonner) |
+| Une case libre est une case sans pion | **retirée** : elle le déduit des coups joués et refusés (toujours, une valeur, ou la valeur du début) |
+| Pions appris par parité de coup | **vérifiée** : la parité ne sert que si l'exemple montre deux joueurs qui alternent ; reste propre aux jeux à deux joueurs |
+| Positions lues en `M` / `A` / `.` | reste, mais `.` est la case libre apprise et `#` le reste : c'est la position vue de son côté, générale pour deux joueurs |
 
 1. **Analyzer plus général.** C'est lui qui donne à la mère le vocabulaire
    pour percevoir un jeu. La mère construit la description de l'action avec

@@ -203,6 +203,9 @@ class Education:
         self.rng = random.Random(seed)
         self.knowledge = son_writer.empty_knowledge(model)
         self.knowledge["actions"] = self.discover_actions()
+        if not self.alternate():
+            raise LabError("dans l'exemple, deux joueurs ne jouent pas chacun leur tour : "
+                           "la mère ne sait encore éduquer un fils que pour ces jeux-là")
         positions, seen = self.explore()
         lab_cases = [case for case, _ in seen]
         # Ce que chaque action remplit et la valeur qu'elle écrit : déduits de ce qu'elle a vu.
@@ -223,6 +226,13 @@ class Education:
         # Les programmes qui restent ont résisté à toutes les expériences : quand il en reste
         # plusieurs, aucune ne les a départagés, et la mère prend le premier trouvé.
         self.knowledge["effect"] = self.trials.survivors[0]
+        # Quand une case peut être jouée : déduit des coups joués et des coups refusés.
+        self.knowledge["start"] = list(self.lab.states[0])
+        self.knowledge["free"] = effets.liberte(self.knowledge["effect"], lab_cases,
+                                                self.knowledge["start"], self.knowledge["reach"])
+        if self.knowledge["free"] is None:
+            raise LabError("la mère ne sait pas dire quand une case peut être jouée : "
+                           "elle ne peut pas encore éduquer de fils")
         self._son = self._mind = None                # code du fils et espace de pensée, à réécrire
         self.max_views = 0                           # plus grand nombre de positions regardées par le fils
         self.marks: dict[int, object] = {}          # parité du coup -> pion posé
@@ -399,15 +409,31 @@ class Education:
         lab.goto([])
         return found
 
+    def alternate(self) -> bool:
+        """Dans l'exemple, deux joueurs jouent-ils l'action chacun leur tour ?
+
+        C'est ce qui permet ensuite de reconnaître le joueur à la parité du coup.
+        """
+        name = self.model.action.name
+        owners = [owner for owner, player in self.parsed.players.items()
+                  for f in player.functions_used if f.name == name]
+        times = [f.time for player in self.parsed.players.values()
+                 for f in player.functions_used if f.name == name]
+        owners = [owner for _, owner in sorted(zip(times, owners))]
+        return len(set(owners)) == 2 and all(a != b for a, b in zip(owners, owners[1:]))
+
     def explore(self) -> tuple[list, list]:
         """La mère joue dans son labo pour voir ce que font les actions, par curiosité.
 
         Elle rejoue d'abord l'exemple, puis :data:`PARTIES_D_ESSAI` parties où, à
         chaque coup, elle choisit l'action qu'elle a le moins vue agir (au hasard
         entre égales) ; si le jeu la refuse, la suivante. Elle note chaque coup
-        accepté : l'état avant, l'action, l'état après et le joueur qui a joué (la
-        parité du coup). Rien ne lui dit qu'une action remplit une colonne : c'est
-        ce qu'elle en déduira (:func:`~xander.effets.portees_observees`).
+        coup : l'état avant, l'action, l'état après et le joueur qui a joué (la
+        parité du coup : elle a vu dans l'exemple que les joueurs alternent). Un
+        coup refusé est noté aussi, avec un état après égal à l'état avant : il
+        montre quand une case ne peut pas être jouée. Rien ne lui dit qu'une
+        action remplit une colonne : c'est ce qu'elle en déduira
+        (:func:`~xander.effets.portees_observees`, :func:`~xander.effets.liberte`).
 
         Renvoie les positions atteintes ``(coups, état)`` et les coups notés
         ``(cas, joueur)``.
@@ -456,6 +482,8 @@ class Education:
                     surprising.discard(arguments)  # refusée ou finale : plus rien à voir ici
                     if outcome == "end":
                         lab.undo()
+                    else:  # refusé : rien n'a changé, c'est aussi une observation
+                        seen.append((effets.Cas(before, arguments, list(before)), len(moves) % 2))
                 else:
                     break  # aucun coup ne fait avancer la partie sans la finir
         lab.goto([])
@@ -650,9 +678,9 @@ class Education:
         return None
 
     def abstract(self, state) -> tuple:
-        """Ce qui compte d'une position : les pions (une case libre n'a pas d'identité)."""
-        marks = self.knowledge["marks"]
-        return tuple(v if v in marks else None for v in state)
+        """Ce qui compte d'une position : tout sauf les cases libres (elles n'ont pas d'identité)."""
+        marks, free = self.knowledge["marks"], self.mind.libre
+        return tuple(v if v in marks or not free(state, i) else None for i, v in enumerate(state))
 
     def probe_games(self, number: int = 20) -> list:
         """Des parties jouées au hasard dans le labo, jusqu'au bout."""

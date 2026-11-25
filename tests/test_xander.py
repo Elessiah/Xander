@@ -270,6 +270,30 @@ class EffectExperimentTest(unittest.TestCase):
         self.assertIsNone(effets.ecriture([(vu(["X", " "]), 0), (vu([" ", "O"], (1,)), 0)]))
         self.assertEqual(education().knowledge["written"], ("joueur",))
 
+    def test_free_cell_is_deduced_from_refusals(self):
+        """Quand une case peut être jouée : déduit des coups joués et des coups refusés,
+        pas de « une case sans pion »."""
+        depart = ["0", "1", "2"]
+        joue = effets.Cas(["0", "1", "2"], (1,), ["0", "X", "2"])
+        joue_aussi = effets.Cas(["0", "X", "2"], (0,), ["O", "X", "2"])
+        refuse = effets.Cas(["0", "X", "2"], (1,), ["0", "X", "2"])  # la case 1 est prise
+        self.assertEqual(effets.liberte(CASE_INDICE, [joue, joue_aussi, refuse], depart), ("depart",))
+        self.assertEqual(effets.liberte(CASE_INDICE, [joue], depart), ("toujours",))  # rien de refusé
+        vide = effets.Cas([" ", " "], (0,), ["X", " "])
+        pris = effets.Cas(["X", " "], (0,), ["X", " "])
+        self.assertEqual(effets.liberte(CASE_INDICE, [vide, pris], [" ", " "]), ("constante", " "))
+        tricheur = effets.Cas(["0", "1", "2"], (1,), ["0", "1", "2"])  # refusé alors que tout est libre
+        self.assertIsNone(effets.liberte(CASE_INDICE, [joue, tricheur], depart))
+        self.assertEqual(education().knowledge["free"], ("depart",))
+        parsed, model = understood(example("tests.jeu_chiffres", "MorpionChiffres", 9, "12121", [2, 0, 4, 3, 6]))
+        self.assertEqual(Education(parsed, model, None).knowledge["free"], ("depart",))
+
+    def test_players_must_alternate(self):
+        """La parité du coup dit qui joue parce que l'exemple montre deux joueurs qui alternent."""
+        parsed, model = understood(example("Games.Puissance4", "Puissance4", 42, "XXOXO", [0, 0, 1, 1, 2]))
+        with self.assertRaisesRegex(LabError, "chacun leur tour"):
+            Education(parsed, model, None)
+
     def test_gravity_upwards(self):
         """Les jetons montent : la file part de c + 35 et descend de 7. La mère n'a rien à
         calculer : elle voit l'ordre en rejouant l'action, et le même programme convient."""
@@ -504,7 +528,7 @@ class EducationTest(unittest.TestCase):
     def test_unexplained_move_becomes_a_memory(self):
         teaching = education()
         teaching.knowledge["patterns"] = []  # aucun motif connu : rien n'explique le coup
-        lesson = teaching.correct(["0"] * 9, "X", 0, "défaut", 4)
+        lesson = teaching.correct(list(teaching.lab.states[0]), "X", 0, "défaut", 4)  # plateau vide
         self.assertEqual(lesson.explanation, "souvenir")
         self.assertEqual(teaching.knowledge["memories"], {".........": 4})
 
