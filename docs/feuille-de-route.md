@@ -28,6 +28,23 @@ pas ARC.
    à partir de paires, sur des problèmes que nous inventons dans des
    domaines variés (listes, mots, nombres, plateaux de nos jeux), sans
    recopier ARC. Le fils est alors un programme qui répond, pas un joueur.
+
+   *Fait, première forme* (`docs/architecture.md`, § 10) : format JSON commun
+   (des paires, des questions ; une paire est une observation sans action),
+   recherche du plus petit programme avec 18 briques générales listées, chacune
+   justifiée par deux domaines d'entraînement, deuxième essai réellement
+   différent, « je ne trouve pas » plutôt qu'une invention, fils autonome qui
+   répond. Entraînement (55 problèmes, a servi à régler) : 52 au premier essai,
+   53 en deux. **Lot jamais vu** (34 problèmes écrits après le gel, commit
+   e7e14f3, passés une fois) : **25/34 au premier essai, 25/34 en deux**, moins
+   de 0,5 s par problème. Échecs : 3 programmes trop grands pour la taille 6
+   (écart, allumettes en deux coups, mots de plus de trois lettres : jalon 2),
+   5 notions absentes (moitié, pair, mettre à plat, voyelle, tout sauf le
+   premier), 1 coïncidence (« le mot le plus long » pris pour « le deuxième
+   mot ») ; et 1 bonne réponse pour une mauvaise raison (« les pions du
+   joueur » compris comme « les pions de X »). Ce lot, lu pour ce
+   bilan, compte désormais comme entraînement. À faire : un moteur commun avec
+   `effets.py`, et des briques gardées ou découvertes plutôt que données.
 2. **Un langage qui grandit.** Les concepts que la mère trouve deviennent des
    briques qu'elle garde d'un problème à l'autre (étapes 3 et 5). Ce qui
    reste fourni à la main se réduit à une liste courte et documentée,
@@ -87,7 +104,7 @@ pas ARC.
 | Découvrir les symétries (positions équivalentes) | fait, vérifiées dans le labo |
 | Petits motifs : un souvenir réduit à ce qui comptait, reconnu partout | fait, vérifiés dans le labo |
 | Réutiliser l'expérience d'un fils pour un autre | **plus tard**, nécessaire pour ARC (jalon 5) |
-| Problèmes qui ne sont pas des jeux (une entrée, une sortie) | à faire (jalon 1) |
+| Problèmes qui ne sont pas des jeux (une entrée, une sortie) | fait, première forme : 18 briques listées ; entraînement 52/55 (53 en deux essais), lot jamais vu 25/34 (jalon 1) |
 | Examens blancs sous scellé | premier passé (jalon 6) : `python -m xander.examen` |
 | Branchement ARC (adaptateur et lanceur d'examen) | à faire (jalon 7) |
 | Examen ARC | **le cap** (jalon 8) |
@@ -116,6 +133,39 @@ pour un jeu à la plus structurelle :
 | Pions appris par parité de coup | **vérifiée** : la parité ne sert que si l'exemple montre deux joueurs qui alternent ; reste propre aux jeux à deux joueurs |
 | Positions lues en `M` / `A` / `.` | reste, mais `.` est la case libre apprise et `#` le reste : c'est la position vue de son côté, générale pour deux joueurs |
 
+**Réglages fixés à la main.** Les nombres qu'on donne à la mère font aussi
+partie de son équipement de naissance. Ils sont listés ici avec leur origine,
+pour savoir lesquels ont été choisis en regardant des résultats. Règle : un
+réglage n'est **jamais** changé d'après le score d'un examen blanc, et un
+réglage changé d'après les résultats d'un jeu d'entraînement le dit ici.
+« Principe » : la valeur découle d'une règle de `CLAUDE.md`. « A priori » :
+choisie sans mesure, jamais remise en question. « Réglé » : choisi en
+comparant des résultats.
+
+| Réglage | Valeur | Où | Origine |
+|---|---|---|---|
+| Cas distincts pour garder une explication (effet, refactor, souvenirs libérés) | 2 | `effets.MIN_CAS`, `refactor_once` | principe : un seul cas peut être une coïncidence |
+| Positions regardées par le fils pour un coup | 1 000 | `education.BUDGET` | principe (budget mesurable) ; valeur a priori, loin du minimax complet (500 000) |
+| Taille d'un programme d'effet | 5 nœuds | `effets.MAX_TAILLE` | a priori ; suffit pour la gravité (5 nœuds) |
+| Constantes retenues de chaque sorte | 8 | `effets.MAX_CONSTANTES` | a priori |
+| Expériences pour réfuter l'effet / parties d'exploration / nouvelles recherches / refus avant d'arrêter d'explorer | 40 / 8 / 3 / 2 | `EXPERIENCES`, `PARTIES_D_ESSAI`, `REPRISES`, `PATIENCE` | a priori |
+| Taille et profondeur d'un concept | 6 nœuds, 2 `AuMoins` | `Education.max_size`, `max_depth` | réglé au Morpion |
+| k dans `AuMoins(k, …)` | 1 seulement | `Education.counts` | réglé au Morpion (tableau de `docs/architecture.md`, § 6) |
+| Positions imaginées pour départager des concepts | 120 | `concepts.echantillon` | a priori |
+| Autres coups adverses revus (variantes) | tous | `Education.variants` | réglé au Morpion (toute autre valeur y est pire) |
+| Parties au hasard pour vérifier une symétrie / renumérotations candidates au plus | 20 / 5 000 | `probe_games`, `symmetries.candidates` | a priori |
+| Petits motifs essayés avant d'oublier les cases une à une | 100 | `Education.combinations` | réglé (taille du plateau du Morpion contre Puissance 4) |
+| Positions imaginées pour vérifier un petit motif / tamis avant la vérification complète | 20 / 5 | `holds`, `Education.sieve` | 20 a priori ; 5 réglé au Puissance 4 (temps) |
+| Confirmations pour garder un petit motif | au moins la moitié, et r+ ≥ (1 + r−) / 2 contre le groupe témoin | `holds` | réglé au Puissance 4 (écarter le coup au centre joué par habitude) |
+| Désaccords jugés par petit motif | 2 | `holds` | réglé au Puissance 4 (temps) |
+| Adversaires de l'éducation | professeur, hasard, mixte (le professeur une fois sur deux) | `train`, `mixed_player` | a priori |
+| Durée maximale du rejeu d'un exemple | 30 s | `rebuilder.replay` | a priori (plomberie) |
+
+Les réglages « réglés » sont les premiers à remettre en cause quand un
+nouveau problème échoue. L'objectif, à terme, est que la mère choisisse
+elle-même ces bornes (par exemple chercher plus grand seulement quand rien
+de plus petit n'explique les cas), ce qui rejoint le jalon 2.
+
 1. **Analyzer plus général.** C'est lui qui donne à la mère le vocabulaire
    pour percevoir un jeu. La mère construit la description de l'action avec
    un petit langage (étape 1 : elle retrouve seule les anciennes hypothèses,
@@ -125,9 +175,19 @@ pour un jeu à la plus structurelle :
    puis pour réfuter ce qui reste (étape 3). Elle compose elle-même la
    gravité du Puissance 4 (étape 4, ci-dessous).
    La portée et la valeur écrite sont déduites de ce qu'elle voit en
-   explorant. Reste la valeur des Allumettes (quantité). Piste : un coup refusé est aussi une
-   observation (`valant(arg0)` annonce qu'une case occupée ne change rien),
-   qui pourrait apprendre `possibles`.
+   explorant. **La valeur des Allumettes (quantité) : faite.** La mère
+   éduque un fils quand l'état est un nombre (voir `docs/architecture.md`,
+   § 6). La position porte le trait (`[valeur, trait]`) : une valeur ne dit
+   pas qui a joué. Les actions permises viennent des coups refusés, qui sont
+   des observations : « la valeur d'après ne descend pas sous 0 », mesuré sur
+   ce qu'elle a vu. La fin est une valeur qu'elle vérifie par contre-épreuve
+   dans le labo, et l'exemple dit qui la gagne. Le fils ne rate aucune
+   position gagnable à 10 allumettes, avec une règle qu'elle construit
+   (laisser 5 ou 1) et sans souvenir ; avec 14, deux souvenirs par quantité
+   en plus. Restent la période 4 (au-delà de deux coups, étape 5), une fin
+   que l'exemple ne montre pas (prendre les deux dernières : elle ne sait pas
+   qui gagne et la compte nulle), et des bornes fournies à la main (toujours,
+   au moins, au plus, entre).
 
    **Étape 4 (faite) : découvrir la gravité au lieu de la fournir.** La
    brique `premiere(x, pas, v)`, écrite à la main, est remplacée par des
@@ -190,10 +250,17 @@ pour un jeu à la plus structurelle :
    peu de cas. Pistes : préférer le concept qui explique le plus de cas,
    relire les concepts quand une nouvelle brique apparaît, et dire ce que le
    langage fournit encore à la main (les nœuds `Non`, `Et`, `AuMoins` avec
-   k = 1, la forme « jouer une action après laquelle… »). `gagne` doit aussi apprendre qu'un coup peut faire perdre celui qui
-   le joue (Allumettes « misère »), ce qui demande de percevoir le trait.
+   k = 1, la forme « jouer une action après laquelle… »). `gagne` sait
+   maintenant qu'un coup peut faire perdre celui qui le joue, quand l'état
+   est une valeur : la position porte le trait, et la variante des Allumettes
+   jouée jusqu'au bout (`res/exampleAllumettesMisere.py`, prendre la dernière
+   perd) donne `FINS = {0: "trait"}`. Pas encore pour un tableau. Deux
+   faiblesses vues aux Allumettes : une règle « aucun de ses coups… » est
+   vraie sans rien dire quand la partie est finie (il n'a plus de coup), et
+   la période 4 demande de regarder plus loin que deux `AuMoins`.
 6. **Autres formes de problèmes.** Jeux à un joueur (Jumper), plus de deux
-   joueurs, état qui n'est pas un tableau.
+   joueurs, état qui n'est ni un tableau ni un nombre (un nombre : fait, les
+   Allumettes).
 7. **Jeux suivants, une fois Morpion, Allumettes et Puissance 4 appris.**
    Chaque jeu doit apporter de nouvelles notions sans tout changer à la
    fois, et avoir un professeur fiable.

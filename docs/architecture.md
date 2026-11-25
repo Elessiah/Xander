@@ -163,8 +163,8 @@ feuilles et les sortes de constantes, les sept opérations (dont
 `premiere_de`, une brique d'ordre générale), la façon de déduire l'ordre
 d'une portée (une case remplie alors qu'une autre était dans le même état
 vient avant elle), les trois descriptions de la valeur écrite et les trois de
-la case libre, la taille maximale des programmes (5 nœuds) et le minimum de
-deux cas.
+la case libre (pour un nombre, les quatre bornes d'une action permise, § 6),
+la taille maximale des programmes (5 nœuds) et le minimum de deux cas.
 
 **Getters / setters.** Enfin, chaque variable (identifiée par son nom) reçoit
 la liste des fonctions qui la renvoient (getters) et de celles dont une
@@ -315,6 +315,90 @@ parfait, contre 24 à 44 sans eux. L'écart vient de l'ordre dans lequel la mèr
 apprend : en faisant finir des parties au professeur pour juger un motif, elle
 découvre parfois un motif de fin, et ses règles changent plus tôt ou plus tard. L'éducation est aussi deux à trois fois plus rapide,
 car il y a moins de cas à revoir.
+
+### Un état qui n'est pas un tableau : une valeur (les Allumettes)
+
+Aux Allumettes, l'état est un nombre (les allumettes qui restent) et la mère
+décrit l'action par `apres = moins(avant, arg0)`. Rien de ce qui suit n'est
+propre aux Allumettes : cela vaut pour tout état qui est un nombre (le
+programme trouvé a la forme `apres` ; `Education.tableau` est faux).
+
+- **La position porte le trait.** Un tableau garde la trace de qui a joué
+  (les pions) ; une valeur, non. La position que voient la mère et le fils
+  est `[valeur, trait]`, le trait étant le joueur qui doit jouer (la parité du
+  coup ; les joueurs sont ceux des sections de l'exemple, dans l'ordre où ils
+  y jouent). `apres(etat, action, joueur)` donne
+  `[valeur_apres(valeur, action), adversaire(joueur)]`.
+- **Les actions permises** se déduisent comme la case libre (§ 3), de ce
+  qu'elle a vu (`effets.bornes`). Elle regarde les valeurs d'après des coups
+  acceptés, y compris ceux qui ont fini la partie (le jeu ne montre pas leur
+  valeur : elle la calcule avec son programme), et celles que son programme
+  annonçait pour les coups refusés. Elle essaie, dans l'ordre, *toujours*,
+  *pas sous m* (la plus petite valeur vue), *pas au-dessus de M* (la plus
+  grande), *entre les deux*. Elle garde la première qui ne permet aucun coup
+  refusé. En explorant, elle voit `play(3)` refusé à 2 allumettes : elle en
+  tire `("au_moins", 0)`, on ne prend pas plus qu'il n'en reste.
+- **Comprendre une fin (contre-épreuve).** Ici, la question est : « est-ce
+  bien la valeur qui finit la partie ? ». La mère calcule la valeur finale
+  de l'exemple (1). Dans les positions vues en explorant, elle cherche des
+  coups qui y mènent depuis d'autres valeurs (son programme le lui dit) et
+  les joue dans le labo. La partie doit finir à chaque fois, depuis au moins
+  deux valeurs différentes (`CONTRE_EPREUVES` = 3 au plus), et aucun coup ne
+  doit y avoir mené sans la finir. L'exemple dit qui a gagné : celui qui
+  vient de jouer (`dernier`), l'autre (`trait`), ou personne (`nul`). Ce
+  sont les `FINS`, d'où `gagne(etat, joueur)`. Une position de fin n'a plus
+  d'action possible.
+- **Une fin incomprise.** Prendre les 2 dernières allumettes mène à 0 : la
+  partie finit, et celui qui a joué perd. L'exemple ne le montre pas. Si une
+  partie finit à une valeur qu'elle n'a pas comprise, la mère ne sait pas qui
+  l'a gagnée : elle le note et la compte nulle, comme une fin sans motif au
+  Morpion. En pratique, ni le fils ni le professeur n'y vont.
+- **Ce qui ne s'applique pas** : pions, motifs décalés, symétries et petits
+  motifs parlent de cases. Un souvenir retient l'action ; sa clé est la
+  valeur et qui a le trait (`7 M` : 7 allumettes, à moi de jouer).
+- **Les concepts** (§ 8) n'ont pas changé : avec ces quatre notions, ils
+  valent tels quels.
+
+Résultats, avec 10 allumettes au départ, 30 parties et 10 graines (le chemin
+est le même pour toutes : la 1re partie est contre le professeur) :
+
+- Dans la 1re partie, le fils fait 3 erreurs (à 8, 7 et 4 allumettes, il
+  prend 1 au lieu d'en laisser 5 ou 1). La mère en fait 3 souvenirs,
+  remplacés aussitôt par une règle qu'elle construit :
+  `Non(AuMoins(1, moi, Non(AuMoins(1, moi, gagne(moi)))))`, « jouer un coup
+  après lequel, quoi que l'on joue ensuite, on peut encore finir à 1 ». Elle
+  laisse 5, ou 1. Elle enchaîne deux fois *mes* coups là où l'on attendrait
+  *ses* coups puis les miens. Aux Allumettes, les coups ne dépendent pas du
+  joueur : c'est la même chose.
+- Ensuite, plus aucune erreur : 0 souvenir, 0 coup impossible, au plus 22
+  positions regardées pour un coup.
+- Vérifié sur toutes les suites de coups adverses : le fils ne rate aucune
+  position gagnable. En premier, il gagne toujours, contre le professeur
+  aussi. En second, la partie est perdue d'avance (il reçoit 9 allumettes) :
+  il ne perd que si l'adversaire joue parfaitement. Contre le professeur, il
+  perd donc toujours ; contre le hasard, il perd 2 à 9 parties sur 100.
+- À 10 allumettes, le bon premier coup (en prendre 1) est aussi le coup par
+  défaut du squelette (la plus petite action) : la mère n'a pas eu à le
+  corriger. Avec un exemple à 14 allumettes, elle garde en plus deux souvenirs
+  par quantité (`12 M` → 3, `11 M` → 2).
+- La période 4 n'est pas trouvée : « laisser 9 » demande de regarder trois
+  coups plus loin, au-delà des deux niveaux de `AuMoins`. Élevé sur 10
+  allumettes, le fils gagne toutes les parties gagnables de 5 à 10
+  allumettes, et perd au-delà : il n'en a rien vu.
+
+**Variante jouée jusqu'au bout** (`res/exampleAllumettesMisere.py` : la partie
+finit à 0, celui qui prend la dernière perd). L'exemple finit sur le coup de O
+et dit que X a gagné. La mère comprend `FINS = {0: "trait"}` : le dernier coup
+fait perdre celui qui le joue, ce que le trait dans la position permet de
+dire. Elle trouve `Non(AuMoins(1, lui, Non(gagne(moi))))`, « jouer un coup
+après lequel aucun de ses coups ne me laisse sans victoire » (laisser 1), et
+garde deux souvenirs pour laisser 5 (`8 M` → 3, `7 M` → 2). Elle fait 4
+erreurs, toutes dans la 1re partie, et son fils ne rate aucune position
+gagnable. La règle a une faiblesse : elle est vraie aussi après avoir pris la
+dernière allumette (à 0, il n'a plus de coup, et « aucun de ses coups… » est
+vrai sans rien dire). Le fils ne s'y trompe pas parce qu'il joue la plus
+petite des actions que la règle propose (à 3 allumettes, prendre 2 plutôt que
+3) ; les cas enregistrés le vérifient, la règle seule ne le garantit pas.
 
 ## 7. Motifs décalés et symétries — `xander/symmetries.py`
 
@@ -509,6 +593,11 @@ chaque correction, qui n'importe rien de Xander :
    remplissent une case ; `action_pour` vient des portées déduites de
    l'exploration. La mère pense avec la même perception. Si plusieurs programmes de
    même taille coexistent, elle prend le premier trouvé.
+   Quand l'état est une valeur (§ 6), la perception s'écrit autrement : une
+   position est `[valeur, trait]`, `valeur_apres` recopie le programme,
+   `permise` dit quelles valeurs d'après sont permises, `FINS` à quelle valeur
+   la partie finit et qui la gagne ; ni cases, ni pions, ni symétries. Le fils
+   sait seulement que c'est son tour : il a le trait.
 2. **Règles** : les concepts qu'elle a construits et appris au fils, **et
    seulement ceux-là** (avec les briques dont ils dépendent), traduits en
    Python, `REGLES` dans l'ordre appris, `SOUVENIRS` et `SYMETRIES`.
@@ -529,7 +618,167 @@ Morpion) ; un test le vérifie sur toutes les positions.
 leçons, refactors) ; `Mother.create_son(nom, exemple, professeur=…)` écrit le
 fils dans `output/sons/<nom>.py`.
 
-## 10. Les examens blancs — `xander/examen.py`
+## 10. Problèmes « entrée → sortie » — `xander/transformations.py`
+
+Un genre de problème qui n'est pas un jeu (jalon 1) : quelques **paires**
+(une entrée, la sortie attendue) et des **questions** (une entrée seule). Le
+format et son lecteur : `docs/format-exemple.md` et `xander/problemes.py`.
+
+```text
+ res/problemes/*.json
+      │  problemes.py       lecture ; les réponses attendues restent à l'examinateur
+      ▼
+ paires + entrées des questions
+      │  transformations.py la mère cherche le plus petit programme sortie = t(x)
+      │  briques.py         l'équipement de naissance (18 briques)
+      ▼
+ Comprehension ── premier essai, deuxième essai, ou « je ne trouve pas »
+      │  fils_repondeur.py  la mère écrit le fils et le vérifie sur les paires
+      ▼
+ output/sons/<nom>.py ── fichier autonome : le programme trouvé et ses briques
+      │  mesure.py          l'examinateur lance le fils sur les questions et note
+```
+
+**Le même geste que pour une action.** Quand elle décrit l'effet d'une
+action (§ 3), la mère cherche par taille croissante le plus petit programme
+`apres = t(avant, args)` qui explique tous les cas. Ici, elle cherche
+`sortie = t(x)` qui explique toutes les paires : les paires jouent le rôle
+des cas (et des souvenirs, les tests du refactor), le programme trouvé
+devient le fils.
+
+**Le langage.** Un programme est un arbre : la feuille `x` (l'entrée), des
+constantes, et des briques. `chaque(f, s)` et `garder(p, s)` reçoivent une
+**fonction de l'élément**, un petit programme où la feuille `e` désigne
+l'élément : `chaque(plus(e, 1), x)` ajoute 1 à chaque nombre. La taille d'un
+programme est son nombre de nœuds (la feuille `e` ne compte pas) ; la mère
+cherche jusqu'à 6 nœuds, et une fonction de l'élément en a au plus 3 (sans
+`chaque` ni `garder` dedans).
+
+**Les constantes** : `0`, `1`, et au plus quatre valeurs simples qu'elle
+remarque dans les paires (un nombre, un texte, une lettre d'un texte, un
+booléen présents dans au moins deux paires ; celles qui reviennent dans le
+plus de paires, puis le plus souvent). Elle remarque ainsi l'espace d'une
+phrase, le tiret d'une date, le « . » d'un plateau, sans qu'on les lui
+donne.
+
+**L'équipement de naissance** (`xander/briques.py`). C'est tout ce qui est
+fourni à la main, avec une convention de perception : *un texte est une
+suite de lettres* (`inverser("chat")` vaut `"tahc"`). Chaque brique est
+justifiée par au moins deux problèmes d'entraînement de domaines différents,
+et un test le vérifie sur ce que la mère trouve réellement :
+
+| Brique | Ce qu'elle fait | Problèmes d'entraînement qui s'en servent (domaine) |
+|---|---|---|
+| `longueur(s)` | nombre d'éléments | combien-de-nombres (listes), nombre-de-lettres, nombre-de-mots (mots) |
+| `premier(s)`, `dernier(s)` | premier, dernier élément | initiale, derniere-lettre (mots), soustraction (nombres), colonne-de-gauche (plateaux), le-plus-grand (listes) |
+| `inverser(s)` | la suite à l'envers | liste-a-l-envers (listes), mot-a-l-envers (mots), plateau-haut-en-bas, plateau-dans-le-miroir (plateaux) |
+| `trier(s)` | ordre croissant | liste-dans-l-ordre (listes), lettres-dans-l-ordre (mots), le-plus-grand-des-deux (nombres) |
+| `somme(s)` | somme des nombres | la-somme (listes), addition (nombres) |
+| `non(b)` | contraire | sans-les-zeros (listes), sans-espaces (mots), pions-dans-l-ordre (plateaux) |
+| `element(s, i)` | l'élément d'indice *i* | l-element-designe (listes), rangee-du-milieu, case-du-centre (plateaux) |
+| `compter(s, v)` | combien d'éléments valent *v* | combien-de-zeros (listes), pions-de-x, x-par-rangee (plateaux) |
+| `positions(s, v)` | indices des éléments qui valent *v* | ou-sont-les-zeros (listes), ou-est-cette-lettre (mots), cases-libres (plateaux) |
+| `couper(s, v)` | morceaux séparés par *v* | groupes-separes-par-zero (listes), les-mots, l-annee (mots) |
+| `plus`, `fois` | addition, multiplication | un-de-plus, les-carres (listes), le-suivant, le-carre (nombres) |
+| `moins` | soustraction | le-precedent (nombres), allumettes-restantes (plateaux : l'état des Allumettes est un nombre) |
+| `egal(a, b)` | identiques ? | liste-symetrique (listes), palindrome (mots), sont-ils-egaux (nombres) |
+| `inferieur(a, b)` | *a* < *b* | les-positifs (listes), est-il-plus-petit (nombres) |
+| `chaque(f, s)` | *f* sur chaque élément | doubler (listes), initiales (mots), plateau-dans-le-miroir (plateaux) |
+| `garder(p, s)` | les éléments qui vérifient *p* | les-positifs (listes), sans-espaces (mots), pions-dans-l-ordre (plateaux) |
+
+Deux valeurs ne sont égales que si elles ont le même type (`1`, `1.0`,
+`True` et `"1"` diffèrent) : aucune conversion cachée. Une brique qui n'a pas
+de sens sur ses valeurs (la longueur d'un nombre, le premier d'une liste
+vide) rend le programme **indéfini** sur cette entrée.
+
+**La recherche.** Comme dans `effets.py` : énumération par taille croissante,
+et deux programmes qui donnent les mêmes valeurs sont confondus (on garde le
+plus petit, ou le premier trouvé). Les valeurs comparées sont celles des
+entrées des paires **et des questions** : deux programmes d'accord sur les
+paires mais pas sur une question restent distincts, puisqu'ils proposent deux
+réponses. La mère ne voit jamais les réponses attendues. Deux fonctions de
+l'élément sont confondues si elles donnent les mêmes valeurs sur un
+échantillon d'éléments (ceux des suites déjà construites, 48 au plus) ; à
+taille égale, la moins composée d'abord (`0 < e` plutôt que `e < e + e`). Les
+sortes de valeurs (nombre, booléen, texte, liste) écartent d'avance les
+compositions absurdes (`plus` d'un texte). Un budget borne le nombre de
+programmes distincts examinés (400 000).
+
+**Conclure à partir de peu (jalon 4).**
+
+- Il faut au moins deux paires distinctes ; deux paires contradictoires (la
+  même entrée, deux sorties) arrêtent tout.
+- **Premier essai** : le plus petit programme qui explique toutes les paires
+  et sait répondre à toutes les questions. À taille égale : le premier trouvé
+  dans l'ordre d'énumération (la feuille `x`, les constantes, puis les
+  briques dans l'ordre de `BRIQUES`). C'est la préférence documentée,
+  simple et arbitraire ; elle dit aussi combien de programmes de cette taille
+  donnaient d'autres réponses.
+- **Deuxième essai** : le plus petit programme suivant qui explique aussi
+  toutes les paires mais donne une **autre** réponse à au moins une question
+  (sinon ce ne serait pas un autre essai).
+- **Rien dans la taille permise** : elle le dit (« aucun programme de taille
+  6 au plus n'explique toutes les paires ») et n'écrit pas de fils.
+
+Exemple d'entraînement : « combien de fois cette lettre est dans le mot ».
+Sur les paires `banane/a → 2`, `chat/c → 1`, `lune/z → 0`, `kayak/k → 2`,
+le plus petit programme est la coïncidence `compter(premier(x), "a")` (compter
+les « a » !), taille 4 ; le deuxième essai, `compter(premier(x),
+dernier(x))`, taille 5, est le bon. Une règle tirée de peu de cas peut être
+une coïncidence : le deuxième essai est là pour ça.
+
+**Le fils** (`xander/fils_repondeur.py`) est un fichier Python autonome qui
+n'importe rien de Xander : `repondre(x)` (le programme trouvé, traduit en
+Python), `deuxieme_essai(x)` s'il y en a un, les briques dont ils se servent
+**et seulement celles-là** (recopiées de `briques.py` avec leurs outils), et
+les entrées des questions. Lancé seul, il y répond ; on peut aussi lui donner
+une entrée en JSON. Avant de le livrer, la mère l'exécute sur toutes les
+paires : ce qu'elle a vérifié est exactement ce qu'il exécute.
+
+**La mesure** (`xander/mesure.py`) sépare les rôles : la mère reçoit les
+paires et les entrées des questions ; l'examinateur lance le fils et compare
+ses réponses aux réponses attendues, qui ne reviennent jamais vers la mère.
+`python -m xander res/problemes/entrainement/mots.json` affiche, pour chaque
+problème, le programme trouvé, le deuxième essai, ce que répond le fils et le
+score ; `--probleme NOM` en choisit un, `--son NOM` écrit le fils dans
+`output/sons/`.
+
+**Ce qui est fourni à la main** : les 18 briques et leur ordre, la
+convention « un texte est une suite de lettres », la feuille `x`, les
+constantes 0 et 1, la façon de remarquer les autres, la taille maximale des
+programmes (6) et des fonctions (3), l'échantillon qui confond deux
+fonctions, le minimum de deux paires, le budget et la préférence à taille
+égale.
+
+**Limites et suites.**
+
+- La taille 6 suffit à l'entraînement (le plus grand programme trouvé en a 5)
+  et la recherche prend 0,4 s au plus par problème (8 s pour les 55). Une
+  taille 7 multiplie le temps total par 4 environ, une taille 8 par 8 : au-delà,
+  c'est le jalon 2 (chercher sans tout énumérer, guidée par ce qu'elle
+  observe), pas une raison d'ajouter une brique.
+- Pas de « si », pas de façon de voir des lignes sur un plateau : « qui a
+  trois pions alignés » et « à qui le tour » restent hors de portée, et elle
+  le dit. Pas de constante qu'elle n'a pas vue (« ajouter 10 » quand 10
+  n'apparaît dans aucune paire).
+- L'échantillon qui confond deux fonctions de l'élément ne contient que les
+  éléments des suites de taille 3 au plus : deux fonctions d'accord sur lui
+  mais pas ailleurs sont confondues, et l'une peut manquer.
+- Les briques sont fournies. Elles devraient devenir, au jalon 2, des
+  concepts que la mère garde d'un problème à l'autre (« le plus grand » =
+  `dernier(trier(x))`, trouvé ici, pourrait devenir une brique) ; et
+  certaines devraient être découvertes plutôt que données.
+- **Refactor à faire : un moteur commun avec `effets.py`.** Les deux
+  énumèrent des arbres par taille croissante, confondent ceux qui donnent les
+  mêmes valeurs et gardent le plus petit qui explique tous les cas ;
+  `transformations.py` réutilise déjà `_compositions` et `INDEFINI`. Il
+  faudrait un moteur partagé (nœuds, énumération, confusion par les valeurs,
+  sortes) où `effets.py` ajoute ses feuilles (`arg`, `avant`) et ses briques
+  de cases, et `transformations.py` les siennes et les fonctions de
+  l'élément. Une paire « entrée → sortie » deviendrait alors un cas
+  `apres = t(avant)` sans arguments.
+
+## 11. Les examens blancs — `xander/examen.py`
 
 Un examen blanc mesure la mère sur des problèmes **inédits**, écrits à
 l'avance et gardés sous scellé hors du dépôt (jalon 6 de la feuille de
@@ -607,13 +856,21 @@ problèmes, ni sur la raison d'un échec.
   sont déclarés indiscernables, pas prouvés équivalents.
 - Découpage des tours : un getter de confirmation appelé juste après le coup
   (`get, play, get`) est rattaché au tour suivant.
-- Éducation : seulement pour deux joueurs qui alternent, un état en tableau et
-  une action qui remplit une case (le programme trouvé annonce une seule case
-  changée), à un seul argument. Les actions sont explorées autour des valeurs
-  de l'exemple : une action qu'aucune valeur voisine ne laisse deviner (un
-  entier isolé loin des autres, un texte jamais vu) reste inconnue. Les
-  Allumettes (quantité) attendent que la
-  perception sache décrire une quantité.
+- Éducation : seulement pour deux joueurs qui alternent, avec une action à un
+  seul argument, et un état qui est soit un tableau dont chaque action remplit
+  une case (le programme trouvé annonce une seule case changée), soit un
+  nombre (§ 6, les Allumettes). Un état d'une autre sorte (texte, liste de
+  longueur variable, plusieurs variables à la fois) n'est pas éduqué. Les
+  actions sont explorées autour des valeurs de l'exemple : une action
+  qu'aucune valeur voisine ne laisse deviner (un entier isolé loin des
+  autres, un texte jamais vu) reste inconnue.
+- Pour un nombre, les actions permises sont décrites par des bornes sur la
+  valeur d'après (fournies à la main : toujours, au moins, au plus, entre),
+  mesurées sur ce qu'elle a vu. Une fin de partie est une valeur exacte, pas
+  une condition (« moins de 2 ») : elle ne vaut que pour les valeurs vues, et
+  qui la gagne vient de l'exemple. Une fin que l'exemple ne montre pas (aux
+  Allumettes, prendre les deux dernières) reste incomprise et comptée nulle :
+  la mère n'a aucun moyen de lire le gagnant d'une partie du labo.
 - Les concepts sont construits par la mère, mais leur langage (les quatre
   sortes de nœuds) est fourni. Ses concepts sont parfois
   difficiles à lire : ils sont justes sur tous les cas vus, pas forcément
@@ -626,9 +883,19 @@ problèmes, ni sur la raison d'un échec.
   niveaux de `AuMoins`) : assez pour le Morpion, pas pour un jeu dont les
   pièges sont plus profonds (Puissance 4). Il faudra alors des briques
   composées plus loin, ou des suites forcées.
-- `gagne(etat, joueur)` ne sait pas encore dire qu'un coup fait **perdre**
-  celui qui le joue (Allumettes « misère » : prendre la dernière perd). Il
-  faudra que la perception sache qui a le trait.
+- `gagne(etat, joueur)` sait dire qu'un coup fait **perdre** celui qui le joue
+  quand l'état est une valeur : la position porte alors le trait (variante
+  des Allumettes jouée jusqu'au bout, § 6). Pas encore pour un tableau : la
+  contre-épreuve suppose que le joueur qui finit la partie avec un motif la
+  gagne.
+- Les concepts regardent au plus deux coups plus loin : aux Allumettes, la
+  mère trouve « laisser 5 » mais pas la période 4 (« laisser 9, 13… ») ; au
+  delà de ce qu'il a vu, le fils garde des souvenirs par quantité, ou perd.
+  Une équivalence « la même situation, 4 allumettes plus haut » serait une
+  symétrie qui n'est pas une renumérotation.
+- Le squelette joue la plus petite des actions qu'une règle propose : une
+  règle peut accepter un mauvais coup que ce choix écarte (variante jouée
+  jusqu'au bout : prendre la dernière allumette, § 6).
 - Les motifs de fin et les souvenirs (petits motifs) sont généralisés par
   décalage d'indice. Les règles, elles, ne parlent pas encore de petits
   motifs : un concept ne peut pas dire « je crée cette configuration ».
