@@ -203,3 +203,6 @@ de logiques pré-induites.
 - Apprendre un exemple : `python -m xander res/exampleMorpion.py`
 - Doc : `docs/architecture.md` (fonctionnement), `docs/feuille-de-route.md`
   (état et prochaines étapes), `docs/format-exemple.md` (format des exemples).
+- Reprendre le travail : `docs/feuille-de-route.md`, section « Reprendre le
+  travail » (méthode, état de chaque jeu, priorités). Les jeux et ce que la
+  mère en comprend : `docs/jeux.md`.

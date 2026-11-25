@@ -1525,3 +1525,10 @@ limite dépendant de la machine), pas à cause du score.
 - La vérification d'un petit motif par 20 positions imaginées est une
   épreuve, pas une preuve : il faut que le professeur joue le coup du motif
   dans au moins la moitié d'entre elles, et que ce coup ne soit pire dans aucune.
+- La qualité d'un fils n'est mesurée que par ses résultats (victoires,
+  durée, au moins aussi bien que le professeur). Rien ne dit encore s'il a
+  compris ou retenu : à Hanoï, il range la pile en 7 coups mais seulement
+  depuis 15 positions sur 27. Le bulletin du fils (taille, compression,
+  origine des coups, généralisation à des positions jamais vues, solidité,
+  stabilité) est conçu dans `docs/feuille-de-route.md`, « Le bulletin du
+  fils », et reste à écrire.
