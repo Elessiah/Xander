@@ -34,6 +34,7 @@ class AnalysisReport:
     variables: dict[str, Variable]                    # une entrée par nom de variable
     operations: dict[str, list[Operation]]            # nom de fonction -> opérations retenues
     unknown_calls: list[Function] = field(default_factory=list)  # appels non compris
+    cases: dict[str, dict[str, list[Cas]]] = field(default_factory=dict)  # fonction -> variable -> cas
 
 
 class Analyzer:
@@ -83,12 +84,14 @@ class Analyzer:
         by_call = {function.time: self.cases(function) for function in acting}
 
         operations: dict[str, list[Operation]] = {}
+        all_cases: dict[str, dict[str, list[Cas]]] = {}
         for name in dict.fromkeys(f.name for f in acting):
             pooled: dict[str, tuple[Variable, list[Cas]]] = {}
             for function in acting:
                 if function.name == name:
                     for variable_name, (variable, cases) in by_call[function.time].items():
                         pooled.setdefault(variable_name, (variable, []))[1].extend(cases)
+            all_cases[name] = {variable.name: cases for variable, cases in pooled.values()}
             operations[name] = [Operation(hypothesis, variable)
                                 for variable, cases in pooled.values()
                                 for hypothesis in effets.decouvrir(cases)]
@@ -104,7 +107,7 @@ class Analyzer:
                 unknown.append(function)
 
         variables = self.define_getters_setters(operations)
-        return AnalysisReport(self.observations, variables, operations, unknown)
+        return AnalysisReport(self.observations, variables, operations, unknown, all_cases)
 
     def define_getters_setters(self, operations: dict[str, list[Operation]]) -> dict[str, Variable]:
         """Associe à chaque variable les fonctions qui la lisent et celles qui la modifient."""

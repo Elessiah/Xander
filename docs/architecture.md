@@ -84,10 +84,12 @@ et des arguments :
 - pour un tableau, l'ensemble des cases qui ont changé : `changees = …`.
 
 Les programmes s'écrivent avec des feuilles (`arg0`, `arg1`…, `avant` et des
-**constantes mesurées** sur les cas) et six opérations : `plus`, `moins`,
+**constantes mesurées** sur les cas) et sept opérations : `plus`, `moins`,
 `case(x)` (la case d'indice *x*), `valant(x)` (les cases dont la valeur est
-*x*), `union` et `premiere(x, pas, v)` (la première case qui vaut *v* sur la
-file *x*, *x* + *pas*, *x* + 2 *pas*…). Pour chaque
+*x*), `union`, `portee(x)` (les cases que l'action *x* remplit quand la mère
+la rejoue depuis le début, dans l'ordre : une **observation** du labo) et
+`premiere_de(s, e)` (la première case de la suite *s* qui est dans
+l'ensemble *e*). Pour chaque
 fonction et chaque variable, elle garde les plus petits programmes qui
 expliquent **tous** les cas, avec au moins deux cas distincts (un seul cas peut
 être une coïncidence). Deux programmes qui donnent les mêmes valeurs sur tous
@@ -107,22 +109,27 @@ Elle retrouve ainsi seule les anciennes hypothèses :
 Elle trouve aussi des combinaisons qu'aucune étiquette ne décrivait
 (`apres = moins(avant, plus(arg0, arg1))`).
 
-**Une file de cases (gravité).** Au Puissance 4, `play(3)` remplit la case 3,
+**La gravité, une composition.** Au Puissance 4, `play(3)` remplit la case 3,
 puis 10, puis 17 : la case changée n'est l'argument que sur la rangée du bas.
-La mère ne connaît ni la gravité ni la forme du plateau. Elle remarque trois
-sortes de constantes dans les cas (`constantes`) :
+La mère ne connaît ni la gravité ni la forme du plateau, et l'Analyzer seul
+n'explique pas cette action. Dans son labo (§ 6), la mère rejoue chaque
+action depuis le début et note les cases qu'elle remplit : la **portée** de
+`play(3)` est 3, 10, 17, 24, 31, 38. Elle remarque aussi les **constantes**
+des cas (`constantes`) : les décalages « case changée − argument » et les
+valeurs qu'avaient les cases changées (ici `' '`, la case vide). Avec elles,
+le plus petit programme qui explique tous les coups de l'exemple est
 
-- les **décalages** « case changée − argument » ;
-- les **pas** : l'écart entre les cases changées par deux appels de mêmes
-  arguments (ici 10 − 3 = 7) ;
-- les **valeurs** qu'avaient les cases changées (ici `' '`, la case vide).
+    changees = premiere_de(portee(arg0), valant(' '))
 
-Avec elles, le plus petit programme qui explique tous les coups de l'exemple
-est `changees = premiere(arg0, 7, ' ')` : la première case vide de la file
-qui part de *p* et monte de 7. Le même programme décrit un tube qui se
-remplit case par case (pas 1) ou une pile. Un exemple qui ne joue que sur la
-rangée du bas ne montre aucun pas : la mère y trouve `case(arg0)`, que le
-labo réfute dès qu'elle joue deux fois dans la même colonne (§ 6).
+« la première case vide de ce que remplit l'action ». Rien n'y parle de
+colonnes ni de pas : l'ordre vient de ce qu'elle a vu. Le même programme
+décrit une gravité vers le haut (la portée va de 38 à 3), un tube ou une
+pile.
+
+Un exemple qui ne joue que sur la rangée du bas se laisse expliquer par
+`case(arg0)`, plus petit. Le labo le réfute dès que la mère joue deux fois
+dans la même colonne ; elle apprend alors du contre-exemple et retrouve la
+gravité (§ 6).
 
 Au Morpion, `case(arg0)` et
 `valant(arg0)` coexistent (la case *n* contient le texte `"n"`) : l'exemple
@@ -130,9 +137,10 @@ ne les départage pas, le labo s'en charge (§ 6). Les appels dont aucun cas
 n'est expliqué sont listés dans `AnalysisReport.unknown_calls`.
 
 Ce qui est encore fourni à la main : les deux formes (`apres`, `changees`), les
-feuilles et les sortes de constantes, les six opérations (dont `premiere`,
-une brique de parcours), la taille maximale des programmes (5 nœuds) et le
-minimum de deux cas.
+feuilles et les sortes de constantes, les sept opérations (dont
+`premiere_de`, une brique d'ordre générale), la façon d'observer une portée
+(rejouer la même action depuis le début), la taille maximale des programmes
+(5 nœuds) et le minimum de deux cas.
 
 **Getters / setters.** Enfin, chaque variable (identifiée par son nom) reçoit
 la liste des fonctions qui la renvoient (getters) et de celles dont une
@@ -174,7 +182,16 @@ mère voit quel coup il a choisi sans rien savoir de son fonctionnement.
      `valant(arg0)`.
    - Puissance 4 joué sur la rangée du bas : l'indice de la case vaut la
      colonne, et l'Analyzer trouve `case(arg0)`. En jouant deux fois dans la
-     même colonne, la mère le réfute et sait qu'elle n'a pas compris l'action.
+     même colonne, la mère le réfute.
+
+   Avant les expériences, elle rejoue chaque action depuis le début pour voir
+   ce qu'elle remplit (sa **portée**), puis cherche de nouveau le programme
+   avec ces portées : c'est ainsi qu'elle comprend la gravité. Quand le labo a
+   tout réfuté, elle **apprend du contre-exemple** : les coups joués dans le
+   labo deviennent des cas de plus, et elle cherche le plus petit programme
+   qui les explique avec ceux de l'exemple (au plus 3 fois). Sur la rangée du
+   bas, elle passe ainsi de `case(arg0)` à la gravité. Si rien n'explique les
+   cas (Jumper), elle sait qu'elle n'a pas compris l'action.
 1. **Leçon de l'exemple.** La mère rejoue l'exemple, vérifie que l'action
    change bien les cases que prédit son programme, apprend quel pion pose
    chaque joueur, puis comprend pourquoi la partie finit (ci-dessous).
@@ -424,11 +441,11 @@ fils dans `output/sons/<nom>.py`.
 
 ## Limites connues
 
-- Le langage des effets (deux formes, feuilles, constantes mesurées, six
-  opérations dont `premiere`) est fourni. `premiere` est une brique générale
-  de parcours (pile, tube, gravité), pas une découverte de la mère. Un jeu
-  dont l'état défile (Jumper) n'est pas encore décrit, ni une gravité
-  décalée (« la file part de *p* + 35, pas −7 »), qui dépasse 5 nœuds.
+- Le langage des effets (deux formes, feuilles, constantes mesurées, sept
+  opérations dont `premiere_de` et l'observation `portee`) est fourni. La
+  gravité n'y est plus : la mère la compose. Une portée suppose qu'on puisse
+  rejouer la même action depuis le début et qu'elle remplisse une case à la
+  fois. Un jeu dont l'état défile (Jumper) n'est pas encore décrit.
 - Les expériences n'essaient que les valeurs vues dans les arguments de
   l'exemple ; un coup qui ne change rien de visible est pris pour un coup
   refusé et n'apprend rien. Deux programmes qui résistent aux 40 expériences

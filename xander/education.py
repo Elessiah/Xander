@@ -47,7 +47,8 @@ reconnaît ensuite ce petit motif partout où il apparaît.
 **Cases et actions.** La mère raisonne en cases : un motif, un souvenir, une
 symétrie parlent des cases du plateau. Une action remplit une case : celle que
 prédit le programme qu'elle a construit pour décrire l'action (Morpion :
-``changees = case(arg0)``, Puissance 4 : ``changees = premiere(arg0, 7, ' ')``,
+``changees = case(arg0)``, Puissance 4 :
+``changees = premiere_de(portee(arg0), valant(' '))``,
 voir :mod:`xander.effets`), après l'avoir mis à l'épreuve dans le labo. Sa
 perception (``case_jouee``, ``action_pour``) fait le lien ; elle a rejoué
 chaque action dans le labo pour savoir quelles cases elle peut remplir.
@@ -78,6 +79,8 @@ BUDGET = 1000
 EXPERIENCES = 40
 #: Parties au hasard qui fournissent des positions où faire ces expériences.
 PARTIES_D_ESSAI = 8
+#: Nouvelles recherches de programme permises quand le labo a tout réfuté.
+REPRISES = 3
 
 
 @dataclass
@@ -167,6 +170,7 @@ class Trials:
     survivors: list
     played: int = 0
     refutations: dict = field(default_factory=dict)  # hypothèse -> cas qui la contredit
+    retries: int = 0                                  # nouvelles recherches après une réfutation
 
     def describe(self) -> str:
         text = f"{self.survivors[0]!r}" if self.survivors else "rien"
@@ -174,17 +178,18 @@ class Trials:
             others = ", ".join(map(repr, self.survivors[1:]))
             text += f" (indiscernable de {others})"
         refuted = f", {len(self.refutations)} réfutée(s)" if self.refutations else ""
+        if self.retries:
+            refuted += f" ({', '.join(map(repr, self.refutations))}), {self.retries} nouvelle(s) recherche(s)"
         return f"{text} : {self.played} expérience(s) dans le labo{refuted}"
 
 
 class Education:
     def __init__(self, parsed: ParsedExample, model: GameModel, teacher, seed: int = 0):
-        operations = model.report.operations.get(model.action.name, []) if model.report and model.action else []
         state = model.getter.return_value.name if model.getter else None
-        effects = [op.programme for op in operations
-                   if op.variable.name == state and op.programme.forme == effets.CHANGEES]
-        if not effects:
-            raise LabError("l'Analyzer n'a pas trouvé quelles cases change l'action : "
+        observed = (model.report.cases.get(model.action.name, {}).get(state, [])
+                    if model.report and model.action else [])
+        if not any(case.forme == effets.CHANGEES for case in observed):
+            raise LabError("l'exemple ne montre pas quelles cases change l'action : "
                            "la mère ne peut pas encore éduquer de fils")
         self.parsed = parsed
         self.model = model
@@ -194,12 +199,18 @@ class Education:
         self.rng = random.Random(seed)
         self.knowledge = son_writer.empty_knowledge(model)
         self.knowledge["actions"] = self.discover_actions()
-        self.trials = self.test_effects(effects)
+        self.knowledge["reach"] = self.discover_reach()
+        # Avec ce qu'elle a vu chaque action remplir, la mère cherche de nouveau le programme
+        # qui explique les coups de l'exemple (l'Analyzer seul n'a pas ces portées).
+        effects = [h for h in effets.decouvrir(observed, portees=self.knowledge["reach"])
+                   if h.forme == effets.CHANGEES]
+        if not effects:
+            raise LabError("aucun programme n'explique quelles cases change l'action, même avec ce "
+                           "que la mère a vu dans le labo : elle ne peut pas encore éduquer de fils")
+        self.trials = self.test_effects(effects, observed)
         # Les programmes qui restent ont résisté à toutes les expériences : quand il en reste
         # plusieurs, aucune ne les a départagés, et la mère prend le premier trouvé.
         self.knowledge["effect"] = self.trials.survivors[0]
-        self._mind = None
-        self.knowledge["reach"] = self.discover_reach()
         self._son = self._mind = None                # code du fils et espace de pensée, à réécrire
         self.max_views = 0                           # plus grand nombre de positions regardées par le fils
         self.marks: dict[int, object] = {}          # parité du coup -> pion posé
@@ -224,7 +235,7 @@ class Education:
     # Mettre à l'épreuve la description de l'action
     # ------------------------------------------------------------------ #
 
-    def test_effects(self, effects: list) -> Trials:
+    def test_effects(self, effects: list, observed: list) -> Trials:
         """Joue dans le labo des coups que l'exemple ne montrait pas, pour réfuter ou départager.
 
         Les positions viennent de l'exemple et de parties jouées au hasard ; les
@@ -232,10 +243,16 @@ class Education:
         La mère joue d'abord les expériences qui départagent les hypothèses
         restantes (elles n'annoncent pas toutes la même chose), puis d'autres,
         au hasard en partant des positions les plus proches du début, pour
-        tenter de réfuter ce qui reste. Si plus rien ne
-        résiste, elle sait qu'elle n'a pas compris l'action.
+        tenter de réfuter ce qui reste.
+
+        Si plus rien ne résiste, elle apprend du contre-exemple : chaque coup
+        joué devient un cas de plus, et elle cherche de nouveau le plus petit
+        programme qui explique les cas de l'exemple **et** ceux du labo (au plus
+        :data:`REPRISES` fois). Si elle n'en trouve aucun, elle sait qu'elle n'a
+        pas compris l'action.
         """
         rng, lab, trials = random.Random(f"effets-{self.seed}"), self.lab, Trials(list(effects))
+        reach = self.knowledge["reach"]
         calls = [f for f in self.parsed.player_functions() if f.name == self.model.action.name]
         values = list(dict.fromkeys(a for f in calls for a in f.arguments))
         width = len(self.model.action.parameters)
@@ -268,10 +285,19 @@ class Education:
         rng.shuffle(experiences)
         experiences.sort(key=lambda e: len(e[0]))  # d'abord près du début : le contre-exemple le plus simple
 
-        survivors = trials.survivors
-        while trials.played < EXPERIENCES and survivors and experiences:
+        survivors, gathered = trials.survivors, []  # gathered : les cas observés dans le labo
+        while trials.played < EXPERIENCES and experiences:
+            if not survivors:
+                if trials.retries >= REPRISES:
+                    break
+                trials.retries += 1
+                survivors = [h for h in effets.decouvrir(list(observed) + gathered, portees=reach)
+                             if h.forme == effets.CHANGEES and h not in trials.refutations]
+                trials.survivors = survivors
+                if not survivors:
+                    break
             index = next((i for i, (_, state, a) in enumerate(experiences)
-                          if effets.decisive(survivors, state, a)), 0)
+                          if effets.decisive(survivors, state, a, reach)), 0)
             moves, _, arguments = experiences.pop(index)
             if not lab.goto(moves) or lab.ended:
                 continue
@@ -284,7 +310,8 @@ class Education:
                 continue
             if outcome == "moved":
                 case = effets.Cas(before, arguments, lab.states[-1])
-                kept = effets.departager(survivors, case)
+                gathered.append(case)
+                kept = effets.departager(survivors, case, reach)
                 for hypothesis in survivors:
                     if hypothesis not in kept:
                         trials.refutations[hypothesis] = case
@@ -295,8 +322,9 @@ class Education:
         if not survivors:
             case = next(iter(trials.refutations.values()))
             call = f"{self.model.action.short_name}({', '.join(map(repr, case.arguments))})"
-            raise LabError(f"le labo a réfuté {effects} : sur {case.valeur_avant}, {call} a changé "
-                           f"les cases {sorted(case.cible())} ; l'Analyzer doit d'abord mieux comprendre l'action")
+            raise LabError(f"le labo a réfuté {list(trials.refutations)} : sur {case.valeur_avant}, {call} "
+                           f"a changé les cases {sorted(case.cible())}, et aucun programme n'explique tous les cas ; "
+                           "l'Analyzer doit d'abord mieux comprendre l'action")
         return trials
 
     # ------------------------------------------------------------------ #

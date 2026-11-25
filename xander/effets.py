@@ -17,16 +17,24 @@ Le terme ``t`` est un arbre construit avec :
 
 * les feuilles ``arg(k)`` (le k-ième argument de l'appel), ``avant`` (la
   valeur d'avant) et des **constantes mesurées** sur les cas (voir
-  :func:`constantes`) : écarts entre la case changée et un argument, écarts
-  entre les cases changées par deux appels de mêmes arguments, valeurs
+  :func:`constantes`) : écarts entre la case changée et un argument, valeurs
   qu'avaient les cases changées ;
 * ``plus(x, y)`` et ``moins(x, y)`` sur des nombres ;
 * ``case(x)`` : la case d'indice ``x`` ; ``valant(x)`` : les cases dont la
   valeur est ``x`` (ou s'écrit comme ``x``) ; ``union(e, f)`` de deux ensembles
   de cases ;
-* ``premiere(x, pas, v)`` : la première case qui vaut ``v`` sur la file
-  ``x``, ``x + pas``, ``x + 2 pas``… (une pile, un tube, la gravité du
-  Puissance 4 : ``premiere(arg0, 7, ' ')``).
+* ``portee(x)`` : les cases que remplit l'action ``x`` quand la mère la
+  rejoue depuis le début de la partie, dans l'ordre où elle les remplit.
+  C'est une **observation** faite dans le labo, pas un calcul (voir
+  ``portees``) : au Morpion une seule case, au Puissance 4 la colonne de bas
+  en haut ;
+* ``premiere_de(s, e)`` : la première case de la suite ``s`` qui appartient à
+  l'ensemble ``e`` (aucune s'il n'y en a pas).
+
+La gravité du Puissance 4 n'est donc pas fournie : c'est une composition que la
+mère construit, ``premiere_de(portee(arg0), valant(' '))`` (la première case
+vide de ce que remplit l'action). Le même programme décrit une gravité vers le
+haut, un tube ou une pile : l'ordre vient de ce qu'elle a vu.
 
 La mère énumère les termes par taille croissante et garde, pour chaque
 variable, les plus petites hypothèses qui expliquent **tous** les cas
@@ -39,13 +47,13 @@ case qui vaut p » disent toujours la même chose).
 Exemples (que la mère doit trouver seule, ils ne sont écrits nulle part sauf
 dans les tests) : au Morpion ``changees = case(arg0)`` ; aux Allumettes
 ``apres = moins(avant, arg0)`` ; un déplacement ``changees = union(case(arg0),
-case(arg1))`` ; au Puissance 4 ``changees = premiere(arg0, 7, ' ')``.
+case(arg1))`` ; au Puissance 4 ``changees = premiere_de(portee(arg0), valant(' '))``.
 
 Ce qui est fourni à la main : les deux formes, les feuilles, les sortes de
-constantes mesurées, les six opérations ci-dessus (dont ``premiere``, une
-brique générale de parcours qu'il faudra plus tard découvrir comme
-composition), la taille maximale des termes (:data:`MAX_TAILLE`) et le nombre
-minimal de cas (:data:`MIN_CAS`).
+constantes mesurées, les sept opérations ci-dessus (dont ``premiere_de``, une
+brique d'ordre générale), la façon d'observer une portée (rejouer la même
+action depuis le début), la taille maximale des termes (:data:`MAX_TAILLE`) et
+le nombre minimal de cas (:data:`MIN_CAS`).
 """
 
 from __future__ import annotations
@@ -136,8 +144,12 @@ def union(e: Terme, f: Terme) -> Terme:
     return Terme("union", *_ordonnes(e, f))
 
 
-def premiere(x: Terme, pas: Terme, v: Terme) -> Terme:
-    return Terme("premiere", x, pas, v)
+def portee(x: Terme) -> Terme:
+    return Terme("portee", x)
+
+
+def premiere_de(s: Terme, e: Terme) -> Terme:
+    return Terme("premiere_de", s, e)
 
 
 @dataclass(frozen=True)
@@ -184,15 +196,28 @@ def _est_nombre(valeur) -> bool:
     return isinstance(valeur, (int, float)) and not isinstance(valeur, bool)
 
 
+def _est_entier(valeur) -> bool:
+    return isinstance(valeur, int) and not isinstance(valeur, bool)
+
+
 def _est_indice(valeur, tableau) -> bool:
-    return (isinstance(valeur, int) and not isinstance(valeur, bool)
-            and isinstance(tableau, list) and 0 <= valeur < len(tableau))
+    return _est_entier(valeur) and isinstance(tableau, list) and 0 <= valeur < len(tableau)
 
 
-def evaluer(terme: Terme, cas: Cas, enfants: tuple = None):
-    """Valeur de ``terme`` sur ``cas`` (``enfants`` : valeurs déjà calculées des sous-termes)."""
+def _portee(portees: dict | None, x):
+    """La portée observée de l'action ``x`` (une suite de cases), ``INDEFINI`` si elle est inconnue."""
+    try:
+        suite = (portees or {}).get(x)
+    except TypeError:  # argument non hachable
+        return INDEFINI
+    return tuple(suite) if suite is not None else INDEFINI
+
+
+def evaluer(terme: Terme, cas: Cas, enfants: tuple = None, portees: dict | None = None):
+    """Valeur de ``terme`` sur ``cas`` (``enfants`` : valeurs déjà calculées des sous-termes ;
+    ``portees`` : action -> cases qu'elle remplit, observées dans le labo)."""
     if enfants is None:
-        enfants = tuple(evaluer(a, cas) for a in terme.args if isinstance(a, Terme))
+        enfants = tuple(evaluer(a, cas, None, portees) for a in terme.args if isinstance(a, Terme))
     if any(v is INDEFINI for v in enfants):
         return INDEFINI
     kind, tableau = terme.kind, cas.valeur_avant
@@ -213,44 +238,23 @@ def evaluer(terme: Terme, cas: Cas, enfants: tuple = None):
         return frozenset((x,)) if _est_indice(x, tableau) else INDEFINI
     if kind == "valant":
         (x,) = enfants
-        if not isinstance(tableau, list) or isinstance(x, (frozenset, list)):
+        if not isinstance(tableau, list) or isinstance(x, (frozenset, list, tuple)):
             return INDEFINI
         return frozenset(i for i, v in enumerate(tableau) if v == x or str(v) == str(x))
     if kind == "union":
         e, f = enfants
         return e | f if isinstance(e, frozenset) and isinstance(f, frozenset) else INDEFINI
-    if kind == "premiere":
-        x, pas, v = enfants
-        if not (isinstance(tableau, list) and _est_entier(x) and _est_entier(pas) and pas
-                and not isinstance(v, (frozenset, list))):
+    if kind == "portee":
+        (x,) = enfants
+        if isinstance(x, (frozenset, list, tuple)):
             return INDEFINI
-        return frozenset(_premiere(tableau, x, pas, v))
+        return _portee(portees, x)
+    if kind == "premiere_de":
+        s, e = enfants
+        if not (isinstance(s, tuple) and isinstance(e, frozenset)):
+            return INDEFINI
+        return next((frozenset((c,)) for c in s if c in e), frozenset())
     raise ValueError(kind)
-
-
-def _est_entier(valeur) -> bool:
-    return isinstance(valeur, int) and not isinstance(valeur, bool)
-
-
-def _premiere(tableau, x, pas, v) -> set:
-    """La première case qui vaut ``v`` sur la file ``x``, ``x + pas``… (vide s'il n'y en a pas)."""
-    case = x
-    while 0 <= case < len(tableau):
-        if tableau[case] == v:
-            return {case}
-        case += pas
-    return set()
-
-
-PREMIERE_SOURCE = """def _premiere(tableau, x, pas, v):
-    \"\"\"La première case qui vaut v sur la file x, x + pas… (vide s'il n'y en a pas).\"\"\"
-    case = x
-    while 0 <= case < len(tableau):
-        if tableau[case] == v:
-            return {case}
-        case += pas
-    return set()
-"""
 
 
 # ---------------------------------------------------------------------- #
@@ -258,7 +262,7 @@ PREMIERE_SOURCE = """def _premiere(tableau, x, pas, v):
 # ---------------------------------------------------------------------- #
 
 #: Les opérations et leur nombre d'arguments.
-OPERATIONS = ((case, 1), (valant, 1), (plus, 2), (moins, 2), (union, 2), (premiere, 3))
+OPERATIONS = ((case, 1), (valant, 1), (portee, 1), (plus, 2), (moins, 2), (union, 2), (premiere_de, 2))
 #: Opérations commutatives : un seul ordre d'arguments est essayé.
 COMMUTATIVES = (plus, union)
 
@@ -273,12 +277,14 @@ def _compositions(total: int, parts: int):
             yield (first,) + rest
 
 
-def termes(cas: list[Cas], nb_arguments: int, max_taille: int = MAX_TAILLE, constants: tuple = ()):
+def termes(cas: list[Cas], nb_arguments: int, max_taille: int = MAX_TAILLE, constants: tuple = (),
+           portees: dict | None = None):
     """Énumère les termes par taille croissante, avec leurs valeurs sur ``cas``.
 
     Renvoie ``(terme, valeurs)``. Un terme qui donne les mêmes valeurs qu'un
     terme plus petit n'est pas renvoyé ; un terme de même taille l'est (il
-    coexiste) mais ne sert pas à en construire d'autres.
+    coexiste) mais ne sert pas à en construire d'autres. Sans ``portees``, les
+    termes ``portee`` ne sont pas essayés.
     """
     vus: dict[tuple, int] = {}                     # valeurs -> taille du plus petit terme
     par_taille: dict[int, list] = {}               # taille -> [(terme, valeurs)] servant de briques
@@ -297,16 +303,17 @@ def termes(cas: list[Cas], nb_arguments: int, max_taille: int = MAX_TAILLE, cons
 
     def construire(terme: Terme, enfants: dict | None = None):
         ordre = [enfants[a] for a in terme.args if isinstance(a, Terme)] if enfants else []
-        valeurs = tuple(evaluer(terme, c, tuple(v[i] for v in ordre)) for i, c in enumerate(cas))
+        valeurs = tuple(evaluer(terme, c, tuple(v[i] for v in ordre), portees) for i, c in enumerate(cas))
         return proposer(terme, valeurs)
 
+    operations = [(op, n) for op, n in OPERATIONS if portees or op is not portee]
     feuilles = [arg(k) for k in range(nb_arguments)] + [avant()] + [const(v) for v in constants]
     for feuille in feuilles:
         trouve = construire(feuille)
         if trouve:
             yield trouve
     for taille in range(2, max_taille + 1):
-        for operation, arite in OPERATIONS:
+        for operation, arite in operations:
             if taille - 1 < arite:
                 continue
             for tailles in _compositions(taille - 1, arite):
@@ -327,30 +334,19 @@ def constantes(cas: list[Cas]) -> tuple:
     """Les constantes que la mère remarque dans les cas (les plus fréquentes de chaque sorte).
 
     * écarts entre une case changée et un argument entier (un décalage) ;
-    * écarts entre les cases changées par deux appels de mêmes arguments (un
-      pas : rejouer la même action a rempli une autre case) ;
     * valeurs qu'avaient les cases changées (au Puissance 4, la case vide).
 
     Pour un nombre (forme ``apres``), aucune constante n'est mesurée.
     """
     nombres, valeurs = Counter(), Counter()
-    seules: dict = {}  # arguments -> cases changées seules, dans l'ordre des cas
     for c in cas:
         if c.forme != CHANGEES:
             continue
-        changees = sorted(c.cible())
-        for i in changees:
+        for i in sorted(c.cible()):
             valeurs[_cle(c.valeur_avant[i])] += 1
             for a in c.arguments:
                 if _est_entier(a):
                     nombres[i - a] += 1
-        if len(changees) == 1:
-            seules.setdefault(_cle(c.arguments), []).append(changees[0])
-    for suite in seules.values():
-        for i, x in enumerate(suite):
-            for y in suite[i + 1:]:
-                if y != x:
-                    nombres[y - x] += 1
     retenus = [n for n, _ in nombres.most_common(MAX_CONSTANTES)]
     vues = [cle[1] for cle, _ in valeurs.most_common(MAX_CONSTANTES)]
     return tuple(sorted(retenus, key=lambda n: (abs(n), n))) + tuple(vues)
@@ -363,12 +359,13 @@ def _cle(valeur):
     return (type(valeur).__name__, valeur) if valeur is not INDEFINI else ("indefini",)
 
 
-def decouvrir(observations: list[Cas], max_taille: int = MAX_TAILLE,
-              min_cas: int = MIN_CAS) -> list[Hypothese]:
+def decouvrir(observations: list[Cas], max_taille: int = MAX_TAILLE, min_cas: int = MIN_CAS,
+              portees: dict | None = None) -> list[Hypothese]:
     """Les plus petites hypothèses qui expliquent tous les cas (vide si aucune ou trop peu de cas).
 
     Les cas doivent tous avoir la même forme (voir :attr:`Cas.forme`) ; les
-    doublons sont ignorés.
+    doublons sont ignorés. ``portees`` : ce que la mère a vu chaque action
+    remplir dans son labo (sans elles, ``portee`` n'est pas essayé).
     """
     uniques = {_cle((c.valeur_avant, c.arguments, c.valeur_apres)): c
                for c in observations if c.forme is not None}
@@ -380,7 +377,7 @@ def decouvrir(observations: list[Cas], max_taille: int = MAX_TAILLE,
     cibles = tuple(_cle(c.cible()) for c in cas)
     nb_arguments = min(len(c.arguments) for c in cas)
     trouvees: list[Hypothese] = []
-    for terme, valeurs in termes(cas, nb_arguments, max_taille, constantes(cas)):
+    for terme, valeurs in termes(cas, nb_arguments, max_taille, constantes(cas), portees):
         if trouvees and terme.size > trouvees[0].terme.size:
             break
         if tuple(_cle(v) for v in valeurs) == cibles:
@@ -388,11 +385,11 @@ def decouvrir(observations: list[Cas], max_taille: int = MAX_TAILLE,
     return trouvees
 
 
-def explique(hypothese: Hypothese, cas: Cas) -> bool:
+def explique(hypothese: Hypothese, cas: Cas, portees: dict | None = None) -> bool:
     """L'hypothèse prédit-elle ce qui s'est passé dans ``cas`` ?"""
     if cas.forme != hypothese.forme:
         return False
-    return _cle(evaluer(hypothese.terme, cas)) == _cle(cas.cible())
+    return _cle(evaluer(hypothese.terme, cas, None, portees)) == _cle(cas.cible())
 
 
 # ---------------------------------------------------------------------- #
@@ -400,7 +397,7 @@ def explique(hypothese: Hypothese, cas: Cas) -> bool:
 # ---------------------------------------------------------------------- #
 
 def traduire(terme: Terme) -> str:
-    """Le terme en expression Python, avec les variables ``avant`` et ``args``.
+    """Le terme en expression Python, avec les variables ``avant``, ``args`` et ``PORTEES``.
 
     ``evaluer`` et l'expression donnent la même chose sur un cas où le terme
     est défini : ce que la mère a vérifié est exactement ce que le fils exécute.
@@ -423,21 +420,18 @@ def traduire(terme: Terme) -> str:
         return f"{{i for i, v in enumerate(avant) if v == {x} or str(v) == str({x})}}"
     if kind == "union":
         return f"({traduire(a[0])} | {traduire(a[1])})"
-    if kind == "premiere":
-        return f"_premiere(avant, {traduire(a[0])}, {traduire(a[1])}, {traduire(a[2])})"
+    if kind == "portee":
+        return f"tuple(PORTEES[{traduire(a[0])}])"
+    if kind == "premiere_de":
+        return f"next(({{c}} for c in {traduire(a[0])} if c in {traduire(a[1])}), set())"
     raise ValueError(kind)
-
-
-def _utilise(terme: Terme, kind: str) -> bool:
-    return terme.kind == kind or any(isinstance(a, Terme) and _utilise(a, kind) for a in terme.args)
 
 
 def source(hypothese: Hypothese) -> str:
     """La fonction Python ``changees(avant, args)`` ou ``valeur_apres(avant, args)``."""
     nom = "changees" if hypothese.forme == CHANGEES else "valeur_apres"
     quoi = "les cases qui changent" if hypothese.forme == CHANGEES else "la nouvelle valeur"
-    aide = PREMIERE_SOURCE + "\n\n" if _utilise(hypothese.terme, "premiere") else ""
-    return (aide + f"def {nom}(avant, args):\n"
+    return (f"def {nom}(avant, args):\n"
             f'    """{quoi.capitalize()} : {hypothese!r} (trouvé par la mère)."""\n'
             f"    return {traduire(hypothese.terme)}\n")
 
@@ -446,18 +440,20 @@ def source(hypothese: Hypothese) -> str:
 # Mettre les hypothèses à l'épreuve (expériences dans le labo)
 # ---------------------------------------------------------------------- #
 
-def predictions(hypotheses: list[Hypothese], valeur_avant, arguments: tuple) -> list:
+def predictions(hypotheses: list[Hypothese], valeur_avant, arguments: tuple,
+                portees: dict | None = None) -> list:
     """Ce que chaque hypothèse annonce si l'on joue ``arguments`` sur ``valeur_avant``."""
     cas = Cas(valeur_avant, tuple(arguments), None)
-    return [_cle(evaluer(h.terme, cas)) for h in hypotheses]
+    return [_cle(evaluer(h.terme, cas, None, portees)) for h in hypotheses]
 
 
-def decisive(hypotheses: list[Hypothese], valeur_avant, arguments: tuple) -> bool:
+def decisive(hypotheses: list[Hypothese], valeur_avant, arguments: tuple,
+             portees: dict | None = None) -> bool:
     """L'expérience départage-t-elle des hypothèses (elles n'annoncent pas toutes la même chose) ?"""
-    return len(set(predictions(hypotheses, valeur_avant, arguments))) > 1
+    return len(set(predictions(hypotheses, valeur_avant, arguments, portees))) > 1
 
 
-def departager(hypotheses: list[Hypothese], cas: Cas) -> list[Hypothese]:
+def departager(hypotheses: list[Hypothese], cas: Cas, portees: dict | None = None) -> list[Hypothese]:
     """Les hypothèses que le résultat de l'expérience ne contredit pas.
 
     Un cas où il n'y a rien à expliquer (coup refusé, fin de partie) ne
@@ -465,4 +461,4 @@ def departager(hypotheses: list[Hypothese], cas: Cas) -> list[Hypothese]:
     """
     if cas.forme is None:
         return list(hypotheses)
-    return [h for h in hypotheses if explique(h, cas)]
+    return [h for h in hypotheses if explique(h, cas, portees)]

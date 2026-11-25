@@ -25,37 +25,37 @@
    et celles de même taille coexistent). Le programme trouvé est le `apres`
    qu'elle écrit dans le fils et avec lequel elle pense (étape 2). Elle le
    met à l'épreuve dans le labo, d'abord par des expériences qui départagent,
-   puis pour réfuter ce qui reste (étape 3). Elle décrit aussi la gravité du
-   Puissance 4 (`premiere(arg0, 7, ' ')`, avec des constantes qu'elle mesure).
+   puis pour réfuter ce qui reste (étape 3). Elle compose elle-même la
+   gravité du Puissance 4 (étape 4, ci-dessous).
    Reste à décrire la valeur écrite (aujourd'hui le pion du joueur, supposé)
    et celle des Allumettes (quantité). Piste : un coup refusé est aussi une
    observation (`valant(arg0)` annonce qu'une case occupée ne change rien),
    qui pourrait apprendre `possibles`.
 
-   **Étape 4 : découvrir la gravité au lieu de la fournir.** La brique
-   `premiere(x, pas, v)` est écrite à la main : la mère s'en sert, elle ne
-   l'a pas trouvée. Il faut la remplacer par des briques plus petites qu'elle
-   compose elle-même :
+   **Étape 4 (faite) : découvrir la gravité au lieu de la fournir.** La
+   brique `premiere(x, pas, v)`, écrite à la main, est remplacée par des
+   briques plus petites que la mère compose elle-même :
    - **les cases liées à une action**, observées et non calculées : en
      rejouant une action dans le labo, la mère voit déjà quelles cases elle
      remplit, dans quel ordre (`PORTEES` : au Puissance 4, la colonne de bas
-     en haut). Ce sera une feuille du langage, à la place de la file
+     en haut). C'est l'opération `portee(x)`, à la place de la file
      « *x*, *x* + *pas*… » calculée avec des constantes ;
    - **un ordre et un choix** : « la première case d'une suite qui vérifie
      une condition », où la condition est un terme déjà connu (`valant(v)`,
      la valeur qu'avaient les cases changées). La gravité devient alors une
      composition, `premiere_de(portee(arg0), valant(' '))`, que la mère
      construit et vérifie sur les cas ;
-   - **le test** : au Puissance 4, elle retrouve cette composition sans
-     `premiere` ; au Morpion elle garde `case(arg0)` (la portée d'une action
-     n'y a qu'une case) ; un tube ou une pile marchent sans rien changer ;
-     une gravité vers le haut ou décalée (« la file part de *p* + 35, pas
-     −7 », hors de portée de `premiere` à 5 nœuds) marche aussi, car l'ordre
-     vient de l'observation et non d'un calcul.
+   - **vérifié par les tests** : au Puissance 4, elle trouve cette
+     composition ; au Morpion elle garde `case(arg0)` ; une gravité vers le
+     haut (la file part de *c* + 35 et descend de 7, jeu d'essai) s'écrit de
+     la même façon. Sur un exemple joué seulement sur la rangée du bas, elle
+     croit d'abord `case(arg0)`, le labo le réfute, et elle apprend du
+     contre-exemple jusqu'à la gravité.
 
-   Ce qui restera fourni à la main : « la première d'une suite qui
+   Ce qui reste fourni à la main : « la première d'une suite qui
    vérifie… » (une brique d'ordre, générale) et la façon d'observer une
-   portée (rejouer la même action depuis le début).
+   portée (rejouer la même action depuis le début). L'Analyzer seul, sans
+   labo, ne comprend plus le Puissance 4 : il faut rejouer les actions.
 2. **Puissance 4 : une éducation praticable.** Tout fonctionne de bout en
    bout : l'Analyzer comprend la gravité, la mère retrouve des alignements
    horizontaux, verticaux et diagonaux et le miroir gauche-droite, corrige et
