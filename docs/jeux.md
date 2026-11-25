@@ -391,3 +391,220 @@ valeur de fin (« gagnée ») : sans lire `win` ou reconnaître la position but,
 elle prendrait la limite atteinte pour une victoire ; enfin une partie dont
 le compte de coups est caché (deux parties dans le même état visible n'ont
 pas le même nombre de coups restants), limite déjà notée de `Solo`.
+## Le compte est bon (version courte) — `Games/CompteEstBon.py`
+
+Jeu à un joueur, sur des nombres. On dispose de **4 nombres** (de 1 à 10,
+répétitions permises) et d'une **cible** (de 11 à 100). Un coup combine deux
+nombres disponibles avec une opération : les deux nombres sont remplacés par
+le résultat. Les résultats sont toujours entiers et positifs (règle
+classique) : une soustraction doit donner plus que 0, une division doit
+tomber juste.
+
+**État** (`get_game_state()`) : une liste plate de 5 entiers, les 4 places
+puis la cible, par exemple `[5, 5, 10, 4, 85]`. Une place vide vaut `0`, qui
+n'est jamais un nombre puisque tout résultat est positif. Les places ne
+bougent pas : on voit directement quelles cases un coup a changées, et la
+liste garde toujours la même taille et le même type de valeurs (aucune
+`None`, aucun texte). La cible est une case comme les autres, qui ne change
+jamais.
+
+**Action** : `play(i, j, op)`, trois entiers. Le résultat de
+`nombres[i] op nombres[j]` va à la place `i`, la place `j` se vide. `op` :
+`0` addition, `1` soustraction (`i` moins `j`), `2` multiplication, `3`
+division (`i` divisé par `j`). Des entiers plutôt que `"+"` : tous les
+arguments sont du même genre, comme les cases des autres jeux.
+
+| Méthode | Rôle |
+|---|---|
+| `CompteEstBon(graine)` | série de tirages reproductible ; le constructeur tire le premier |
+| `init()` | tire le suivant et renvoie l'état |
+| `get_game_state()` | l'état ; ne relance **pas** une partie finie (comme Partition) |
+| `play(i, j, op)` | l'état, `True` (gagnée), `False` (perdue ou refusé) |
+| `back()` | annule le dernier coup, même celui qui a fini la partie |
+| `get_moves()` | les coups `(i, j, op)` permis |
+| `print()`, `set_game_state(etat)` | affichage ; imposer un état (tests) |
+
+Attributs : `finie`, `gagnee`. Pas de `get_turn` ni de `win` : il n'y a
+qu'un joueur, comme à Jumper et Partition.
+
+**Fin.** Règle la plus simple : la partie est **gagnée** dès que la cible
+apparaît parmi les nombres (`play` renvoie `True`), **perdue** quand il ne
+reste qu'un nombre et que ce n'est pas la cible (`play` renvoie `False`,
+comme la fin perdue de Partition et Jumper ; le coup est joué). Avec deux
+nombres ou plus, l'addition est toujours possible : la partie ne se bloque
+jamais avant. Elle dure donc **au plus 3 coups**. On ne s'arrête pas quand
+la cible devient inatteignable : ce serait une règle que le joueur ne voit
+pas.
+
+**Coup refusé** : partie finie, indice hors des 4 places ou place vide,
+`i == j`, opération inconnue, soustraction qui ne donne pas un résultat
+positif, division qui ne tombe pas juste, argument qui n'est pas un entier
+(un booléen non plus). Rien ne change et `play` renvoie `False`, comme au
+Morpion. Un refus se distingue d'une fin perdue parce que l'état n'a pas
+changé : c'est justement ce que regarde le labo de la mère.
+
+**Tirage.** Chaque tirage est **soluble** : la cible est choisie au hasard
+parmi les valeurs de 11 à 100 que l'on peut atteindre avec les 4 nombres
+(et qui n'en font pas déjà partie). Si aucune ne l'est (`1 1 1 1`), on
+retire les nombres. Sur 500 graines, la solution la plus courte demande
+1 coup (67 fois), 2 coups (203) ou 3 coups (230).
+
+**Professeur** : `Games/SolveurCompteEstBon.py`,
+`solveur_compte_est_bon_play(game)`. Il lit l'état observable et cherche
+**en largeur** le chemin le plus court vers un état où la cible apparaît
+(tous les coups permis, puis tous ceux d'après, sans revisiter un état déjà
+vu), puis joue le premier coup. Il est exact : il trouve toujours la cible
+sur un tirage soluble, par le chemin le plus court. Il regarde au plus
+quelques centaines d'états (758 au plus sur 500 graines ; environ 4 ms pour
+une partie entière). Si un coup maladroit a rendu la cible inatteignable, il
+vise le nombre le plus proche (règle du vrai jeu). Il ne fait pas partie de
+Xander.
+
+**Exemple** : [`res/exampleCompteEstBon.py`](../res/exampleCompteEstBon.py),
+graine 2, tirage `5 5 10 4 → 85`. Le joueur fait 4 + 5 = 9, 10 × 9 = 90,
+90 − 5 = 85 : `play` renvoie `True`, l'exemple finit par
+`# end player joueur` (une partie gagnée, comme un casse-tête résolu). Les
+indices varient (`i` plus grand ou plus petit que `j`) et trois opérations
+sur quatre apparaissent.
+
+**Notions nouvelles** : combiner des quantités pour atteindre un but (le but
+est une case de l'état, la cible) ; une action à **plusieurs arguments**,
+dont un ne désigne pas une case (`op`) ; une partie qui peut finir de deux
+façons (gagnée, perdue) ; chercher sans tout énumérer (pour la mère, plus
+tard : reconnaître « il manque 5, et j'ai un 5 »).
+
+**Ce que la mère en comprend déjà** (`python -m xander
+res/exampleCompteEstBon.py`, sans rien changer à `xander/`) : un seul
+joueur, des tours `get_game_state -> play`, l'annulation, le gagnant, la
+variable `etat` (tableau de 5) que lit `get_game_state` et que modifie
+`play`. Elle décrit `play` par **les cases qui changent** :
+`changees = union(case(arg0), case(arg1))`, les places des deux nombres
+combinés. Elle ne dit pas **ce qu'elles deviennent** (aucun programme
+n'explique la valeur nouvelle : un calcul entre deux cases, choisi par un
+argument), ni le rôle de `arg2`. Une deuxième hypothèse,
+`union(case(arg2), case(3))`, est une coïncidence de l'exemple (seulement
+deux coups qui continuent) ; les essais du labo la réfutent.
+
+**Où l'éducation bloque** (`--son`, `--parties 30`) : dans
+`Solo.__init__` (`xander/un_joueur.py`), avec « la mère ne sait pas dire
+quand une action peut être jouée ». Avant cela, `discover_actions`
+(`xander/education.py`) ne cherche que des actions **à un argument** : elle
+joue `play(3)`, `play(4)`… que le jeu refuse tous, et ne trouve **aucune**
+action. Son exploration ne joue donc rien, les essais de `test_effects`
+(avec trois arguments pris dans l'exemple) se font refuser, et pour une
+action décrite par ses cases changées, elle ne sait dire que « toujours
+permise » quand elle n'a vu aucun refus. Il lui manquerait, dans l'ordre :
+des actions à plusieurs arguments (les découvrir, les rejouer, les écrire
+dans le fils) ; décrire une **valeur calculée** à partir de deux cases
+(`case(arg0) + case(arg1)`, l'opération choisie par un argument) ; une
+liberté qui dépend des valeurs (une case vide, une division qui tombe
+juste) ; deux fins distinctes (le `True` de la victoire et la position sans
+coup possible de la défaite) ; enfin, pour être bonne, reconnaître des
+configurations au lieu d'essayer les 48 coups de chaque position.
+
+## Mot mystère — `Games/MotMystere.py`
+
+Jeu à **un joueur**, sur des **mots**, avec une **information cachée**.
+`MotMystere(graine)` tire un mot secret de 5 lettres dans le dictionnaire
+`Games/mots_mystere.txt` (405 mots français courants, sans accents, en
+minuscules, écrit pour le dépôt) ; la même graine tire toujours la même
+suite de secrets. Le joueur propose un mot du dictionnaire ; le jeu répond
+pour chaque lettre : `=` bien placée, `~` présente ailleurs, `-` absente. La
+partie est **gagnée** quand le mot est trouvé, **perdue** après 6 essais.
+
+**Lettres répétées.** Chaque lettre du secret ne sert qu'une fois. On marque
+d'abord les lettres bien placées ; puis, de gauche à droite, une lettre mal
+placée reçoit `~` seulement s'il reste dans le secret un exemplaire de cette
+lettre qui n'a encore servi ni à un `=`, ni à un `~` plus à gauche ; sinon
+`-`. Avec le secret `arbre`, `terre` donne `--~==` (le `r` bien placé prend
+un des deux `r`, le `r` mal placé l'autre ; le seul `e` sert au `e` bien
+placé, l'autre `e` est absent). Avec le secret `lampe`, `pelle` donne
+`~-~-=` : le premier `e` est absent, car le seul `e` du secret est pris par
+le `e` bien placé plus à droite.
+
+| Méthode | Rôle |
+|---|---|
+| `init()` | nouvelle partie avec le secret suivant de la graine ; renvoie l'état vide |
+| `get_game_state()` | l'état (60 cases) ; **relance une partie** si la précédente est finie |
+| `get_turn()` | toujours `"joueur"` |
+| `get_moves()` | les mots permis (tout le dictionnaire) |
+| `play(mot)` | `False` si le coup est refusé, `True` si la partie est finie, sinon le nouvel état |
+| `back()` | annule la dernière proposition (même après la fin) et renvoie l'état |
+| `print()` | affiche les essais |
+| `set_secret(mot)` | administration (tests) : nouvelle partie avec ce secret |
+
+Après la fin, `game.win` vaut `"joueur"` (trouvé) ou `"personne"` (six
+essais sans le trouver). Un coup refusé (pas une chaîne, mauvaise longueur,
+majuscules, mot hors du dictionnaire, partie finie) ne change rien et
+renvoie `False`, comme aux autres jeux du dépôt.
+
+**L'état observable** ne contient jamais le secret. C'est l'historique, à
+plat, en 60 cases : 6 essais de 10 cases, une paire *lettre, réponse* par
+lettre (case `10 × essai + 2 × i` : la `i`-ième lettre proposée ; la case
+suivante : sa réponse), et `.` pour les essais pas encore joués. Pourquoi
+cette forme : une liste de cases, comme les plateaux des autres jeux, sans
+structure propre aux mots (pas de chaîne de 5 lettres ni de liste de
+listes) ; chaque lettre est **à côté** de sa réponse, ce qui garde ensemble
+ce qui va ensemble ; et le nombre d'essais restants se lit aux cases vides,
+sans compteur à part. Deux secrets qui donnent les mêmes réponses donnent
+exactement le même état (vérifié par les tests).
+
+**Professeur** — `Games/ProfesseurMotMystere.py`,
+`professeur_mot_mystere_play(game)`. Il ne lit pas le secret : il ne voit
+que l'état et le dictionnaire (les tests le font jouer à travers une
+« vitre » qui ne montre que `get_game_state`, `get_moves`, `play` et `win`).
+Sa règle, déterministe : garder les mots **compatibles** (ceux qui, s'ils
+étaient le secret, auraient donné chaque réponse reçue), puis proposer celui
+qui **partage le plus** les mots restants (dont la réponse prendrait le plus
+de formes différentes selon le secret ; à égalité, le premier dans l'ordre
+alphabétique). Il ne propose que des mots encore possibles. Premier essai :
+`tenir`. Sur les 405 secrets du dictionnaire (`python -m
+Games.ProfesseurMotMystere`) : **405 trouvés (100 %), 2,99 essais en
+moyenne** (1 en 1 essai, 93 en 2, 229 en 3, 75 en 4, 6 en 5, 1 en 6). À
+titre de comparaison, la règle simple « le premier mot compatible » en
+rate un et en met 3,36.
+
+**Notions nouvelles** : le domaine des mots (des actions qui sont des
+chaînes, tirées d'un vocabulaire de plusieurs centaines de valeurs) ; une
+information **cachée** qui ne se voit jamais, seulement ses conséquences ;
+**déduire** à partir d'indices (chaque réponse élimine des mondes
+possibles) ; des **lettres qui reviennent** (une même valeur à plusieurs
+endroits, que la réponse ne compte qu'une fois). Les deux fins (gagnée,
+perdue) ont le même signal (`play` renvoie `True`) et ne se distinguent que
+par `win`.
+
+Exemple : [`res/exampleMotMystere.py`](../res/exampleMotMystere.py), graine
+10 : `porte` (`--~-=`), `livre` (`---==`), `barre` (`~~~==`), puis `arbre`,
+trouvé au quatrième essai (`# end player joueur` : la partie est gagnée).
+
+**Ce que la mère en comprend déjà** (`python -m xander
+res/exampleMotMystere.py`, sans rien changer à `xander/`) : un seul joueur,
+deux actions par tour (`get_game_state -> play`), l'annulation (`back`),
+l'état (un tableau de 60 cases) et la fin (`play` renvoie `True`, la partie
+est gagnée). L'effet de `play` reste **inconnu** : les quatre appels sont
+« non compris ». Chaque proposition change les **10 cases** de l'essai
+suivant (0 à 9, puis 10 à 19…), et aucune de ses briques ne décrit « le
+bloc suivant de cases vides » : `premiere_de(…, valant('.'))` ne donne
+qu'une case, `valant('.')` toutes les cases vides, et une portée n'est
+observée que pour une action qui change **une seule** case.
+
+**Où l'éducation bloque** (`--son motmystere --parties 30`) : dans
+`Solo.__init__` (`xander/un_joueur.py`), avant la première partie, sur
+« aucun programme n'explique ce que change l'action, même avec ce que la
+mère a vu dans le labo ». Elle a pourtant exploré : ses actions sont les
+quatre mots de l'exemple (pour des valeurs qui ne sont ni des entiers ni
+des booléens, elle ne connaît que celles de l'exemple), 44 positions, et
+chaque coup change le bloc suivant de 10 cases.
+
+**Ce qui lui manquerait**, d'après ce qu'on voit ici : décrire **où** agit
+une action qui remplit plusieurs cases d'un coup (le prochain bloc libre) ;
+décrire **ce qu'elle écrit** (les lettres de l'argument, une sur deux) ;
+connaître le **vocabulaire** des actions au-delà de l'exemple ; distinguer
+**deux fins** au même signal (gagnée, perdue) ; et surtout raisonner sur
+un **état caché**. Dans son labo, toutes les parties ont le même secret
+(l'`init` de l'exemple est rejoué tel quel, et `back` revient en arrière sans
+changer de secret) : en mesurant la valeur des coups avec `back`, elle
+apprendrait par cœur le secret de la graine 10, pas à déduire. Il lui
+faudrait des parties à secrets différents et une façon de juger un coup
+sur l'ensemble des secrets encore possibles (le professeur le fait : il
+garde les mots compatibles avec les réponses).
