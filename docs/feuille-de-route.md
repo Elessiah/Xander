@@ -48,7 +48,7 @@ pas ARC.
    test en permet plusieurs. Lien avec l'étape 5 (coïncidences validées sur
    peu de cas).
 5. **L'expérience.** Chaque fils part de zéro, mais la mère arrive à
-   l'examen avec ce qu'elle a appris ailleurs. L'étape 7, prévue « plus
+   l'examen avec ce qu'elle a appris ailleurs. L'étape 8, prévue « plus
    tard », devient nécessaire.
 6. **Examens blancs.** Écrire des jeux de problèmes inédits, les mettre sous
    scellé hors du dépôt (pour qu'aucun agent ne les lise pendant le
@@ -96,7 +96,9 @@ pas ARC.
 
 Chacune sert un jalon du cap ARC : 1 → jalons 2 et 3 ; 2 → jalons 2 et 4
 (vérifier honnêtement, chercher sans tout essayer) ; 3 et 5 → jalons 2 et
-4 ; 4 → jalon 3 ; 6 → jalon 1 ; 7 → jalon 5.
+4 ; 4 → jalon 3 ; 6 → jalon 1 ; 7 → jalons 1 et 3 (de nouvelles
+notions à chaque jeu : tour de longueur variable, défaite qui n'est pas un
+motif, déplacements) ; 8 → jalon 5.
 
 **Retirer les aides orientées.** Objectif : que la mère n'ait plus que des
 briques générales. État des aides qu'on lui donne encore, de la plus taillée
