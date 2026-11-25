@@ -276,10 +276,16 @@ partout où il apparaît. La mère le vérifie de deux façons :
 Pourquoi ne pas se contenter de « aussi bon » ? Au Morpion, un coup change
 souvent l'issue d'une partie. Au Puissance 4, presque jamais : finie par le
 professeur des deux côtés, une partie se termine de la même façon quel que
-soit le coup joué. « Aussi bon » laissait donc passer des motifs absurdes
-(« la case 3 est libre : y jouer »). Demander au professeur ce qu'il jouerait
-est plus exigeant, et bien moins cher (un coup au lieu de deux fins de
-partie).
+soit le coup joué. « Aussi bon » y laisse donc passer presque tout. Demander
+au professeur ce qu'il jouerait est plus exigeant, et bien moins cher (un
+coup au lieu de deux fins de partie).
+
+**Au Puissance 4, cela ne suffit pas encore.** Après 3 parties, la mère garde
+391 souvenirs, dont environ 400 petits motifs décalés, et des motifs absurdes
+passent encore (« la case 3 est libre : y jouer »). Le professeur joue la
+colonne du centre dans la plupart des positions imaginées au hasard : elles
+« confirment » un motif qui ne dit rien de la position. Il faudra des
+positions imaginées plus proches de vraies parties, ou une autre épreuve.
 
 Elle cherche le **plus petit** motif qui tient : d'abord avec 0 case en plus
 de la case jouée, puis 1, 2 et 3 cases (`chunk_size`). Si aucun ne tient, elle

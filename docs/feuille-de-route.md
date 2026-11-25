@@ -27,7 +27,10 @@
 2. **Puissance 4 : une éducation praticable.** Tout fonctionne de bout en
    bout : l'Analyzer comprend la gravité, la mère retrouve des alignements
    horizontaux, verticaux et diagonaux et le miroir gauche-droite, corrige et
-   réduit les souvenirs. Mais une partie prend 2 à 6 minutes : chaque
+   réduit les souvenirs. Deux problèmes. Les petits motifs y sont mal
+   vérifiés : après 3 parties, 391 souvenirs, presque tous des motifs décalés
+   que les positions imaginées au hasard « confirment » parce que le
+   professeur y joue souvent le centre. Et une partie prend 2 à 8 minutes : chaque
    jugement fait finir la partie deux fois au professeur (environ 0,7 s), et
    la réduction d'un souvenir en petit motif demande des centaines de
    jugements. Pistes : juger moins de positions (variantes, positions
