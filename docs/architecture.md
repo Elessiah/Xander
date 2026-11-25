@@ -158,13 +158,57 @@ Au Morpion, `case(arg0)` et
 ne les départage pas, le labo s'en charge (§ 6). Les appels dont aucun cas
 n'est expliqué sont listés dans `AnalysisReport.unknown_calls`.
 
-Ce qui est encore fourni à la main : les deux formes (`apres`, `changees`), les
+Ce qui est encore fourni à la main : les trois formes (`apres`, `changees`,
+`suite` pour un état qui défile, ci-dessous), les
 feuilles et les sortes de constantes, les sept opérations (dont
 `premiere_de`, une brique d'ordre générale), la façon de déduire l'ordre
 d'une portée (une case remplie alors qu'une autre était dans le même état
 vient avant elle), les trois descriptions de la valeur écrite et les trois de
 la case libre (pour un nombre, les quatre bornes d'une action permise, § 6),
-la taille maximale des programmes (5 nœuds) et le minimum de deux cas.
+la taille maximale des programmes (5 nœuds) et le minimum de deux cas ; pour
+un défilement, les trois sortes d'exceptions (bord, mobile, cases fixes) et
+la profondeur de l'entrée par le bord (2 |*d*|).
+
+**Un état qui défile : l'état d'avant, décalé.** À Jumper, chaque coup fait
+avancer tout le décor d'une case : beaucoup de cases changent, et aucun
+ensemble de cases changées ne s'explique. Quand rien d'autre n'explique les
+cas, la mère essaie une troisième forme, `suite = decale(avant, d)` (la case
+*i* reçoit ce qui était en *i* + *d*). Le décalage *d* est une **constante
+mesurée** sur les cas (celui qui explique la majorité des cases changées),
+comme le décalage « chaque case + d » qu'elle essaie déjà sur ses motifs
+(§ 7). La description est **partielle et le dit** : elle prévoit chaque
+case, sauf celles qu'elle sait nommer (`effets.Defilement`) :
+
+- **ce qui entre par le bord** : les |*d*| cases dont la source sort de
+  l'état, et les |*d*| suivantes, où un objet qui entre a pu apparaître d'un
+  coup (à Jumper, un obstacle naît en 39 et se montre en 38). Imprévisible :
+  elle ne voit pas au-delà du bord ;
+- **le mobile** : une valeur présente exactement une fois dans chaque état et
+  qui ne suit pas le décalage (un curseur, un pion, un personnage : à Jumper,
+  `*`). Ni sa place suivante ni ce qu'il cache ne sont prévus. Elle note ses
+  déplacements par argument : `False -> [-40, 0, 40] ; True -> [-40]`. Le même
+  argument l'a fait monter, rester ou descendre : **ce qui décide est caché**
+  (l'élan du saut), et elle l'écrit au lieu de faire semblant ;
+- **les cases fixes** : jamais changées, et que le décalage contredirait (à
+  Jumper, la case 159, en fin de rangée : la mère ne connaît pas les rangées).
+
+Partout ailleurs, la prédiction doit être exacte dans tous les cas, et un cas
+où rien n'a changé (l'écran défile sur du vide) s'explique aussi. Garde-fous :
+le décalage doit expliquer au moins une case changée dans deux cas, plus de la
+moitié des cases changées qu'il prévoit, et l'entrée par le bord ne doit pas
+couvrir plus de la moitié de l'état (4 |*d*| ≤ *n*). Une exception qu'elle ne
+sait pas nommer fait tomber la description. Pour Jumper :
+
+    suite = decale(avant, 1) sauf : ce qui entre par le bord (cases 198 à 199),
+    le mobile '*' (déplacements False -> [-40, 0, 40] ; True -> [-40] : ce qui
+    les décide est caché), 1 case fixe [159]
+
+Ce n'est pas taillé pour Jumper : un texte qui défile sur un panneau, une file
+d'attente au guichet (chacun avance d'une place, un nouveau arrive au bout,
+test `test_queue`), un registre à décalage, une partition qui défile sous les
+yeux d'un musicien (`Games/Partition.py` : `decale(avant, 1)` sauf la case 7).
+Une action qui mélange l'état n'est expliquée par rien, et la mère le dit
+(`tests/jeu_melange.py`).
 
 **Getters / setters.** Enfin, chaque variable (identifiée par son nom) reçoit
 la liste des fonctions qui la renvoient (getters) et de celles dont une
@@ -188,6 +232,12 @@ annulant (`back`) puis en rejouant. **C'est le seul endroit où `back` sert.**
 
 Le professeur (un Minmax de `Games/`) joue à travers un espion (`Spy`) : la
 mère voit quel coup il a choisi sans rien savoir de son fonctionnement.
+
+**Coup joué, coup refusé.** Un coup est refusé quand rien n'a changé **et**
+que l'action n'a pas renvoyé ce qu'elle renvoie d'habitude dans l'exemple
+(au Morpion, `False` au lieu du plateau). Au début de Jumper, l'écran ne bouge
+pas (aucun obstacle) : `play` renvoie l'écran, inchangé, et le coup a bien été
+joué. Avant, le labo le prenait pour un refus et se désynchronisait du jeu.
 
 ## 6. L'éducation du fils — `xander/education.py`
 
@@ -230,7 +280,8 @@ mère voit quel coup il a choisi sans rien savoir de son fonctionnement.
    labo deviennent des cas de plus, et elle cherche le plus petit programme
    qui les explique avec ceux de l'exemple (au plus 3 fois). Sur la rangée du
    bas, elle passe ainsi de `case(arg0)` à la gravité. Si rien n'explique les
-   cas (Jumper), elle sait qu'elle n'a pas compris l'action.
+   cas (une action qui mélange l'état), elle sait qu'elle n'a pas compris
+   l'action.
 1. **Leçon de l'exemple.** La mère rejoue l'exemple, vérifie que l'action
    change bien les cases que prédit son programme, apprend quel pion pose
    chaque joueur, puis comprend pourquoi la partie finit (ci-dessous).
@@ -399,6 +450,98 @@ dernière allumette (à 0, il n'a plus de coup, et « aucun de ses coups… » e
 vrai sans rien dire). Le fils ne s'y trompe pas parce qu'il joue la plus
 petite des actions que la règle propose (à 3 allumettes, prendre 2 plutôt que
 3) ; les cas enregistrés le vérifient, la règle seule ne le garantit pas.
+
+### Un seul joueur : juger un coup par ce qui arrive — `xander/un_joueur.py`
+
+Quand l'exemple ne montre qu'un joueur (Jumper, Partition), il n'y a ni
+adversaire, ni professeur, ni « qui a gagné » : `gagne` et `adversaire` n'ont
+pas de sens. Les quatre notions restent celles des jeux à deux ; pour un
+joueur seul, la mère apprend une autre notion, **le résultat d'une partie à
+un joueur**, de l'exemple et du labo. Rien n'y est propre à un jeu.
+
+- **La fin.** C'est le signal que l'exemple montre au dernier coup (l'action
+  renvoie autre chose que d'habitude : `False` au lieu de l'écran). L'exemple
+  dit ce qu'elle vaut : `# end` (personne n'a gagné) = **perdue** ;
+  `# end player <nom>` = **gagnée** (un casse-tête résolu) ; `# end draw` =
+  nulle. L'exemple de Jumper montre maintenant une partie complète : un saut à
+  vide, un saut par-dessus le premier obstacle, puis le coureur touche le
+  deuxième (73 coups).
+- **La durée d'effet d'une action.** Depuis 30 positions vues en explorant,
+  la mère joue chaque action puis toujours la plus petite, et compte les coups
+  jusqu'à ce que les deux parties soient de nouveau dans le même état. Une
+  mesure où l'une des deux finit ne dit rien. L'**horizon** est la plus longue
+  durée vue, plus un coup. À Jumper, sauter ou non : les deux parties se
+  rejoignent 7 coups plus tard (le coureur retombe) ; horizon 8. À Partition,
+  une erreur finit la partie tout de suite : aucune mesure, horizon 1.
+- **La valeur d'un coup** : combien de coups la partie dure au mieux après
+  lui, sans dépasser l'horizon (une fin perdue vaut 0 ; une fin gagnée vaut
+  plus que tout ce qui ne finit pas, et plus tôt vaut mieux). Elle la mesure
+  **dans son labo, avec back** : elle essaie les suites de coups et revient en
+  arrière ; deux actions qui mènent au même état ne sont essayées qu'une fois
+  (à Jumper, en l'air, sauter ne fait rien : l'arbre reste petit). C'est son
+  calcul à elle, pas celui du fils.
+
+Déroulé, après la leçon de l'exemple (l'effet décrit prévoit chaque coup, la
+partie finit au même coup) :
+
+1. Le fils joue une partie dans le labo, un coup par tour, au plus 300 coups
+   (au-delà, il a survécu).
+2. **Revue.** Pour chaque décision, la valeur de chaque coup. Celle du coup du
+   fils se lit souvent sur la partie : elle a duré au moins un horizon après
+   lui. Un coup qui vaut moins qu'un autre est une **erreur** : faire une
+   erreur, revenir en arrière, voir que l'autre action survit. Chaque position
+   revue devient un **cas** (avec la valeur de chaque coup).
+3. **Souvenir.** Dans cet état exact, jouer le meilleur coup (le plus petit à
+   égalité). Un petit motif qui avait décidé un mauvais coup est oublié.
+4. **Petit motif.** Quand deux souvenirs (au moins) demandent le même coup, la
+   mère cherche les cases (avec leur valeur) qu'ils ont en commun et qui
+   suffisent : 1 case, puis 2 (au plus 20 000 essais), sinon elle oublie les
+   cases une à une. Un motif tient si, partout où il apparaît dans les cas, le
+   coup est l'un des meilleurs, et s'il couvre au moins deux souvenirs. À
+   taille égale, elle garde celui dont la présence annonce le mieux que le
+   coup est nécessaire (la plus grande part des cas où il apparaît qui le
+   confirment, comme le groupe témoin des jeux à deux). Puis elle vérifie que
+   le fils, avec ce motif à la place des souvenirs, joue encore un des
+   meilleurs coups dans **tous** les cas.
+
+Le fils reconnaît : souvenir, sinon petit motif, sinon le coup par défaut (la
+plus petite action). Il ne regarde aucune position à l'avance (`VUES` = 0),
+n'utilise jamais `back`, et ne joue qu'un coup par tour.
+
+**Partition** (`Games/Partition.py`, inventé pour cette étape : aucun état
+caché, une erreur se paie tout de suite). 30 parties, 0,4 s : deux erreurs
+(parties 1 et 2 : se taire sur une note), deux souvenirs remplacés par
+`{0: 'o'} -> True` (« frapper quand une note arrive »), 0 souvenir restant.
+Sur 50 morceaux jamais vus, plafonnés à 2 000 temps : 2,3 temps en moyenne à
+la naissance, 2 000 sur 50 après l'éducation.
+
+**Jumper.** 30 parties, 3 s. Deux erreurs : partie 1, coup 50 (premier
+obstacle, valeurs `{False: 0, True: 8}`) ; partie 2, coup 73 (deuxième
+obstacle). Deux souvenirs, remplacés après la 2e partie par
+`{162: 'T'} -> True` : « sauter quand un obstacle est juste devant moi » (la
+case 162 est celle qui suit le coureur au sol ; la mère ne sait pas ce qu'est
+un obstacle ni un sol). Ensuite, plus aucune erreur : 300 coups par partie,
+0 souvenir, 0 coup impossible, 0 position regardée à l'avance. Sur 50 graines
+jamais vues (le labo n'a que la graine 0 de l'exemple), plafonnées à 2 000
+coups : 51,7 coups en moyenne à la naissance (le fils ne saute jamais, il
+meurt au premier obstacle), 2 000 sur 50 après l'éducation. Le chemin est le
+même pour 5 graines d'exploration.
+
+Ce qu'il faut savoir pour lire ce résultat :
+
+- au moment de choisir, trois motifs d'une case tenaient sur les cas vus :
+  `{162: 'T'}`, `{163: 'T'}` (sauter deux cases avant : juste aussi) et
+  `{169: '-'}` (une coïncidence : dans les cas où sauter tue, un obstacle
+  était justement en 169). C'est la règle de choix (la part des cas qui
+  confirment : 2 sur 3, 2 sur 4, 2 sur 68) qui écarte la coïncidence ;
+- sauter au dernier moment suffit à Jumper parce qu'un obstacle (3 cases au
+  plus) est plus court qu'un saut (7 coups en l'air) : la mère n'a pas eu à
+  apprendre une distance ;
+- le coup par défaut (la plus petite action, `False`) est ici « ne rien
+  faire ». Un jeu où l'action par défaut serait la mauvaise demanderait plus
+  de souvenirs (non essayé) ;
+- l'élan caché ne gêne pas la mère parce qu'elle juge dans le vrai jeu ; elle
+  confond seulement deux positions identiques à l'écran (aucun cas vu).
 
 ## 7. Motifs décalés et symétries — `xander/symmetries.py`
 
@@ -614,9 +757,18 @@ refuse un refactor qui ferait regarder au fils plus de 1 000 positions pour
 un coup (un minimax complet en regarde plus de 500 000 au premier coup du
 Morpion) ; un test le vérifie sur toutes les positions.
 
+Pour un joueur seul (`son_writer.solo_source`), le fils n'a ni `apres` ni
+`gagne` : `possibles`, `SOUVENIRS` (état exact → coup), `MOTIFS` (petits
+motifs `{case: valeur}` → coup, dans l'ordre appris) et le squelette
+(souvenir, petit motif, défaut). La description de l'action n'y est qu'en
+commentaire : il ne prévoit rien, il reconnaît. Un coup est refusé si
+l'action ne renvoie pas ce qu'elle renvoie d'habitude **et** que rien n'a
+changé.
+
 `Mother.raise_son(exemple, professeur)` renvoie l'éducation (fils, parties,
 leçons, refactors) ; `Mother.create_son(nom, exemple, professeur=…)` écrit le
-fils dans `output/sons/<nom>.py`.
+fils dans `output/sons/<nom>.py`. Un exemple à un seul joueur est éduqué
+sans professeur (`python -m xander res/exampleJumper.py --son jumper --parties 30`).
 
 ## 10. Problèmes « entrée → sortie » — `xander/transformations.py`
 
@@ -849,14 +1001,28 @@ problèmes, ni sur la raison d'un échec.
   opérations dont `premiere_de` et l'observation `portee`) est fourni. La
   gravité n'y est plus : la mère la compose. Une portée suppose que l'action
   remplisse une case à la fois, et elle n'est complète que si l'exploration a
-  vu l'action remplir chacune de ses cases. Un jeu dont l'état défile (Jumper) n'est pas encore décrit.
+  vu l'action remplir chacune de ses cases. Un état qui défile est décrit
+  (§ 3), mais partiellement : ce qui entre par le bord et la place suivante du
+  mobile ne sont pas prévus, et l'état caché (l'élan de Jumper) est seulement
+  signalé. Un défilement à deux dimensions (la mère ne connaît pas les
+  rangées) laisse des cases « fixes » en bout de rangée.
 - Les expériences n'essaient que les valeurs vues dans les arguments de
-  l'exemple ; un coup qui ne change rien de visible est pris pour un coup
-  refusé et n'apprend rien. Deux programmes qui résistent aux 40 expériences
+  l'exemple ; un coup qui ne change rien de visible et qui ne renvoie rien
+  (ou pas ce qu'il renvoie d'habitude) est pris pour un coup refusé. Deux programmes qui résistent aux 40 expériences
   sont déclarés indiscernables, pas prouvés équivalents.
 - Découpage des tours : un getter de confirmation appelé juste après le coup
   (`get, play, get`) est rattaché au tour suivant.
-- Éducation : seulement pour deux joueurs qui alternent, avec une action à un
+- Un joueur seul (§ 6) : le fils ne fait que reconnaître (souvenirs, petits
+  motifs d'un coup), sans règle construite : les concepts parlent de `gagne`
+  et d'`adversaire`. Un petit motif est vérifié sur les cas vus dans le labo
+  (une seule graine pour Jumper), pas sur des positions imaginées : la mère ne
+  sait pas fabriquer une position de Jumper (elle ne place pas d'obstacle).
+  L'horizon suppose que les deux suites se rejoignent ; sinon il vaut 40. La
+  mère juge sur ce qu'elle voit : deux positions identiques à l'écran mais pas
+  dans le jeu (un élan caché) sont confondues. Un état en liste dont le jeu
+  refuse parfois une action n'est pas encore éduqué à un joueur (seule la
+  borne « toujours » existe pour une liste).
+- Éducation à deux : seulement pour deux joueurs qui alternent, avec une action à un
   seul argument, et un état qui est soit un tableau dont chaque action remplit
   une case (le programme trouvé annonce une seule case changée), soit un
   nombre (§ 6, les Allumettes). Un état d'une autre sorte (texte, liste de
