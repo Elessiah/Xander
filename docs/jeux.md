@@ -56,9 +56,11 @@ imbattable : au-delà de son horizon, un humain attentif peut le piéger.
 
 Exemple de partie : [`res/examplePuissance4.py`](../res/examplePuissance4.py).
 À cause de la gravité, la case modifiée n'est la case `colonne` que pour la
-ligne du bas. La mère le décrit elle-même (`changees = premiere(arg0, 7, ' ')` :
-la première case vide de la file *colonne*, *colonne* + 7…, avec le pas et la
-case vide mesurés sur l'exemple), et elle peut y éduquer un fils.
+ligne du bas. La mère le décrit elle-même : en jouant des parties dans son
+labo, elle voit les cases que remplit chaque colonne, et dans quel ordre, puis
+compose
+`changees = premiere_de(portee(arg0), valant(' '))` (la première case vide de
+ce que remplit l'action). Elle peut ensuite y éduquer un fils.
 
 ## Jumper — `Games/Jumper.py`
 

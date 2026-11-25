@@ -47,7 +47,8 @@ reconnaît ensuite ce petit motif partout où il apparaît.
 **Cases et actions.** La mère raisonne en cases : un motif, un souvenir, une
 symétrie parlent des cases du plateau. Une action remplit une case : celle que
 prédit le programme qu'elle a construit pour décrire l'action (Morpion :
-``changees = case(arg0)``, Puissance 4 : ``changees = premiere(arg0, 7, ' ')``,
+``changees = case(arg0)``, Puissance 4 :
+``changees = premiere_de(portee(arg0), valant(' '))``,
 voir :mod:`xander.effets`), après l'avoir mis à l'épreuve dans le labo. Sa
 perception (``case_jouee``, ``action_pour``) fait le lien ; elle a rejoué
 chaque action dans le labo pour savoir quelles cases elle peut remplir.
@@ -76,8 +77,12 @@ BUDGET = 1000
 
 #: Coups que la mère joue dans son labo pour mettre à l'épreuve la description de l'action.
 EXPERIENCES = 40
-#: Parties au hasard qui fournissent des positions où faire ces expériences.
+#: Parties d'exploration (par curiosité) : ce qu'elle y voit sert à décrire l'action.
 PARTIES_D_ESSAI = 8
+#: Nouvelles recherches de programme permises quand le labo a tout réfuté.
+REPRISES = 3
+#: Refus de suite après lesquels la mère cesse d'essayer des entiers plus loin.
+PATIENCE = 2
 
 
 @dataclass
@@ -135,25 +140,27 @@ class GameRecord:
         return text
 
 
-def random_player(rng: random.Random):
-    """Adversaire faible : essaie des arguments au hasard jusqu'à ce que le jeu en accepte un."""
+def random_player(rng: random.Random, actions: list, action: str, getter: str, end_signal):
+    """Adversaire faible : essaie au hasard les actions que la mère a trouvées, jusqu'à ce que le
+    jeu en accepte une (il les connaît par leurs noms dans l'exemple, comme le fils)."""
     def play(game):
-        state = game.get_game_state()
-        for argument in rng.sample(range(len(state)), len(state)):
-            if game.play(argument) is not False:
+        state = getattr(game, getter)()
+        for argument in rng.sample(actions, len(actions)):
+            result = getattr(game, action)(argument)
+            if type(result) is type(end_signal) and result == end_signal:
+                return  # la partie est finie : ne pas relire l'état
+            if getattr(game, getter)() != state:
                 return
     play.__name__ = "hasard"
     return play
 
 
-def mixed_player(teacher, rng: random.Random):
+def mixed_player(teacher, rng: random.Random, randomly):
     """Adversaire imprévisible : une fois sur deux le coup du professeur, sinon un coup au hasard.
 
     Il crée des menaces comme le professeur, mais pas toujours les mêmes : le
     fils rencontre ainsi des positions variées et difficiles.
     """
-    randomly = random_player(rng)
-
     def play(game):
         (teacher if rng.random() < 0.5 else randomly)(game)
     play.__name__ = "mixte"
@@ -167,6 +174,7 @@ class Trials:
     survivors: list
     played: int = 0
     refutations: dict = field(default_factory=dict)  # hypothèse -> cas qui la contredit
+    retries: int = 0                                  # nouvelles recherches après une réfutation
 
     def describe(self) -> str:
         text = f"{self.survivors[0]!r}" if self.survivors else "rien"
@@ -174,17 +182,18 @@ class Trials:
             others = ", ".join(map(repr, self.survivors[1:]))
             text += f" (indiscernable de {others})"
         refuted = f", {len(self.refutations)} réfutée(s)" if self.refutations else ""
+        if self.retries:
+            refuted += f" ({', '.join(map(repr, self.refutations))}), {self.retries} nouvelle(s) recherche(s)"
         return f"{text} : {self.played} expérience(s) dans le labo{refuted}"
 
 
 class Education:
     def __init__(self, parsed: ParsedExample, model: GameModel, teacher, seed: int = 0):
-        operations = model.report.operations.get(model.action.name, []) if model.report and model.action else []
         state = model.getter.return_value.name if model.getter else None
-        effects = [op.programme for op in operations
-                   if op.variable.name == state and op.programme.forme == effets.CHANGEES]
-        if not effects:
-            raise LabError("l'Analyzer n'a pas trouvé quelles cases change l'action : "
+        observed = (model.report.cases.get(model.action.name, {}).get(state, [])
+                    if model.report and model.action else [])
+        if not any(case.forme == effets.CHANGEES for case in observed):
+            raise LabError("l'exemple ne montre pas quelles cases change l'action : "
                            "la mère ne peut pas encore éduquer de fils")
         self.parsed = parsed
         self.model = model
@@ -194,12 +203,36 @@ class Education:
         self.rng = random.Random(seed)
         self.knowledge = son_writer.empty_knowledge(model)
         self.knowledge["actions"] = self.discover_actions()
-        self.trials = self.test_effects(effects)
+        if not self.alternate():
+            raise LabError("dans l'exemple, deux joueurs ne jouent pas chacun leur tour : "
+                           "la mère ne sait encore éduquer un fils que pour ces jeux-là")
+        positions, seen = self.explore()
+        lab_cases = [case for case, _ in seen]
+        # Ce que chaque action remplit et la valeur qu'elle écrit : déduits de ce qu'elle a vu.
+        self.knowledge["reach"] = effets.portees_observees(lab_cases)
+        self.knowledge["written"] = effets.ecriture(seen)
+        if self.knowledge["written"] is None:
+            raise LabError("la mère ne sait pas décrire la valeur que l'action écrit : "
+                           "elle ne peut pas encore éduquer de fils")
+        # Avec ces portées, elle cherche de nouveau le programme qui explique les coups de
+        # l'exemple et ceux de son exploration (l'Analyzer seul n'a que l'exemple).
+        observed = list(observed) + lab_cases
+        effects = [h for h in effets.decouvrir(observed, portees=self.knowledge["reach"])
+                   if h.forme == effets.CHANGEES]
+        if not effects:
+            raise LabError("aucun programme n'explique quelles cases change l'action, même avec ce "
+                           "que la mère a vu dans le labo : elle ne peut pas encore éduquer de fils")
+        self.trials = self.test_effects(effects, observed, positions)
         # Les programmes qui restent ont résisté à toutes les expériences : quand il en reste
         # plusieurs, aucune ne les a départagés, et la mère prend le premier trouvé.
         self.knowledge["effect"] = self.trials.survivors[0]
-        self._mind = None
-        self.knowledge["reach"] = self.discover_reach()
+        # Quand une case peut être jouée : déduit des coups joués et des coups refusés.
+        self.knowledge["start"] = list(self.lab.states[0])
+        self.knowledge["free"] = effets.liberte(self.knowledge["effect"], lab_cases,
+                                                self.knowledge["start"], self.knowledge["reach"])
+        if self.knowledge["free"] is None:
+            raise LabError("la mère ne sait pas dire quand une case peut être jouée : "
+                           "elle ne peut pas encore éduquer de fils")
         self._son = self._mind = None                # code du fils et espace de pensée, à réécrire
         self.max_views = 0                           # plus grand nombre de positions regardées par le fils
         self.marks: dict[int, object] = {}          # parité du coup -> pion posé
@@ -224,54 +257,54 @@ class Education:
     # Mettre à l'épreuve la description de l'action
     # ------------------------------------------------------------------ #
 
-    def test_effects(self, effects: list) -> Trials:
+    def test_effects(self, effects: list, observed: list, positions: list) -> Trials:
         """Joue dans le labo des coups que l'exemple ne montrait pas, pour réfuter ou départager.
 
-        Les positions viennent de l'exemple et de parties jouées au hasard ; les
-        arguments essayés sont les valeurs vues dans les arguments de l'exemple.
+        Les positions viennent de l'exemple et de l'exploration (voir :meth:`explore`) ;
+        les arguments essayés sont les actions trouvées et les valeurs de l'exemple.
         La mère joue d'abord les expériences qui départagent les hypothèses
         restantes (elles n'annoncent pas toutes la même chose), puis d'autres,
         au hasard en partant des positions les plus proches du début, pour
-        tenter de réfuter ce qui reste. Si plus rien ne
-        résiste, elle sait qu'elle n'a pas compris l'action.
+        tenter de réfuter ce qui reste.
+
+        Si plus rien ne résiste, elle apprend du contre-exemple : chaque coup
+        joué devient un cas de plus, et elle cherche de nouveau le plus petit
+        programme qui explique les cas de l'exemple **et** ceux du labo (au plus
+        :data:`REPRISES` fois), avec des portées revues à la lumière de ces
+        nouveaux coups. Si elle n'en trouve aucun, elle sait qu'elle n'a pas
+        compris l'action.
         """
         rng, lab, trials = random.Random(f"effets-{self.seed}"), self.lab, Trials(list(effects))
+        reach = self.knowledge["reach"]
         calls = [f for f in self.parsed.player_functions() if f.name == self.model.action.name]
-        values = list(dict.fromkeys(a for f in calls for a in f.arguments))
+        values = list(dict.fromkeys(list(self.knowledge["actions"]) + [a for f in calls for a in f.arguments]))
         width = len(self.model.action.parameters)
         candidates = list(itertools.product(values, repeat=width))[:200]
         example = [tuple(f.arguments) for f in calls]
         seen = {(tuple(example[:k]), example[k]) for k in range(len(example))}
 
-        positions = []  # (coups, état)
-        if lab.goto([]):
-            positions.append(([], lab.states[-1]))
-        for k in range(1, len(example)):
-            if lab.goto(example[:k]) and not lab.ended:
-                positions.append((example[:k], lab.states[-1]))
-        for _ in range(PARTIES_D_ESSAI):
-            moves: list[tuple] = []
-            lab.goto([])
-            while len(moves) < 4 * max(len(example), 1):
-                for arguments in rng.sample(candidates, len(candidates)):
-                    outcome = lab.play(*arguments)
-                    if outcome == "moved":
-                        moves.append(arguments)
-                        positions.append((list(moves), lab.states[-1]))
-                        break
-                    if outcome == "end":
-                        lab.undo()
-                else:
-                    break  # aucun coup ne fait avancer la partie sans la finir
         experiences = [(m, state, a) for m, state in positions for a in candidates
                        if (tuple(m), a) not in seen]
         rng.shuffle(experiences)
         experiences.sort(key=lambda e: len(e[0]))  # d'abord près du début : le contre-exemple le plus simple
 
-        survivors = trials.survivors
-        while trials.played < EXPERIENCES and survivors and experiences:
+        survivors, gathered = trials.survivors, []  # gathered : les cas observés dans le labo
+        while trials.played < EXPERIENCES and experiences:
+            if not survivors:
+                if trials.retries >= REPRISES:
+                    break
+                trials.retries += 1
+                # les nouveaux coups montrent peut-être des cases qu'une action remplit aussi
+                reach = self.knowledge["reach"] = effets.portees_observees(list(observed) + gathered)
+                survivors = [h for h in effets.decouvrir(list(observed) + gathered, portees=reach)
+                             if h.forme == effets.CHANGEES]
+                for hypothesis in survivors:  # réfutée avec des portées incomplètes, pas avec celles-ci
+                    trials.refutations.pop(hypothesis, None)
+                trials.survivors = survivors
+                if not survivors:
+                    break
             index = next((i for i, (_, state, a) in enumerate(experiences)
-                          if effets.decisive(survivors, state, a)), 0)
+                          if effets.decisive(survivors, state, a, reach)), 0)
             moves, _, arguments = experiences.pop(index)
             if not lab.goto(moves) or lab.ended:
                 continue
@@ -284,7 +317,8 @@ class Education:
                 continue
             if outcome == "moved":
                 case = effets.Cas(before, arguments, lab.states[-1])
-                kept = effets.departager(survivors, case)
+                gathered.append(case)
+                kept = effets.departager(survivors, case, reach)
                 for hypothesis in survivors:
                     if hypothesis not in kept:
                         trials.refutations[hypothesis] = case
@@ -295,8 +329,9 @@ class Education:
         if not survivors:
             case = next(iter(trials.refutations.values()))
             call = f"{self.model.action.short_name}({', '.join(map(repr, case.arguments))})"
-            raise LabError(f"le labo a réfuté {effects} : sur {case.valeur_avant}, {call} a changé "
-                           f"les cases {sorted(case.cible())} ; l'Analyzer doit d'abord mieux comprendre l'action")
+            raise LabError(f"le labo a réfuté {list(trials.refutations)} : sur {case.valeur_avant}, {call} "
+                           f"a changé les cases {sorted(case.cible())}, et aucun programme n'explique tous les cas ; "
+                           "l'Analyzer doit d'abord mieux comprendre l'action")
         return trials
 
     # ------------------------------------------------------------------ #
@@ -311,35 +346,148 @@ class Education:
         """La case que remplit le coup ``arguments`` dans ``state`` (perception de la mère)."""
         return self.mind.case_jouee(list(state), self.action(arguments))
 
-    def discover_actions(self) -> list:
-        """Quelles actions le jeu accepte-t-il au départ ? La mère les essaie dans le labo."""
-        lab, accepted = self.lab, []
-        for argument in range(len(lab.states[0])):
-            lab.goto([])
-            if lab.play(argument) != "refused":
-                accepted.append(argument)
-        lab.goto([])
-        return accepted
+    def random_player(self, rng: random.Random):
+        """Un adversaire qui joue au hasard parmi les actions que la mère a trouvées."""
+        return random_player(rng, self.knowledge["actions"], self.knowledge["action"],
+                             self.knowledge["getter"], self.knowledge["end_signal"])
 
-    def discover_reach(self) -> dict:
-        """Quelles cases chaque action peut-elle remplir ? La mère la rejoue dans le labo,
-        depuis le début, tant que le jeu l'accepte, et note la case remplie à chaque fois
-        (au Morpion une seule case ; au Puissance 4 toute la colonne, de bas en haut)."""
-        lab, reach = self.lab, {}
-        for action in self.knowledge["actions"]:
-            lab.goto([])
-            cells = []
-            for _ in range(len(lab.states[0])):
-                before = lab.states[-1]
-                if lab.play(action) != "moved":
-                    break
-                changed = [i for i, (a, b) in enumerate(zip(before, lab.states[-1])) if a != b]
-                if len(changed) != 1:
-                    break
-                cells.append(changed[0])
-            reach[action] = cells
+    def discover_actions(self) -> list:
+        """Quelles actions existent ? La mère ne le sait pas d'avance : elle part des valeurs que
+        l'exemple a passées à l'action et explore autour, dans son labo.
+
+        * des entiers : tous ceux entre le plus petit et le plus grand vus, puis plus loin dans
+          chaque sens, tant que le jeu en accepte (« si 7 marche, et 8 ? ») ; elle s'arrête après
+          :data:`PATIENCE` refus de suite ;
+        * des booléens : les deux ;
+        * d'autres valeurs : celles de l'exemple.
+
+        Une valeur est une action si le jeu l'accepte au départ ou à une position de l'exemple.
+        """
+        lab = self.lab
+        calls = [f for f in self.parsed.player_functions() if f.name == self.model.action.name]
+        example = [tuple(f.arguments) for f in calls]
+        seen = list(dict.fromkeys(f.arguments[0] for f in calls if f.arguments))
+        positions = [example[:k] for k in range(len(example))]
+        verdicts: dict = {}
+
+        def accepted(value) -> bool:
+            key = (type(value).__name__, value)
+            if key not in verdicts:
+                verdicts[key] = False
+                for moves in positions:
+                    if not lab.goto(moves) or lab.ended:
+                        continue
+                    try:
+                        outcome = lab.play(value)
+                    except Exception:  # le jeu ne supporte pas cette valeur
+                        lab.new_game()
+                        break
+                    if outcome != "refused":
+                        lab.undo()
+                        verdicts[key] = True
+                        break
+            return verdicts[key]
+
+        integers = sorted({v for v in seen if isinstance(v, int) and not isinstance(v, bool)})
+        candidates = [v for v in seen if not (isinstance(v, int) and not isinstance(v, bool))]
+        if any(isinstance(v, bool) for v in seen):
+            candidates += [v for v in (False, True) if v not in candidates]
+        found = [v for v in candidates if accepted(v)]
+        if integers:
+            inside = [v for v in range(integers[0], integers[-1] + 1) if accepted(v)]
+            outside = []
+            for start, step in ((integers[-1] + 1, 1), (integers[0] - 1, -1)):
+                value, refusals = start, 0
+                while refusals < PATIENCE:
+                    if accepted(value):
+                        outside.append(value)
+                        refusals = 0
+                    else:
+                        refusals += 1
+                    value += step
+            found += sorted(inside + outside)
         lab.goto([])
-        return reach
+        return found
+
+    def alternate(self) -> bool:
+        """Dans l'exemple, deux joueurs jouent-ils l'action chacun leur tour ?
+
+        C'est ce qui permet ensuite de reconnaître le joueur à la parité du coup.
+        """
+        name = self.model.action.name
+        owners = [owner for owner, player in self.parsed.players.items()
+                  for f in player.functions_used if f.name == name]
+        times = [f.time for player in self.parsed.players.values()
+                 for f in player.functions_used if f.name == name]
+        owners = [owner for _, owner in sorted(zip(times, owners))]
+        return len(set(owners)) == 2 and all(a != b for a, b in zip(owners, owners[1:]))
+
+    def explore(self) -> tuple[list, list]:
+        """La mère joue dans son labo pour voir ce que font les actions, par curiosité.
+
+        Elle rejoue d'abord l'exemple, puis :data:`PARTIES_D_ESSAI` parties où, à
+        chaque coup, elle choisit l'action qu'elle a le moins vue agir (au hasard
+        entre égales) ; si le jeu la refuse, la suivante. Elle note chaque coup
+        coup : l'état avant, l'action, l'état après et le joueur qui a joué (la
+        parité du coup : elle a vu dans l'exemple que les joueurs alternent). Un
+        coup refusé est noté aussi, avec un état après égal à l'état avant : il
+        montre quand une case ne peut pas être jouée. Rien ne lui dit qu'une
+        action remplit une colonne : c'est ce qu'elle en déduira
+        (:func:`~xander.effets.portees_observees`, :func:`~xander.effets.liberte`).
+
+        Renvoie les positions atteintes ``(coups, état)`` et les coups notés
+        ``(cas, joueur)``.
+        """
+        rng, lab = random.Random(f"exploration-{self.seed}"), self.lab
+        calls = [f for f in self.parsed.player_functions() if f.name == self.model.action.name]
+        example = [tuple(f.arguments) for f in calls]
+        actions = [(a,) for a in self.knowledge["actions"]]
+        positions, seen, counts = [], [], {a: 0 for a in actions}
+        filled = {a: set() for a in actions}   # cases qu'on a vu chaque action changer
+        surprising = set()                     # actions dont le dernier coup a montré du nouveau
+
+        def note(arguments, before, after, player):
+            case = effets.Cas(before, arguments, after)
+            seen.append((case, player))
+            if arguments in counts:
+                counts[arguments] += 1
+                new = set(case.cible()) - filled[arguments]
+                filled[arguments] |= set(case.cible())
+                (surprising.add if new else surprising.discard)(arguments)
+
+        lab.goto([])
+        positions.append(([], lab.states[-1]))
+        for k, arguments in enumerate(example):
+            before = lab.states[-1]
+            if lab.play(*arguments) != "moved":
+                break
+            note(arguments, before, lab.states[-1], k % 2)
+            positions.append((example[:k + 1], lab.states[-1]))
+        for _ in range(PARTIES_D_ESSAI):
+            lab.goto([])
+            moves: list[tuple] = []
+            surprising.clear()
+            while len(moves) < 4 * max(len(example), 1):
+                # d'abord l'action qui vient de montrer du nouveau, sinon la moins vue
+                order = sorted(rng.sample(actions, len(actions)),
+                               key=lambda a: (a not in surprising, counts[a]))
+                for arguments in order:
+                    before = lab.states[-1]
+                    outcome = lab.play(*arguments)
+                    if outcome == "moved":
+                        note(arguments, before, lab.states[-1], len(moves) % 2)
+                        moves.append(arguments)
+                        positions.append((list(moves), lab.states[-1]))
+                        break
+                    surprising.discard(arguments)  # refusée ou finale : plus rien à voir ici
+                    if outcome == "end":
+                        lab.undo()
+                    else:  # refusé : rien n'a changé, c'est aussi une observation
+                        seen.append((effets.Cas(before, arguments, list(before)), len(moves) % 2))
+                else:
+                    break  # aucun coup ne fait avancer la partie sans la finir
+        lab.goto([])
+        return positions, seen
 
     def played_cells(self, moves: list[tuple]) -> list[int]:
         """Les cases remplies par chaque coup de ``moves``, relues dans le labo."""
@@ -530,9 +678,9 @@ class Education:
         return None
 
     def abstract(self, state) -> tuple:
-        """Ce qui compte d'une position : les pions (une case libre n'a pas d'identité)."""
-        marks = self.knowledge["marks"]
-        return tuple(v if v in marks else None for v in state)
+        """Ce qui compte d'une position : tout sauf les cases libres (elles n'ont pas d'identité)."""
+        marks, free = self.knowledge["marks"], self.mind.libre
+        return tuple(v if v in marks or not free(state, i) else None for i, v in enumerate(state))
 
     def probe_games(self, number: int = 20) -> list:
         """Des parties jouées au hasard dans le labo, jusqu'au bout."""
@@ -1058,8 +1206,8 @@ class Education:
                 on_game(record)
         if len(self.marks) < 2:
             raise LabError("la mère n'a pas compris quel pion pose chaque joueur")
-        opponents = [("professeur", self.teacher), ("hasard", random_player(self.rng)),
-                     ("mixte", mixed_player(self.teacher, self.rng))]
+        opponents = [("professeur", self.teacher), ("hasard", self.random_player(self.rng)),
+                     ("mixte", mixed_player(self.teacher, self.rng, self.random_player(self.rng)))]
         for number in range(1, nb_games + 1):
             name, opponent = opponents[(number - 1) // 2 % len(opponents)]
             side = (number - 1) % 2
@@ -1084,7 +1232,7 @@ class Education:
         """Fait jouer le fils sans le corriger : bilan par adversaire."""
         scores = {}
         for name, opponent, games in (("professeur", self.teacher, 2),
-                                      ("hasard", random_player(random.Random(1)), nb_random)):
+                                      ("hasard", self.random_player(random.Random(1)), nb_random)):
             score = {"victoire": 0, "nul": 0, "défaite": 0}
             for number in range(games):
                 result, _ = self.play_game(opponent, number % 2)

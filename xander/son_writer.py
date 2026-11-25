@@ -34,7 +34,10 @@ def empty_knowledge(model) -> dict:
         "action": model.action.short_name,
         "end_signal": model.end_signal,
         "actions": [],      # actions que le jeu accepte au départ (essayées dans le labo)
-        "reach": {},        # action -> cases qu'elle remplit quand on la rejoue (mesurées dans le labo)
+        "reach": {},        # action -> cases qu'on l'a vue remplir, dans l'ordre déduit (labo)
+        "written": ("joueur",),  # la valeur que l'action écrit (décrite par la mère, voir effets.ecriture)
+        "free": ("toujours",),   # quand une case peut être jouée (décrit par la mère, voir effets.liberte)
+        "start": [],        # la position du début de la partie
         "marks": [],        # pions posés par chaque joueur (« X », « O »)
         "patterns": [],     # motifs qui finissent la partie, compris par contre-épreuve
         "concepts": {},     # nom -> arbre de concept construit par la mère (une brique)
@@ -48,13 +51,37 @@ def symmetries_literal(knowledge: dict) -> str:
     return pformat([None] + knowledge["symmetries"], compact=True, width=70)
 
 
-def apres_source(effect: effets.Hypothese) -> str:
-    """``apres`` (et ``case_jouee``) à partir du programme que la mère a trouvé pour l'action.
+def written_source(written: tuple) -> str:
+    """L'expression Python de la valeur écrite, telle que la mère l'a décrite
+    (voir :func:`xander.effets.ecriture`)."""
+    if written[0] == "constante":
+        return repr(written[1])
+    if written[0] == "argument":
+        return f"(action,)[{written[1]}]"
+    return "joueur"  # une valeur propre à chaque joueur : son pion
+
+
+def free_source(free: tuple, start: list) -> str:
+    """``libre(etat, case)`` telle que la mère l'a décrite (voir :func:`xander.effets.liberte`)."""
+    if free[0] == "constante":
+        test, depart = f"etat[case] == {free[1]!r}", ""
+    elif free[0] == "depart":
+        test, depart = "etat[case] == DEPART[case]", f"DEPART = {start!r}  # la position du début\n\n\n"
+    else:  # le programme suffit : il n'annonce aucune case quand on ne peut pas jouer
+        test, depart = "True", ""
+    return f"""{depart}def libre(etat, case):
+    \"\"\"La case peut-elle recevoir l'action ? {free!r}, vu dans le labo.\"\"\"
+    return {test}
+"""
+
+
+def apres_source(effect: effets.Hypothese, written: tuple = ("joueur",)) -> str:
+    """``apres`` (et ``case_jouee``) à partir de ce que la mère a compris de l'action.
 
     Pour un tableau, le programme dit quelles cases changent ; la case jouée est
-    la seule qui change, si elle est libre, et elle reçoit le pion du joueur
-    (supposé à la main : la mère ne décrit pas encore la valeur écrite). Pour un
-    nombre, le programme donne directement la nouvelle valeur.
+    la seule qui change, si elle est libre, et elle reçoit la valeur que la mère
+    a décrite (``written`` : au Morpion, une valeur propre à chaque joueur, son
+    pion). Pour un nombre, le programme donne directement la nouvelle valeur.
     """
     if effect.forme != effets.CHANGEES:
         return f"""{effets.source(effect)}
@@ -67,19 +94,19 @@ def apres(etat, action, joueur):
     return f"""{effets.source(effect)}
 
 def case_jouee(etat, action):
-    \"\"\"La case que remplit l'action : la seule qui change, si elle est libre.\"\"\"
+    \"\"\"La case que remplit l'action : la seule qui change, si elle peut être jouée.\"\"\"
     cases = changees(etat, (action,))
     if len(cases) != 1:
         return None
     (case,) = cases
-    return case if etat[case] not in PIONS else None
+    return case if libre(etat, case) else None
 
 
 def apres(etat, action, joueur):
     global VUES
     VUES += 1
     suite = list(etat)
-    suite[case_jouee(etat, action)] = joueur
+    suite[case_jouee(etat, action)] = {written_source(written)}  # {written!r}, vu dans le labo
     return suite
 """
 
@@ -96,11 +123,13 @@ MOTIFS = {pformat(knowledge["patterns"], compact=True, width=70)}
 VUES = 0  # positions regardées pendant le coup en cours
 
 ACTIONS = {knowledge["actions"]!r}  # acceptées par le jeu au départ (essayées dans le labo)
-PORTEES = {pformat(knowledge["reach"], compact=True, width=70)}  # cases remplies en rejouant l'action
+PORTEES = {pformat(knowledge["reach"], compact=True, width=70)}  # cases que chaque action remplit, dans l'ordre
 ACTION_DE = {{case: action for action in reversed(ACTIONS) for case in PORTEES.get(action, [])}}
 
 
-{apres_source(knowledge["effect"])}
+{free_source(knowledge["free"], knowledge["start"])}
+
+{apres_source(knowledge["effect"], knowledge["written"])}
 
 def action_pour(case):
     """L'action qui peut remplir cette case (vu dans le labo)."""
@@ -120,9 +149,10 @@ def adversaire(joueur):
 
 
 def cle(etat, moi):
-    """La position vue de mon côté : M mes pions, A les siens, . libre."""
+    """La position vue de mon côté : M mes pions, A les siens, . libre, # autre chose."""
     lui = adversaire(moi)
-    return "".join("M" if v == moi else "A" if v == lui else "." for v in etat)
+    return "".join("M" if v == moi else "A" if v == lui else "." if libre(etat, i) else "#"
+                   for i, v in enumerate(etat))
 
 
 SYMETRIES = {symmetries_literal(knowledge)}  # None : la position telle quelle
@@ -153,9 +183,9 @@ def rappel(etat, moi, souvenirs):
     """Un souvenir de cette position, d'une position équivalente, ou d'un petit motif
     qu'elle contient (où qu'il soit, sous chaque façon de la voir) : (sa clé, mon coup ici).
     Un souvenir dit quelle case occuper ; il ne vaut que si une action la remplit."""
+    ici = cle(etat, moi)  # lue sur la position elle-même, puis renumérotée
     for sigma in SYMETRIES:
-        vue = etat if sigma is None else transformer(etat, sigma)
-        k = cle(vue, moi)
+        k = ici if sigma is None else "".join(transformer(ici, sigma))
         if k in souvenirs:
             action = jouable(etat, souvenirs[k], sigma)
             if action is not None:
