@@ -122,7 +122,7 @@ le score n° 1 n'est pas comparable à ceux des examens suivants.
 | Un état qui est un nombre (Allumettes, misère) | fait : fin comprise par contre-épreuve, position qui porte le trait |
 | Un joueur seul (Jumper, Partition) | fait : juger un coup par ce qui arrive, état qui défile |
 | Actions à plusieurs arguments et valeur écrite (Nim, Hanoï, Compte est bon) | fait : action en tuple, valeur écrite par un petit programme, coup permis par des comparaisons |
-| Plus de deux joueurs (Morpion à trois) | **en cours** : PR de la branche `feature/plus-de-deux-joueurs` (voir « Reprendre le travail ») |
+| Plus de deux joueurs (Morpion à trois) | fait : ordre des joueurs lu dans l'exemple, `suivant(joueur)` au lieu d'`adversaire`, positions `M` / `A` / `B` |
 | Information cachée (Mastermind, Mot mystère) | à faire : bloc de cases écrites, hypothèses sur le secret |
 | Bulletin du fils (qualité, pas seulement victoire) | à faire : conçu ci-dessous, « Le bulletin du fils » |
 | Problèmes qui ne sont pas des jeux (une entrée, une sortie) | fait, première forme : 18 briques listées ; entraînement 52/55 (53 en deux essais), lot jamais vu 25/34 (jalon 1) |
@@ -175,7 +175,7 @@ après la PR #20).
 | Jumper, Partition | 1 | jusqu'au plafond sur 50 graines jamais vues, un petit motif | des règles pour un joueur seul |
 | Tours de Hanoï | 1 | range la pile en 7 coups dès la 5e partie | il a retenu un chemin : 15 positions de départ sur 27 seulement |
 | Le compte est bon | 1 | gagne le tirage du labo | 3 tirages jamais vus sur 100 : le labo rejoue un seul tirage, pas de « configuration » |
-| Morpion à trois | 3 | **en cours** (`feature/plus-de-deux-joueurs`) | voir la PR |
+| Morpion à trois | 3 | 24 alignements, 8 symétries, 4 règles construites (gagner, parer chacun des deux autres, menacer) ; 60 situations de mesure tenues sur 60 face au professeur à sa place | 304 souvenirs (surtout des ouvertures), environ 29 minutes pour 200 parties ; pas de fourchette propre à trois |
 | Mastermind, Mot mystère | 1 | trouve les actions, pas leur effet | un bloc de cases écrites, une information cachée |
 | Pylos 3×3 | 2 | décrit les trois actions | tour de longueur variable, plusieurs sortes d'actions, défaite « plus de coup » |
 | Problèmes entrée → sortie | 0 | lot jamais vu 25/34 | programmes plus grands (jalon 2), notions absentes |
@@ -188,9 +188,11 @@ l'éducation bloque) est dans `docs/jeux.md`. Commandes :
 
 ### Priorités pour la suite, dans l'ordre
 
-1. **Fusionner le Morpion à trois** : la branche `feature/plus-de-deux-joueurs`
-   a sa PR ou l'aura ; la relire comme ci-dessus, intégrer `main`, vérifier
-   la CI, fusionner, et reporter ses chiffres dans le tableau ci-dessus.
+1. **Vérifier le Morpion à trois après la fusion** (PR #22) : la mesure de
+   200 parties a été faite avant l'intégration de la PR #20 (60 sur 60),
+   celle d'après interrompue à 80 parties ; la comparaison avant / après du
+   Puissance 4 n'est pas faite ; le temps (environ 29 minutes) frôle la
+   limite d'un examen. Voir l'étape 6, « Reste à faire ».
 2. **Le bulletin du fils** (section suivante), d'abord comme mesure seule.
    C'est lui qui dira si les fils actuels ont compris ou seulement retenu.
 3. **Généraliser au lieu de retenir** : Hanoï depuis toute position, Le
@@ -303,8 +305,8 @@ pour un jeu à la plus structurelle :
 | `valant` compare aussi le texte (`"4"` et `4`), une conversion cachée pensée pour le Morpion | reste ; à rendre explicite (une brique `texte(x)`). Coût : au Morpion, `case(arg0)` et `valant(arg0)` ne seraient plus départageables du tout, et le jeu d'essai qui les départage est à refaire |
 | Une case changée reçoit le pion du joueur | **retirée** : elle décrit la valeur écrite (constante, argument ou propre à chaque joueur) |
 | Une case libre est une case sans pion | **retirée** : elle le déduit des coups joués et refusés (toujours, une valeur, ou la valeur du début) |
-| Pions appris par parité de coup | **vérifiée** : la parité ne sert que si l'exemple montre deux joueurs qui alternent ; reste propre aux jeux à deux joueurs |
-| Positions lues en `M` / `A` / `.` | reste, mais `.` est la case libre apprise et `#` le reste : c'est la position vue de son côté, générale pour deux joueurs |
+| Pions appris par parité de coup | **généralisée** : la mère lit dans l'exemple l'ordre des joueurs, un cycle de n joueurs (la parité en est le cas n = 2) ; le joueur d'un coup est sa place dans le cycle. Reste supposé : un ordre fixe (personne ne passe ni ne rejoue) |
+| Positions lues en `M` / `A` / `.` | reste, mais `.` est la case libre apprise et `#` le reste : c'est la position vue de son côté ; à plus de deux joueurs, `A` est le suivant, `B` celui d'après, etc. (à deux, les mêmes clés) |
 
 **Réglages fixés à la main.** Les nombres qu'on donne à la mère font aussi
 partie de son équipement de naissance. Ils sont listés ici avec leur origine,
@@ -332,6 +334,10 @@ comparant des résultats.
 | Confirmations pour garder un petit motif | au moins la moitié, et r+ ≥ (1 + r−) / 2 contre le groupe témoin | `holds` | réglé au Puissance 4 (écarter le coup au centre joué par habitude) |
 | Désaccords jugés par petit motif | 2 | `holds` | réglé au Puissance 4 (temps) |
 | Adversaires de l'éducation | professeur, hasard, mixte (le professeur une fois sur deux) | `train`, `mixed_player` | a priori |
+| Plus de deux joueurs : rotation de l'éducation | chaque sorte d'adversaire une partie à chaque place (n parties), toutes les autres places tenues par lui | `train`, `evaluate` | a priori (à deux : inchangé) |
+| Plus de deux joueurs : coups adverses revus en variantes | ceux du joueur qui joue juste avant le fils | `variations` | a priori (à deux : inchangé) |
+| Plus de deux joueurs : joueurs dont parle un concept | tous ceux du cycle vu dans l'exemple (`moi`, `lui`, `lui2`…) | `concepts.joueurs` | principe (le jeu dit combien ils sont) |
+| Plus de deux joueurs : pion du fils quand tous ont autant de pions | celui du premier joueur de l'exemple | `son_writer.qui_suis_je` | a priori (à deux : inchangé) |
 | Durée maximale du rejeu d'un exemple | 30 s | `rebuilder.replay` | a priori (plomberie) |
 | Défilement : profondeur de l'entrée par le bord / part de l'état qu'elle peut couvrir | 2 \|d\| cases / la moitié (4 \|d\| ≤ n) | `effets._defilement` | 2 \|d\| réglé à Jumper (un obstacle naît une case avant le bord) ; la moitié réglée au Puissance 4 (sans elle, un faux décalage de −28 y « expliquait » l'exemple) |
 | Un joueur : coups d'une partie du labo (au-delà, survie) | 300 | `un_joueur.COUPS_MAX` | a priori |
@@ -449,8 +455,9 @@ de plus petit n'explique les cas), ce qui rejoint le jalon 2.
    faiblesses vues aux Allumettes : une règle « aucun de ses coups… » est
    vraie sans rien dire quand la partie est finie (il n'a plus de coup), et
    la période 4 demande de regarder plus loin que deux `AuMoins`.
-6. **Autres formes de problèmes.** Plus de deux joueurs, état qui n'est ni
-   un tableau ni un nombre (un nombre : fait, les Allumettes).
+6. **Autres formes de problèmes.** Plus de deux joueurs (fait : le Morpion
+   à trois, ci-dessous), état qui n'est ni un tableau ni un nombre (un
+   nombre : fait, les Allumettes).
    **Un joueur seul : fait** (`xander/un_joueur.py`, `docs/architecture.md`
    § 3 et § 6). Trois généralisations, chacune justifiée par un autre problème :
    - *l'état qui défile* : `suite = decale(avant, d)` sauf ce qui entre par
@@ -579,11 +586,31 @@ de plus petit n'explique les cas), ce qui rejoint le jalon 2.
      secret dans le labo) reste à comprendre (voir `docs/jeux.md`).
    - **Morpion à trois joueurs** (`Games/Morpion3.py`, 4 × 4, trois alignés ;
      professeur max^n `Games/MaxnMorpion3.py` ; exemple
-     `res/exampleMorpion3.py`) : trois joueurs, deux adversaires différents,
-     des tours à trois, un plateau plus grand. La mère y voit trois joueurs
-     et décrit l'action (`case(arg0)`) ; l'éducation s'arrête avant la
-     première partie (elle ne sait éduquer que deux joueurs qui alternent) ;
-     détail dans `docs/jeux.md`.
+     `res/exampleMorpion3.py`). **Plus de deux joueurs : fait** (sans rien
+     de propre au jeu dans `xander/`). La mère lit dans l'exemple l'ordre
+     des joueurs (un cycle, la parité en est le cas à deux), voit chaque
+     position de son côté (`M` moi, `A` le suivant, `B` celui d'après), et
+     ses concepts parlent de `suivant(joueur)` au lieu d'`adversaire` (à
+     deux, la même chose : Morpion, Allumettes et Nim identiques coup pour
+     coup). Une fin vaut victoire pour le gagnant, défaite pour les autres,
+     nul pour tous. En 200 parties : 24 alignements, 8 symétries, quatre
+     règles construites (gagner, parer le suivant, parer le 2e après moi par
+     composition, se créer une menace), 0 coup impossible, au plus 784
+     positions par coup, et 60 situations sur 60 tenues face au professeur à
+     sa place (détail dans `docs/jeux.md`).
+     **Reste à faire** (pour l'agent qui reprend) :
+     - refaire la mesure complète de 200 parties **après** la fusion des
+       actions à plusieurs arguments (interrompue à 80 parties, même rythme ;
+       script : l'éducation avec `Mother().raise_son`, puis
+       `examen.situations` / `examen.jouer` place par place) ;
+     - vérifier le Puissance 4 avant / après sur quelques parties (non
+       mesuré : trop lent dans le temps imparti ; la suite de tests passe) ;
+     - le temps : 200 parties prennent environ 29 minutes, à la limite d'un
+       examen blanc ; les refactors (`views`, `check`) rejouent tous les cas,
+       et 304 souvenirs s'accumulent (surtout des ouvertures) ;
+     - des règles pour ces souvenirs (une fourchette à trois, des petits
+       motifs d'ouverture) ; des variantes sur le coup de l'avant-dernier
+       joueur ; une fin à classement ou une victoire partagée.
 8. **Plus tard : l'expérience.** Partir des apprentissages réussis (motifs,
    règles) d'un fils pour en élever un autre plus vite.
 

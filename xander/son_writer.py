@@ -3,10 +3,11 @@
 Le fils est un fichier Python autonome (il n'importe rien de Xander) que la
 mère écrit, puis réécrit à chaque correction. Il a trois parties :
 
-1. **Perception** : ``possibles``, ``apres``, ``gagne``, ``adversaire``, écrites
+1. **Perception** : ``possibles``, ``apres``, ``gagne``, ``suivant``, écrites
    à partir de ce que la mère a compris du jeu : ``apres`` recopie le programme
    qu'elle a construit pour décrire l'action (voir :mod:`xander.effets`), les
-   pions viennent de ce qu'elle a observé, les motifs de la contre-épreuve.
+   pions viennent de ce qu'elle a observé (dans l'ordre où les joueurs jouent :
+   ``suivant`` en vient), les motifs de la contre-épreuve.
 2. **Règles** : les concepts que la mère a construits et appris au fils, et
    seulement ceux-là (voir :mod:`xander.concepts`), traduits en Python, dans
    l'ordre de priorité appris, plus ses souvenirs.
@@ -45,7 +46,7 @@ def empty_knowledge(model) -> dict:
         "written": ("joueur",),  # la valeur que l'action écrit (décrite par la mère, voir effets.ecriture)
         "free": ("toujours",),   # quand une case peut être jouée (décrit par la mère, voir effets.liberte)
         "start": [],        # la position du début de la partie
-        "marks": [],        # pions posés par chaque joueur (« X », « O »)
+        "marks": [],        # pions posés par chaque joueur, dans l'ordre où ils jouent (« X », « O »)
         "patterns": [],     # motifs qui finissent la partie, compris par contre-épreuve
         "ends": {},         # état valeur : valeur de fin -> qui gagne (« dernier » ou « trait »)
         "concepts": {},     # nom -> arbre de concept construit par la mère (une brique)
@@ -53,6 +54,26 @@ def empty_knowledge(model) -> dict:
         "memories": {},     # cle(etat, moi) -> case à jouer ; « ? » dans la clé : case qui ne compte pas
         "symmetries": [],   # renumérotations des cases qui ne changent rien au jeu (vérifiées)
     }
+
+
+#: Les lettres d'une position vue d'un côté : M pour moi, puis A pour le suivant, B pour le
+#: joueur d'après… (à deux, seulement M et A).
+LETTRES = "MABCDEFGHIJKL"
+
+#: L'ordre des joueurs, commun aux deux perceptions : ``suivant`` et la lettre de chacun.
+ORDRE_SOURCE = '''def suivant(joueur):
+    """Le joueur qui joue après lui (l'ordre vu dans l'exemple ; à deux, l'adversaire)."""
+    return JOUEURS[(JOUEURS.index(joueur) + 1) % len(JOUEURS)]
+
+
+def lettres(moi):
+    """Chaque joueur vu de mon côté : M moi, A le suivant, B celui d'après…"""
+    vus, joueur = [], moi
+    for lettre in LETTRES[:len(JOUEURS)]:
+        vus.append((joueur, lettre))
+        joueur = suivant(joueur)
+    return vus
+'''
 
 
 def symmetries_literal(knowledge: dict) -> str:
@@ -168,12 +189,13 @@ def prevision_source(knowledge: dict) -> str:
             + effets.source_prevision(knowledge["effect"], knowledge["ecritures"], knowledge["free"]))
 
 
-def suivant_source(knowledge: dict) -> str:
-    """``suivant(valeur, action)`` : la valeur d'après si l'action est permise, sinon ``None``."""
+def valeur_permise_source(knowledge: dict) -> str:
+    """``valeur_permise(valeur, action)`` : la valeur d'après si l'action est permise, sinon
+    ``None``. (``suivant``, lui, est le joueur qui joue après un autre.)"""
     if knowledge.get("ecritures") is not None:
         return f'''{prevision_source(knowledge)}
 
-def suivant(valeur, action):
+def valeur_permise(valeur, action):
     """L'état après l'action, None si elle n'est pas permise (sa description le dit)."""
     return valeur_apres(valeur, arguments(action))
 '''
@@ -181,7 +203,7 @@ def suivant(valeur, action):
 
 {permise_source(knowledge["free"])}
 
-def suivant(valeur, action):
+def valeur_permise(valeur, action):
     """La valeur après l'action, None si elle n'est pas permise."""
     apres_ = valeur_apres(valeur, arguments(action))
     return apres_ if permise(apres_) else None
@@ -204,7 +226,8 @@ def perception_valeur_source(knowledge: dict) -> str:
 # le jeu refuse, et compris à quelle valeur la partie finit et qui la gagne.
 # Une position est [valeur, trait] : la valeur ne dit pas qui doit jouer.
 
-JOUEURS = {knowledge["marks"]!r}
+JOUEURS = {knowledge["marks"]!r}  # dans l'ordre où ils jouent
+LETTRES = {LETTRES!r}
 FINS = {knowledge["ends"]!r}  # valeur de fin -> qui gagne (dernier : celui qui vient de jouer)
 VUES = 0  # positions regardées pendant le coup en cours
 
@@ -212,35 +235,34 @@ ACTIONS = {knowledge["actions"]!r}  # acceptées par le jeu (essayées dans le l
 
 {arguments_source(knowledge)}
 
-{suivant_source(knowledge)}
+{valeur_permise_source(knowledge)}
 
 def possibles(etat):
     valeur, _ = etat
     if valeur in FINS:
         return []  # la partie est finie
-    return [action for action in ACTIONS if suivant(valeur, action) is not None]
+    return [action for action in ACTIONS if valeur_permise(valeur, action) is not None]
 
 
 def apres(etat, action, joueur):
     global VUES
     VUES += 1
-    return [gele(valeur_apres(etat[0], arguments(action))), adversaire(joueur)]
+    return [gele(valeur_apres(etat[0], arguments(action))), suivant(joueur)]
 
 
 def gagne(etat, joueur):
+    """Une fin « dernier » fait gagner celui qui vient de jouer (celui d'avant le trait)."""
     valeur, trait = etat
     qui = FINS.get(valeur)
-    return (qui == "dernier" and joueur != trait) or (qui == "trait" and joueur == trait)
+    return (qui == "dernier" and suivant(joueur) == trait) or (qui == "trait" and joueur == trait)
 
 
-def adversaire(joueur):
-    return JOUEURS[1] if joueur == JOUEURS[0] else JOUEURS[0]
-
+{ORDRE_SOURCE}
 
 def cle(etat, moi):
-    """La position vue de mon côté : la valeur, et qui doit jouer (M moi, A lui)."""
+    """La position vue de mon côté : la valeur, et qui doit jouer (M moi, A le suivant…)."""
     valeur, trait = etat
-    return f"{{valeur!r}} {{'M' if trait == moi else 'A'}}"
+    return f"{{valeur!r}} {{dict(lettres(moi))[trait]}}"
 
 
 def case_jouee(etat, action):
@@ -273,7 +295,8 @@ def perception_source(knowledge: dict) -> str:
 # elle a essayé les actions dans son labo, vu quel pion pose chaque joueur et
 # quels motifs finissent la partie.
 
-PIONS = {knowledge["marks"]!r}
+PIONS = JOUEURS = {knowledge["marks"]!r}  # dans l'ordre où ils jouent
+LETTRES = {LETTRES!r}
 MOTIFS = {pformat(knowledge["patterns"], compact=True, width=70)}
 VUES = 0  # positions regardées pendant le coup en cours
 
@@ -300,15 +323,19 @@ def gagne(etat, joueur):
     return any(all(etat[case] == joueur for case in motif) for motif in MOTIFS)
 
 
-def adversaire(joueur):
-    return PIONS[1] if joueur == PIONS[0] else PIONS[0]
-
+{ORDRE_SOURCE}
 
 def cle(etat, moi):
-    """La position vue de mon côté : M mes pions, A les siens, . libre, # autre chose."""
-    lui = adversaire(moi)
-    return "".join("M" if v == moi else "A" if v == lui else "." if libre(etat, i) else "#"
-                   for i, v in enumerate(etat))
+    """La position vue de mon côté : M mes pions, A ceux du suivant (à deux : les siens), B ceux
+    du joueur d'après…, . libre, # autre chose."""
+    vus = lettres(moi)
+
+    def lettre(i, v):
+        for joueur, l in vus:
+            if v == joueur:
+                return l
+        return "." if libre(etat, i) else "#"
+    return "".join(lettre(i, v) for i, v in enumerate(etat))
 
 
 SYMETRIES = {symmetries_literal(knowledge)}  # None : la position telle quelle
@@ -355,16 +382,17 @@ def rappel(etat, moi, souvenirs):
 
 
 def qui_suis_je(etat, memoire):
-    """Mon pion : celui que j'ai posé, sinon celui qui manque sur le plateau."""
+    """Mon pion : celui que j'ai posé, sinon celui du joueur à qui c'est le tour, lu sur le
+    plateau : chacun joue à son tour, donc c'est le seul qui a posé moins de pions que celui
+    qui joue avant lui (s'ils en ont tous autant, le plateau ne le dit pas)."""
     poses = sum(v in PIONS for v in etat)
-    if poses < memoire.get("poses", 0) or poses <= 1:
+    if poses < memoire.get("poses", 0) or poses < len(PIONS):
         memoire.pop("moi", None)  # nouvelle partie
     if "moi" not in memoire:
-        presents = [p for p in PIONS if p in etat]
-        if len(presents) == 1:
-            memoire["moi"] = adversaire(presents[0])
-        elif len(presents) == 2 and etat.count(PIONS[0]) != etat.count(PIONS[1]):
-            memoire["moi"] = min(PIONS, key=etat.count)
+        comptes = [etat.count(p) for p in PIONS]
+        en_retard = [p for i, p in enumerate(PIONS) if comptes[i] < comptes[i - 1]]
+        if len(en_retard) == 1:
+            memoire["moi"] = en_retard[0]
     return memoire.get("moi", PIONS[0])
 '''
 

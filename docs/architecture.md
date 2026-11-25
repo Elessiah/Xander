@@ -369,9 +369,13 @@ joué. Avant, le labo le prenait pour un refus et se désynchronisait du jeu.
    objets ; à Hanoï, 6 sur 9 ; au Compte est bon, 36 sur 64). Une action est
    alors le **tuple** de ses arguments : le labo le joue tel quel, et
    souvenirs, petits motifs et règles retiennent l'action entière.
-   Elle vérifie aussi que, dans l'exemple, deux joueurs jouent chacun leur
-   tour : c'est ce qui lui permet ensuite de reconnaître le joueur à la parité
-   du coup. Sinon, elle dit qu'elle ne sait pas encore éduquer de fils.
+   Elle lit aussi dans l'exemple **l'ordre des joueurs** : ils jouent chacun
+   leur tour, toujours dans le même ordre, un cycle (X, O, X, O… à deux ; X,
+   O, Z, X, O, Z… à trois). C'est ce qui lui permet ensuite de reconnaître qui
+   joue un coup : sa **place** dans le cycle, le numéro du coup modulo le
+   nombre de joueurs (`Education.seat` ; à deux, la parité). Sinon (un joueur
+   qui joue deux fois de suite, un ordre qui change), elle dit qu'elle ne sait
+   pas encore éduquer de fils.
 
    Ensuite, elle **explore** : elle rejoue l'exemple, puis 8 parties où elle
    choisit d'abord les actions **surprenantes** (celles qui viennent de
@@ -412,7 +416,9 @@ joué. Avant, le labo le prenait pour un refus et se désynchronisait du jeu.
    un entier.
 3. **Parties.** Le fils joue contre le professeur, contre un joueur au
    hasard et contre un adversaire « mixte » (une fois sur deux le coup du
-   professeur), une fois X, une fois O. Si le jeu refuse un coup du fils, c'est
+   professeur), à chaque place tour à tour (une fois X, une fois O ; à trois,
+   X, O puis Z) ; les autres places sont toutes tenues par cet adversaire.
+   Si le jeu refuse un coup du fils, c'est
    un **coup impossible** : sa perception se trompe. La mère note le refus
    comme une observation du labo (rien n'a changé), réapprend quand une case
    peut être jouée, réécrit le fils, et la partie continue. Si elle ne
@@ -422,10 +428,13 @@ joué. Avant, le labo le prenait pour un refus et se désynchronisait du jeu.
    gagne vite en trichant.
 4. **Revue des décisions.** Pour chaque coup du fils, la mère demande son
    coup au professeur. S'il diffère, elle fait finir la partie au professeur
-   des deux côtés, après chacun des deux coups. Si le coup du professeur mène
-   à un meilleur résultat, c'est une **erreur**. Elle revoit aussi les
-   **variantes** : avec `back`, elle essaie chaque autre coup de l'adversaire
-   (« et s'il avait joué là ? ») et revoit la réponse du fils.
+   de tous les côtés, après chacun des deux coups, et compare les deux issues
+   **pour le fils** : la victoire de l'un est une défaite pour tous les
+   autres, un nul vaut nul pour tous (`education.issue`). Si le coup du
+   professeur mène à un meilleur résultat, c'est une **erreur**. Elle revoit
+   aussi les **variantes** : avec `back`, elle essaie chaque autre coup du
+   joueur qui a joué juste avant le fils (« et s'il avait joué là ? ») et
+   revoit la réponse du fils.
 5. **Corriger le cas.** Chaque erreur devient un **souvenir** (dans cette
    position, jouer le coup du professeur). Chaque position revue devient un
    **cas** : les cas sont les tests des refactors (une position bien jouée est
@@ -493,10 +502,10 @@ programme trouvé a la forme `apres` ; `Education.tableau` est faux).
 
 - **La position porte le trait.** Un tableau garde la trace de qui a joué
   (les pions) ; une valeur, non. La position que voient la mère et le fils
-  est `[valeur, trait]`, le trait étant le joueur qui doit jouer (la parité du
-  coup ; les joueurs sont ceux des sections de l'exemple, dans l'ordre où ils
-  y jouent). `apres(etat, action, joueur)` donne
-  `[valeur_apres(valeur, action), adversaire(joueur)]`.
+  est `[valeur, trait]`, le trait étant le joueur qui doit jouer (sa place
+  dans l'ordre des joueurs ; les joueurs sont ceux des sections de l'exemple,
+  dans l'ordre où ils y jouent). `apres(etat, action, joueur)` donne
+  `[valeur_apres(valeur, action), suivant(joueur)]`.
 - **Les actions permises** se déduisent comme la case libre (§ 3), de ce
   qu'elle a vu (`effets.bornes`). Elle regarde les valeurs d'après des coups
   acceptés, y compris ceux qui ont fini la partie (le jeu ne montre pas leur
@@ -610,10 +619,35 @@ l'adversaire mixte ; graines 0 à 2, moins de 2 s chacune) :
   199 ou 200 victoires sur 200 contre le hasard, 17 ou 18 positions
   gagnables ratées sur 101.
 
+### Plus de deux joueurs : le Morpion à trois
+
+Rien n'y est propre au jeu : la mère lit dans l'exemple l'**ordre des
+joueurs** (un cycle ; la parité était le cas à deux), et tout ce qui comptait
+les coups `% 2` dépend de la place du joueur dans ce cycle
+(`Education.seat`) : le pion posé, qui a joué, la place du fils, les
+positions imaginées (`extra`, `grow`), la contre-épreuve (pions rangés par
+place, échange avec le pion d'un autre joueur), les motifs décalés, la revue
+et les variantes. Une position se lit de son côté : `M` moi, `A` le suivant,
+`B` celui d'après (à deux, les mêmes clés, les mêmes souvenirs). Une fin vaut
+pour chacun (`issue`) : victoire pour le gagnant, défaite pour tous les
+autres, nul pour tous ; quand le professeur finit une partie pour juger un
+coup, la mère compare les issues **pour le fils**. Les concepts disent
+`suivant(joueur)` au lieu d'`adversaire(joueur)` et désignent un joueur par
+sa place après moi (§ 8).
+
+Au Morpion à trois (4 × 4, trois alignés), en 200 parties : les 24
+alignements et les 8 symétries, quatre règles qu'elle construit (gagner,
+parer le suivant, `concept_1(lui)` : la parade vue du côté du suivant, donc
+parer le 2e après moi, et se créer une menace), 0 coup impossible, au plus
+784 positions regardées par coup, et le fils fait au moins aussi bien que le
+professeur à sa place dans les 60 situations de mesure. Restent 304
+souvenirs (surtout des ouvertures) et environ 29 minutes d'éducation.
+Détail et chiffres : `docs/jeux.md`.
+
 ### Un seul joueur : juger un coup par ce qui arrive — `xander/un_joueur.py`
 
 Quand l'exemple ne montre qu'un joueur (Jumper, Partition), il n'y a ni
-adversaire, ni professeur, ni « qui a gagné » : `gagne` et `adversaire` n'ont
+adversaire, ni professeur, ni « qui a gagné » : `gagne` et `suivant` n'ont
 pas de sens. Les quatre notions restent celles des jeux à deux ; pour un
 joueur seul, la mère apprend une autre notion, **le résultat d'une partie à
 un joueur**, de l'exemple et du labo. Rien n'y est propre à un jeu.
@@ -764,8 +798,8 @@ cases à des valeurs fixes, n'y suffisent pas.
 
 **Un motif marcherait-il ailleurs ?** Dès qu'elle comprend un motif, la mère
 fait l'hypothèse qu'il vaut aussi décalé (chaque case + d) et la vérifie dans
-le labo : le premier joueur pose ses pions sur le motif décalé, l'autre joue
-ailleurs, et la contre-épreuve dit quel motif a fini la partie. Elle ne sait
+le labo : le premier joueur pose ses pions sur le motif décalé, les autres
+jouent ailleurs, et la contre-épreuve dit quel motif a fini la partie. Elle ne sait
 rien de la forme du plateau (l'état n'est qu'une liste de cases) : c'est le
 jeu qui dit qu'au Morpion la rangée du haut décalée de 3 est une rangée, et
 que décalée de 1 elle déborde sur la rangée suivante (la partie ne finit pas).
@@ -783,8 +817,11 @@ que sur une case qu'une action remplit à ce moment-là. La contre-épreuve
 raisonne aussi sur les positions. Elle imagine la même position avec le pion
 ailleurs, sans qu'aucun autre ne bouge. Si aucune case libre ne convient (un
 pion qui en soutient d'autres, un plateau plein), elle l'échange avec un pion
-adverse : « et si cette case avait été la sienne ? ». Sans cela, un jeton qui
-en soutient un autre semblerait faire partie de l'alignement.
+d'un autre joueur : « et si cette case avait été la sienne ? ». Sans cela, un
+jeton qui en soutient un autre semblerait faire partie de l'alignement. Les
+pions de chaque joueur sont rangés par sa place dans l'ordre du jeu, et
+chacun garde autant de pions : la position reste atteignable en jouant chacun
+son tour, à deux comme à trois.
 
 Au Morpion, une position tournée de 90° est la même situation ; au Puissance
 4, la gravité interdit de retourner le plateau. La mère ne le sait pas
@@ -799,7 +836,9 @@ que 4 (identité, deux miroirs, demi-tour), les seules qui ne changent vraiment
 rien au jeu. Avec les 8 motifs, elle en garde 8 (4 rotations, 4 miroirs).
 Au Puissance 4, les 69 alignements sont préservés par 4 renumérotations
 (miroirs gauche-droite et haut-bas, demi-tour). Le labo ne garde que le miroir
-gauche-droite : renversé, le jeu ne tombe plus au même endroit.
+gauche-droite : renversé, le jeu ne tombe plus au même endroit. Au Morpion à
+trois (4 × 4, trois alignés), elle retrouve les 24 alignements et les 8
+symétries du carré, de la même façon (§ 6, *Plus de deux joueurs*).
 
 Le fils reçoit la liste `SYMETRIES` : pour retrouver un souvenir, il regarde
 sa position sous chacune des 8 façons de la voir, et renumérote le coup
@@ -813,7 +852,8 @@ configurations de quelques pièces (Chase et Simon). La mère fait de même avec
 ses souvenirs, en deux questions, toutes deux vérifiées dans le labo.
 
 **« Qu'est-ce qui comptait ? »** Un souvenir `MM.AA....` → 2 (`M` : mes pions,
-`A` : les siens, `.` : libre au sens qu'elle a appris, `#` : autre chose)
+`A` : les siens, `.` : libre au sens qu'elle a appris, `#` : autre chose ; à
+plus de deux joueurs, `A` est le suivant, `B` celui d'après, etc.)
 devient un **petit motif** : les cases qui ne
 comptent pas deviennent `?`. Un petit motif tient si son coup est le bon
 partout où il apparaît. La mère le vérifie de deux façons :
@@ -823,7 +863,7 @@ partout où il apparaît. La mère le vérifie de deux façons :
 - dans 20 positions qu'elle imagine dans le labo, **en jouant** : à son
   tour, chaque joueur pose un de ses pions du motif si une action le pose
   là, ou un pion de plus sur une case `?` qu'une action remplit (le nombre
-  de pions est tiré au hasard, le fils jouant en premier ou en second). Avec
+  de pions est tiré au hasard, le fils étant à n'importe quelle place). Avec
   la gravité, aucun pion ne flotte : la mère n'a pas à le savoir, les
   actions permises s'en chargent. Elle écarte une position où la partie est
   déjà finie. Elle demande son coup au professeur. S'il joue le coup du
@@ -912,13 +952,31 @@ modèle de langage) qui décrit une position du point de vue de « moi ». Il
 s'écrit uniquement avec les quatre notions que la mère apprend pour chaque
 jeu : `possibles(etat)`, `apres(etat, action, joueur)` (vient de l'Analyzer),
 `gagne(etat, joueur)` (la fin de partie comprise par contre-épreuve) et
-`adversaire(joueur)`.
+`suivant(joueur)`, le joueur qui joue après lui (l'ordre des joueurs lu dans
+l'exemple ; à deux, c'est l'adversaire, l'ancienne notion
+`adversaire(joueur)`).
 
 | Nœud | Sens |
 | --- | --- |
-| `Brique(nom, J)` | une brique connue, vue du côté de J (moi ou lui) ; au départ, seulement `gagne` |
+| `Brique(nom, J)` | une brique connue, vue du côté de J ; au départ, seulement `gagne` |
 | `Non(x)`, `Et(x, y)` | négation, conjonction |
 | `AuMoins(k, J, x)` | au moins k actions de J mènent à une position où x est vrai ; par défaut k = 1 : « il existe une action de J après laquelle x » |
+
+**Les joueurs J.** Un joueur est désigné par sa place après moi dans l'ordre
+du jeu : `moi`, `lui` (le suivant, `suivant(moi)`), `lui2` (le suivant du
+suivant), etc., jusqu'au nombre de joueurs vus dans l'exemple
+(`concepts.joueurs(n)`). À deux, il n'y a que `moi` et `lui`, exactement
+comme avant : mêmes concepts, mêmes règles. À trois, un concept peut dire
+**qui** il pare : `Non(AuMoins(1, lui, gagne(lui)))` pare le suivant,
+`Non(AuMoins(1, lui2, gagne(lui2)))` pare celui d'après (« aucun des coups du
+2e après moi ne donne « le 2e après moi a gagné » »). Une brique vue du côté
+d'un autre se compose : `concept_1(lui)`, c'est `concept_1` du point de vue
+du suivant, donc, pour lui, « son suivant » est mon `lui2`. Comme pour
+`AuMoins(1, moi, …)` à deux joueurs, un concept peut enchaîner les coups d'un
+joueur sans attendre son tour : « celui d'après a un coup gagnant » se lit
+juste après mon coup, sans supposer ce que jouera le suivant. C'est ce que
+fait aussi le professeur à trois : il ne compte pas sur le suivant pour parer
+le troisième.
 
 Une règle se lit « jouer une action après laquelle le concept est vrai » ;
 une règle qui accepte toutes les actions ne choisit rien et est ignorée. La
@@ -929,7 +987,8 @@ adopté devient une brique, d'où des concepts plus grands à taille égale
 (composition, comme les configurations de Chase et Simon).
 
 **Fourni à la main** : ces quatre sortes de nœuds (avec k = 1, c'est la
-logique minimale : non, et, il existe), les bornes de la recherche, le budget
+logique minimale : non, et, il existe), la façon de désigner un joueur (sa
+place après moi, avec `suivant`), les bornes de la recherche, le budget
 du fils, et la forme d'une règle (« jouer une action après laquelle… »). Le vocabulaire écrit à la
 main (`xander/vocabulary.py` : `gagner`, `parer`, `fourchette`,
 `contre_fourchette`, `attaque`) ne sert plus qu'aux tests, pour comparer.
@@ -939,8 +998,9 @@ main (`xander/vocabulary.py` : `gagner`, `parer`, `fourchette`,
 Le fils est un **fichier Python autonome**, écrit par la mère, réécrit après
 chaque correction, qui n'importe rien de Xander :
 
-1. **Perception** : `possibles`, `apres`, `gagne`, `adversaire`, écrites à
-   partir de ce qu'elle a compris, plus `case_jouee`, `action_pour` et
+1. **Perception** : `possibles`, `apres`, `gagne`, `suivant`, écrites à
+   partir de ce qu'elle a compris (`JOUEURS` : les pions dans l'ordre où les
+   joueurs jouent ; `suivant` en vient), plus `case_jouee`, `action_pour` et
    `VUES`, le compteur des positions regardées. `apres` recopie le programme
    qu'elle a construit pour décrire l'action (§ 3), traduit en Python
    (`changees(avant, args)`, ou `valeur_apres` pour un nombre) : ce qu'elle a
@@ -948,7 +1008,12 @@ chaque correction, qui n'importe rien de Xander :
    la seule case que le programme annonce, si elle est libre (`libre`, telle
    que la mère l'a décrite, § 3) ; elle reçoit la valeur écrite qu'elle a
    décrite (au Morpion, `joueur`). La clé d'une position (`cle`) se lit sur la
-   position elle-même, puis se renumérote pour chaque symétrie.
+   position elle-même, du côté de « moi » (`M` moi, `A` le suivant, `B` celui
+   d'après…, `lettres(moi)`), puis se renumérote pour chaque symétrie. Le
+   fils lit son pion sur le plateau (`qui_suis_je`) : celui qu'il a posé, sinon
+   celui du joueur qui a le trait, le seul qui a posé moins de pions que celui
+   qui joue avant lui (chacun joue à son tour) ; si tous en ont autant, celui
+   du premier joueur de l'exemple.
    `possibles` garde les actions que le jeu accepte au départ et qui
    remplissent une case ; `action_pour` vient des portées déduites de
    l'exploration. La mère pense avec la même perception. Si plusieurs programmes de
@@ -1376,7 +1441,7 @@ limite dépendant de la machine), pas à cause du score.
   (`get, play, get`) est rattaché au tour suivant.
 - Un joueur seul (§ 6) : le fils ne fait que reconnaître (souvenirs, petits
   motifs d'un coup), sans règle construite : les concepts parlent de `gagne`
-  et d'`adversaire`. Un petit motif est vérifié sur les cas vus dans le labo
+  et de `suivant`. Un petit motif est vérifié sur les cas vus dans le labo
   (une seule graine pour Jumper), pas sur des positions imaginées : la mère ne
   sait pas fabriquer une position de Jumper (elle ne place pas d'obstacle).
   L'horizon suppose que les deux suites se rejoignent ; sinon il vaut 40. La
@@ -1385,7 +1450,16 @@ limite dépendant de la machine), pas à cause du score.
   refuse parfois une action n'est éduqué que si la mère prévoit l'état
   d'après en entier (où l'action écrit, et quoi : Hanoï, le Compte est bon) ;
   sinon (un défilement), seule la borne « toujours » existe.
-- Éducation à deux : seulement pour deux joueurs qui alternent, et un état
+- Plus de deux joueurs : une fin ne vaut que victoire (le gagnant) ou défaite
+  (tous les autres), ou nul pour tous ; pas de classement, pas de victoire
+  partagée. Un concept parle des coups d'un joueur à la fois (aucune alliance
+  ni « les deux autres ensemble »), et les variantes ne revoient que le coup
+  du joueur qui joue juste avant le fils. Le fils qui trouve autant de pions
+  à chacun ne sait pas qui commence : il suppose le premier joueur de
+  l'exemple.
+- Éducation à deux joueurs ou plus : seulement pour des joueurs qui jouent
+  chacun leur tour, dans un ordre fixe (un cycle lu dans l'exemple : pas de
+  joueur qui passe ou rejoue, pas d'ordre qui s'inverse), et un état
   qui est soit un tableau dont chaque action remplit une case du pion du
   joueur (Morpion, Puissance 4), soit un tableau dont l'action écrit des
   valeurs décrites par un programme (le Nim), soit un nombre (les

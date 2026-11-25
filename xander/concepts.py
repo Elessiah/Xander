@@ -3,17 +3,24 @@
 Un concept est un **arbre** (une structure Python, pas du texte) qui décrit une
 position du point de vue d'un joueur (« moi »). Il s'écrit uniquement avec les
 quatre notions que la mère apprend pour chaque jeu (``possibles``, ``apres``,
-``gagne``, ``adversaire``) et quatre sortes de nœuds :
+``gagne``, ``suivant``) et quatre sortes de nœuds :
 
-* ``Brique(nom, J)`` : une brique déjà connue, vue du côté de ``J`` (moi ou
-  lui). Au départ, la seule brique est ``gagne`` ; chaque concept que la mère
-  trouve devient une nouvelle brique (composition) ;
+* ``Brique(nom, J)`` : une brique déjà connue, vue du côté de ``J``. Au départ,
+  la seule brique est ``gagne`` ; chaque concept que la mère trouve devient une
+  nouvelle brique (composition) ;
 * ``Non(x)`` ;
 * ``Et(x, y)`` ;
 * ``AuMoins(k, J, x)`` : au moins ``k`` actions de ``J`` mènent à une position
   où ``x`` est vrai. Par défaut k vaut 1 (« il existe ») : avec 1 et 2, la
   mère apprend à peine mieux, avec 1, 2 et 3 elle apprend moins bien (plus de
   coïncidences).
+
+**Les joueurs.** ``J`` désigne un joueur par sa place dans l'ordre du jeu, à
+partir de « moi » : ``moi``, ``lui`` (le suivant, ``suivant(moi)``), ``lui2``
+(le suivant du suivant), et ainsi de suite jusqu'au nombre de joueurs que la
+mère a vus jouer dans l'exemple. À deux, il n'y a que ``moi`` et ``lui`` : le
+suivant est l'adversaire. À trois, une parade peut dire **qui** elle pare : le
+suivant, qui joue juste après moi, ou ``lui2``, qui joue après lui.
 
 Une **règle** se lit « jouer une action après laquelle le concept est vrai ».
 Une règle qui accepte toutes les actions ne choisit rien : elle est ignorée.
@@ -23,7 +30,8 @@ Exemples (que la mère doit trouver seule, ils ne sont écrits nulle part) :
 de coup gagnant » est ``Non(AuMoins(1, lui, Brique(gagne, lui)))``.
 
 Ce qui est fourni à la main : ces quatre sortes de nœuds, les valeurs de
-``k``, et les bornes de la recherche (taille et profondeur des arbres).
+``k``, la façon de désigner un joueur (par sa place après moi, avec
+``suivant``) et les bornes de la recherche (taille et profondeur des arbres).
 
 La mère énumère les arbres par taille croissante. Deux arbres qui disent la
 même chose sur un échantillon de positions sont confondus (on garde le plus
@@ -36,6 +44,19 @@ import random
 
 MOI, LUI = "moi", "lui"
 GAGNE = "gagne"
+
+
+def joueurs(n: int = 2) -> list[str]:
+    """Les joueurs dont un concept peut parler quand ``n`` joueurs jouent chacun leur tour :
+    ``moi``, ``lui`` (le suivant), puis ``lui2``, ``lui3``… (le suivant du suivant, etc.)."""
+    return [MOI, LUI][:max(n, 1)] + [f"{LUI}{d}" for d in range(2, n)]
+
+
+def distance(qui: str) -> int:
+    """La place de ``qui`` après moi dans l'ordre du jeu (0 : moi, 1 : le suivant…)."""
+    if qui == MOI:
+        return 0
+    return 1 if qui == LUI else int(qui[len(LUI):])
 
 
 class Concept:
@@ -95,7 +116,8 @@ def _key(etat):
 
 
 class Pensee:
-    """Évalue des concepts sur des positions, avec les quatre notions d'un jeu.
+    """Évalue des concepts sur des positions, avec les quatre notions d'un jeu
+    (``possibles``, ``apres``, ``gagne``, ``suivant``).
 
     Les positions déjà regardées sont mémorisées : c'est la mère qui pense, pas
     le fils (lui exécute son code sans mémoire et compte ce qu'il regarde).
@@ -116,6 +138,13 @@ class Pensee:
             self._enfants[cle] = [(a, _key(n.apres(etat, a, joueur))) for a in n.possibles(etat)]
         return self._enfants[cle]
 
+    def joueur(self, moi, qui: str):
+        """Le joueur ``qui`` vu de ``moi`` : moi, ou le suivant autant de fois que sa place."""
+        joueur = moi
+        for _ in range(distance(qui)):
+            joueur = self.notions.suivant(joueur)
+        return joueur
+
     def gagne(self, etat, joueur) -> bool:
         cle = (etat, joueur)
         if cle not in self._gagne:
@@ -130,7 +159,7 @@ class Pensee:
         kind, args = concept.kind, concept.args
         if kind == "brique":
             nom, qui = args
-            joueur = moi if qui == MOI else self.notions.adversaire(moi)
+            joueur = self.joueur(moi, qui)
             valeur = self.gagne(etat, joueur) if nom == GAGNE else self.vrai(self.definitions[nom], etat, joueur)
         elif kind == "non":
             valeur = not self.vrai(args[0], etat, moi)
@@ -138,7 +167,7 @@ class Pensee:
             valeur = self.vrai(args[0], etat, moi) and self.vrai(args[1], etat, moi)
         else:
             k, qui, x = args
-            joueur = moi if qui == MOI else self.notions.adversaire(moi)
+            joueur = self.joueur(moi, qui)
             compte = 0
             for _, suite in self.enfants(etat, joueur):
                 if self.vrai(x, suite, moi):
@@ -168,7 +197,8 @@ class Pensee:
 # ---------------------------------------------------------------------- #
 
 def echantillon(notions, depart, joueurs, nombre: int = 120, graine: int = 0) -> list[tuple]:
-    """Des positions imaginées par la mère (parties au hasard avec ``apres``), vues des deux côtés."""
+    """Des positions imaginées par la mère (parties au hasard avec ``apres``), vues du côté de
+    chaque joueur. ``joueurs`` : les joueurs, dans l'ordre où ils jouent."""
     rng = random.Random(graine)
     vues, resultat = set(), []
     for _ in range(nombre * 4):
@@ -182,15 +212,17 @@ def echantillon(notions, depart, joueurs, nombre: int = 120, graine: int = 0) ->
             if not actions or any(notions.gagne(etat, j) for j in joueurs):
                 break
             etat = _key(notions.apres(etat, rng.choice(actions), joueurs[trait]))
-            trait = 1 - trait
+            trait = (trait + 1) % len(joueurs)
         if len(resultat) >= nombre:
             break
     return resultat
 
 
 def enumerer(pensee: Pensee, positions: list[tuple], taille_max: int = 5,
-             profondeur_max: int = 2, comptes: tuple = (1, 2)) -> list[Concept]:
-    """Les concepts distincts, du plus petit au plus grand.
+             profondeur_max: int = 2, comptes: tuple = (1, 2),
+             qui: tuple = (MOI, LUI)) -> list[Concept]:
+    """Les concepts distincts, du plus petit au plus grand. ``qui`` : les joueurs dont ils
+    peuvent parler (voir :func:`joueurs`).
 
     Un concept qui dit la même chose qu'un plus petit sur ``positions``, ou qui
     y est toujours vrai (ou toujours faux), n'est pas gardé.
@@ -209,14 +241,14 @@ def enumerer(pensee: Pensee, positions: list[tuple], taille_max: int = 5,
 
     for nom in [GAGNE] + list(pensee.definitions):
         profondeur = 0 if nom == GAGNE else pensee.definitions[nom].depth
-        for qui in (MOI, LUI):
-            essayer(brique(nom, qui, profondeur))
+        for j in qui:
+            essayer(brique(nom, j, profondeur))
     for taille in range(2, taille_max + 1):
         for x in par_taille[taille - 1]:
             essayer(non(x))
             for k in comptes:
-                for qui in (MOI, LUI):
-                    essayer(au_moins(k, qui, x))
+                for j in qui:
+                    essayer(au_moins(k, j, x))
         for gauche in range(1, (taille - 1) // 2 + 1):
             droite = taille - 1 - gauche
             for i, x in enumerate(par_taille[gauche]):
@@ -229,6 +261,12 @@ def enumerer(pensee: Pensee, positions: list[tuple], taille_max: int = 5,
 # ---------------------------------------------------------------------- #
 # Dire et écrire un concept
 # ---------------------------------------------------------------------- #
+
+def _sujet(qui: str) -> str:
+    """Qui est ``qui``, dit en français (« il » : le suivant ; plus loin, sa place après moi)."""
+    d = distance(qui)
+    return "je" if d == 0 else "il" if d == 1 else f"le {d}e après moi"
+
 
 def decrire(c: Concept, vrai: bool = True) -> str:
     """Le concept en français, du point de vue de « moi » (``vrai=False`` : sa négation).
@@ -244,8 +282,11 @@ def decrire(c: Concept, vrai: bool = True) -> str:
         if nom == GAGNE:
             if qui == MOI:
                 return "j'ai gagné" if vrai else "je n'ai pas gagné"
-            return "il a gagné" if vrai else "il n'a pas gagné"
-        return f"{nom}({qui})" if vrai else f"pas {nom}({qui})"
+            return f"{_sujet(qui)} a gagné" if vrai else f"{_sujet(qui)} n'a pas gagné"
+        if qui != MOI:  # une brique vue du côté d'un autre joueur
+            d = distance(qui)
+            nom = f"{nom} pour {'le suivant' if d == 1 else f'le {d}e après moi'}"
+        return nom if vrai else f"pas {nom}"
     if kind == "et":
         parts = []
         for x in args:
@@ -254,14 +295,15 @@ def decrire(c: Concept, vrai: bool = True) -> str:
             parts.append(f"({texte})" if nested else texte)
         return f" {'et' if vrai else 'ou'} ".join(parts)
     k, qui, x = args
-    mes = "mes" if qui == MOI else "ses"
+    d = distance(qui)
+    coups = "de mes coups" if d == 0 else "de ses coups" if d == 1 else f"des coups du {d}e après moi"
     if k == 1:
         if vrai:
-            return f"un de {mes} coups donne « {decrire(x)} »"
-        return f"aucun de {mes} coups ne donne « {decrire(x)} »"
+            return f"un {coups} donne « {decrire(x)} »"
+        return f"aucun {coups} ne donne « {decrire(x)} »"
     if vrai:
-        return f"au moins {k} de {mes} coups donnent « {decrire(x)} »"
-    return f"au plus {k - 1} de {mes} coups donne{'nt' if k > 2 else ''} « {decrire(x)} »"
+        return f"au moins {k} {coups} donnent « {decrire(x)} »"
+    return f"au plus {k - 1} {coups} donne{'nt' if k > 2 else ''} « {decrire(x)} »"
 
 
 def decrire_regle(c: Concept) -> str:
@@ -269,7 +311,8 @@ def decrire_regle(c: Concept) -> str:
 
 
 def expression(c: Concept, etat: str = "etat", niveau: int = 0) -> str:
-    """Le concept en Python, avec les quatre notions (``moi`` et ``lui`` sont des variables)."""
+    """Le concept en Python, avec les quatre notions (``moi``, ``lui``, ``lui2``… sont des
+    variables)."""
     kind, args = c.kind, c.args
     if kind == "brique":
         nom, qui = args
@@ -295,11 +338,19 @@ AU_MOINS_SOURCE = '''def au_moins(k, etat, joueur, propriete):
 '''
 
 
+def _plus_loin(c: Concept) -> int:
+    """La place après moi du joueur le plus éloigné dont parle le concept."""
+    ici = distance(c.args[1]) if c.kind in ("brique", "au_moins") else 0
+    return max([ici] + [_plus_loin(a) for a in c.args if isinstance(a, Concept)])
+
+
 def source(nom: str, c: Concept) -> str:
     """Le texte d'un concept tel que la mère l'écrit dans le code du fils."""
+    noms = [MOI] + joueurs(max(_plus_loin(c), 1) + 1)[1:]
+    suivants = "".join(f"    {qui} = suivant({avant})\n" for avant, qui in zip(noms, noms[1:]))
     return (f"def {nom}(etat, moi):\n"
             f'    """{decrire(c)}."""\n'
-            f"    lui = adversaire(moi)\n"
+            f"{suivants}"
             f"    return {expression(c)}\n")
 
 

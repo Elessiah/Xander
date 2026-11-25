@@ -574,7 +574,7 @@ class EducationTest(unittest.TestCase):
         definitions, rules = teaching.knowledge["concepts"], teaching.knowledge["rules"]
         self.assertIn(GAGNER, [definitions[name] for name in rules])
         mind = self.think(teaching.mind.possibles, teaching.mind.apres, teaching.mind.gagne,
-                          teaching.mind.adversaire)
+                          teaching.mind.suivant)
         parried = 0
         for case in teaching.cases.values():
             if case.key in teaching.knowledge["memories"]:
@@ -808,7 +808,7 @@ class EducationTest(unittest.TestCase):
             "possibles": staticmethod(lambda n: list(range(1, min(3, n) + 1))),
             "apres": staticmethod(lambda n, prises, joueur: n - prises),
             "gagne": staticmethod(lambda n, joueur: n == 0),
-            "adversaire": staticmethod(lambda joueur: 1 - joueur)})
+            "suivant": staticmethod(lambda joueur: 1 - joueur)})
         pensee = concepts.Pensee(notions)
         self.assertEqual(pensee.choix(GAGNER, 3, 0), {3})
         # « aucun de ses coups ne le fait gagner » : à 5, seule la prise de 1 lui laisse

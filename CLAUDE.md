@@ -139,7 +139,8 @@ l'objectif est que la mère finisse par la découvrir seule. Les règles
 s'écrivent uniquement avec quatre notions que la mère apprend pour chaque jeu :
 `apres(etat, action, joueur)` (vient de l'Analyzer), `gagne(etat, joueur)` (fin
 de partie comprise par la mère), `possibles(etat)` (actions permises) et
-`adversaire(joueur)`. Ainsi la même règle vaut pour tous les jeux.
+`suivant(joueur)` (celui qui joue après lui ; à deux joueurs, c'est
+l'adversaire). Ainsi la même règle vaut pour tous les jeux.
 
 ## Situations équivalentes : les symétries
 
