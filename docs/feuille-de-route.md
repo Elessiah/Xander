@@ -329,6 +329,14 @@ de plus petit n'explique les cas), ce qui rejoint le jalon 2.
      mini-échecs (5×5 ou 6×6), et seulement ensuite la partie complète.
      Si les déplacements d'une case à une autre posent problème, les dames
      sur petit plateau peuvent servir d'étape intermédiaire.
+   - **Le compte est bon, version courte** (un joueur, 4 nombres et une
+     cible) : combiner des quantités pour atteindre un but, une action à
+     trois arguments `play(i, j, op)`. **Fait :** le jeu
+     (`Games/CompteEstBon.py`), son professeur exact
+     (`Games/SolveurCompteEstBon.py`) et `res/exampleCompteEstBon.py`. La
+     mère voit quelles places change un coup, pas ce qu'il calcule ;
+     l'éducation bloque parce qu'elle ne cherche que des actions à un
+     argument (voir `docs/jeux.md`).
 8. **Plus tard : l'expérience.** Partir des apprentissages réussis (motifs,
    règles) d'un fils pour en élever un autre plus vite.
 

@@ -152,3 +152,114 @@ python -m Games.GamePlayer morpion --x humain --o minmax --score 3 --start R
 `--x` / `--o` : `humain` ou `minmax`. Au Pylos, on tape `4` (poser), `2 9` (monter de 2 vers 9),
 `r 5` (reprendre) ou `s` (s'arrêter). La série s'arrête quand un joueur atteint
 `--score` points, ou après `3 × score` matchs nuls. Tapez `q` pour quitter.
+
+## Le compte est bon (version courte) — `Games/CompteEstBon.py`
+
+Jeu à un joueur, sur des nombres. On dispose de **4 nombres** (de 1 à 10,
+répétitions permises) et d'une **cible** (de 11 à 100). Un coup combine deux
+nombres disponibles avec une opération : les deux nombres sont remplacés par
+le résultat. Les résultats sont toujours entiers et positifs (règle
+classique) : une soustraction doit donner plus que 0, une division doit
+tomber juste.
+
+**État** (`get_game_state()`) : une liste plate de 5 entiers, les 4 places
+puis la cible, par exemple `[5, 5, 10, 4, 85]`. Une place vide vaut `0`, qui
+n'est jamais un nombre puisque tout résultat est positif. Les places ne
+bougent pas : on voit directement quelles cases un coup a changées, et la
+liste garde toujours la même taille et le même type de valeurs (aucune
+`None`, aucun texte). La cible est une case comme les autres, qui ne change
+jamais.
+
+**Action** : `play(i, j, op)`, trois entiers. Le résultat de
+`nombres[i] op nombres[j]` va à la place `i`, la place `j` se vide. `op` :
+`0` addition, `1` soustraction (`i` moins `j`), `2` multiplication, `3`
+division (`i` divisé par `j`). Des entiers plutôt que `"+"` : tous les
+arguments sont du même genre, comme les cases des autres jeux.
+
+| Méthode | Rôle |
+|---|---|
+| `CompteEstBon(graine)` | série de tirages reproductible ; le constructeur tire le premier |
+| `init()` | tire le suivant et renvoie l'état |
+| `get_game_state()` | l'état ; ne relance **pas** une partie finie (comme Partition) |
+| `play(i, j, op)` | l'état, `True` (gagnée), `False` (perdue ou refusé) |
+| `back()` | annule le dernier coup, même celui qui a fini la partie |
+| `get_moves()` | les coups `(i, j, op)` permis |
+| `print()`, `set_game_state(etat)` | affichage ; imposer un état (tests) |
+
+Attributs : `finie`, `gagnee`. Pas de `get_turn` ni de `win` : il n'y a
+qu'un joueur, comme à Jumper et Partition.
+
+**Fin.** Règle la plus simple : la partie est **gagnée** dès que la cible
+apparaît parmi les nombres (`play` renvoie `True`), **perdue** quand il ne
+reste qu'un nombre et que ce n'est pas la cible (`play` renvoie `False`,
+comme la fin perdue de Partition et Jumper ; le coup est joué). Avec deux
+nombres ou plus, l'addition est toujours possible : la partie ne se bloque
+jamais avant. Elle dure donc **au plus 3 coups**. On ne s'arrête pas quand
+la cible devient inatteignable : ce serait une règle que le joueur ne voit
+pas.
+
+**Coup refusé** : partie finie, indice hors des 4 places ou place vide,
+`i == j`, opération inconnue, soustraction qui ne donne pas un résultat
+positif, division qui ne tombe pas juste, argument qui n'est pas un entier
+(un booléen non plus). Rien ne change et `play` renvoie `False`, comme au
+Morpion. Un refus se distingue d'une fin perdue parce que l'état n'a pas
+changé : c'est justement ce que regarde le labo de la mère.
+
+**Tirage.** Chaque tirage est **soluble** : la cible est choisie au hasard
+parmi les valeurs de 11 à 100 que l'on peut atteindre avec les 4 nombres
+(et qui n'en font pas déjà partie). Si aucune ne l'est (`1 1 1 1`), on
+retire les nombres. Sur 500 graines, la solution la plus courte demande
+1 coup (67 fois), 2 coups (203) ou 3 coups (230).
+
+**Professeur** : `Games/SolveurCompteEstBon.py`,
+`solveur_compte_est_bon_play(game)`. Il lit l'état observable et cherche
+**en largeur** le chemin le plus court vers un état où la cible apparaît
+(tous les coups permis, puis tous ceux d'après, sans revisiter un état déjà
+vu), puis joue le premier coup. Il est exact : il trouve toujours la cible
+sur un tirage soluble, par le chemin le plus court. Il regarde au plus
+quelques centaines d'états (758 au plus sur 500 graines ; environ 4 ms pour
+une partie entière). Si un coup maladroit a rendu la cible inatteignable, il
+vise le nombre le plus proche (règle du vrai jeu). Il ne fait pas partie de
+Xander.
+
+**Exemple** : [`res/exampleCompteEstBon.py`](../res/exampleCompteEstBon.py),
+graine 2, tirage `5 5 10 4 → 85`. Le joueur fait 4 + 5 = 9, 10 × 9 = 90,
+90 − 5 = 85 : `play` renvoie `True`, l'exemple finit par
+`# end player joueur` (une partie gagnée, comme un casse-tête résolu). Les
+indices varient (`i` plus grand ou plus petit que `j`) et trois opérations
+sur quatre apparaissent.
+
+**Notions nouvelles** : combiner des quantités pour atteindre un but (le but
+est une case de l'état, la cible) ; une action à **plusieurs arguments**,
+dont un ne désigne pas une case (`op`) ; une partie qui peut finir de deux
+façons (gagnée, perdue) ; chercher sans tout énumérer (pour la mère, plus
+tard : reconnaître « il manque 5, et j'ai un 5 »).
+
+**Ce que la mère en comprend déjà** (`python -m xander
+res/exampleCompteEstBon.py`, sans rien changer à `xander/`) : un seul
+joueur, des tours `get_game_state -> play`, l'annulation, le gagnant, la
+variable `etat` (tableau de 5) que lit `get_game_state` et que modifie
+`play`. Elle décrit `play` par **les cases qui changent** :
+`changees = union(case(arg0), case(arg1))`, les places des deux nombres
+combinés. Elle ne dit pas **ce qu'elles deviennent** (aucun programme
+n'explique la valeur nouvelle : un calcul entre deux cases, choisi par un
+argument), ni le rôle de `arg2`. Une deuxième hypothèse,
+`union(case(arg2), case(3))`, est une coïncidence de l'exemple (seulement
+deux coups qui continuent) ; les essais du labo la réfutent.
+
+**Où l'éducation bloque** (`--son`, `--parties 30`) : dans
+`Solo.__init__` (`xander/un_joueur.py`), avec « la mère ne sait pas dire
+quand une action peut être jouée ». Avant cela, `discover_actions`
+(`xander/education.py`) ne cherche que des actions **à un argument** : elle
+joue `play(3)`, `play(4)`… que le jeu refuse tous, et ne trouve **aucune**
+action. Son exploration ne joue donc rien, les essais de `test_effects`
+(avec trois arguments pris dans l'exemple) se font refuser, et pour une
+action décrite par ses cases changées, elle ne sait dire que « toujours
+permise » quand elle n'a vu aucun refus. Il lui manquerait, dans l'ordre :
+des actions à plusieurs arguments (les découvrir, les rejouer, les écrire
+dans le fils) ; décrire une **valeur calculée** à partir de deux cases
+(`case(arg0) + case(arg1)`, l'opération choisie par un argument) ; une
+liberté qui dépend des valeurs (une case vide, une division qui tombe
+juste) ; deux fins distinctes (le `True` de la victoire et la position sans
+coup possible de la défaite) ; enfin, pour être bonne, reconnaître des
+configurations au lieu d'essayer les 48 coups de chaque position.
