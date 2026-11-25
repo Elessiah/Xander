@@ -119,10 +119,168 @@ le score n° 1 n'est pas comparable à ceux des examens suivants.
 | Découvrir les symétries (positions équivalentes) | fait, vérifiées dans le labo |
 | Petits motifs : un souvenir réduit à ce qui comptait, reconnu partout | fait, vérifiés dans le labo |
 | Réutiliser l'expérience d'un fils pour un autre | **plus tard**, nécessaire pour ARC (jalon 5) |
+| Un état qui est un nombre (Allumettes, misère) | fait : fin comprise par contre-épreuve, position qui porte le trait |
+| Un joueur seul (Jumper, Partition) | fait : juger un coup par ce qui arrive, état qui défile |
+| Actions à plusieurs arguments et valeur écrite (Nim, Hanoï, Compte est bon) | fait : action en tuple, valeur écrite par un petit programme, coup permis par des comparaisons |
+| Plus de deux joueurs (Morpion à trois) | **en cours** : PR de la branche `feature/plus-de-deux-joueurs` (voir « Reprendre le travail ») |
+| Information cachée (Mastermind, Mot mystère) | à faire : bloc de cases écrites, hypothèses sur le secret |
+| Bulletin du fils (qualité, pas seulement victoire) | à faire : conçu ci-dessous, « Le bulletin du fils » |
 | Problèmes qui ne sont pas des jeux (une entrée, une sortie) | fait, première forme : 18 briques listées ; entraînement 52/55 (53 en deux essais), lot jamais vu 25/34 (jalon 1) |
 | Examens blancs sous scellé | premier passé (jalon 6) : `python -m xander.examen` ; arbitre fourni avec chaque problème, barème « au moins aussi bien que le professeur à sa place » (score binaire et score relatif) |
 | Branchement ARC (adaptateur et lanceur d'examen) | à faire (jalon 7) |
 | Examen ARC | **le cap** (jalon 8) |
+
+## Reprendre le travail
+
+Pour l'agent qui prend la relève. État au soir du 2026-11-25 (`main`
+après la PR #20).
+
+### Méthode de travail
+
+- **Une branche, une PR, puis fusion.** Jamais de push direct sur `main`.
+  Claude fusionne lui-même ses PR et celles de ses sous-agents, sans demander,
+  **après relecture et CI verte** (`gh pr merge N --merge`) : c'est une
+  décision de l'utilisateur. Avant de pousser, fusionner `origin/main` dans
+  la branche (merge, jamais rebase ni force-push).
+- **Des agents en parallèle, sur des fichiers disjoints.** Écrire un jeu
+  (`Games/`, `res/`, ses propres tests, sa section à la fin de
+  `docs/jeux.md`) se fait en parallèle sans risque. Deux agents qui
+  modifient `xander/education.py`, `effets.py`, `un_joueur.py` ou
+  `son_writer.py` en même temps doivent chacun intégrer `main` avant de
+  finir : préférer les faire l'un après l'autre. Les conflits de doc se
+  résolvent en gardant les deux côtés.
+- **Relire une PR** : aucun nom ni cas de jeu dans le code de `xander/` (les
+  commentaires d'exemple sont permis), ce qui reste fourni à la main est
+  listé, tout nouveau réglage est dans le tableau « Réglages fixés à la
+  main » avec son origine, toute la suite passe (environ 90 s, « Morpion
+  parfait à 200 parties » compris), et les chiffres annoncés sont mesurés.
+- **Le fils ne triche jamais** (`CLAUDE.md`) : après ses 5 premières
+  parties, aucun coup impossible, dans toute éducation et tout banc.
+- **Les examens blancs** se passent sur un dossier sous scellé **hors du
+  dépôt** (convention et arbitre : `docs/architecture.md`, § 11). Le jeu
+  n° 1 est sur la machine où il a été écrit, et il est **brûlé** : on ne le
+  réutilise pas. Le prochain examen demande un nouvel auteur (un agent qui
+  ne développe pas la mère), qui écrit les problèmes avant de lire
+  `xander/`, avec un `arbitre.py` par problème. Aucun agent qui développe
+  la mère ne lit ce dossier.
+
+### Ce que la mère sait faire de chaque jeu
+
+| Jeu | Joueurs | Ce que fait la mère aujourd'hui | Ce qui manque |
+|---|---|---|---|
+| Morpion | 2 | fils parfait à 200 parties, règles construites, symétries, petits motifs | — |
+| Puissance 4 | 2 | éducation praticable (gravité composée, petits motifs vérifiés) | une vraie éducation de 50 à 100 parties et son bilan ; des concepts qui regardent plus loin |
+| Allumettes, misère | 2 | aucune position gagnable ratée à 10 allumettes, une règle construite | la période 4 (plus loin que deux `AuMoins`) |
+| Nim, misère | 2 | bat le hasard 196 à 200 fois sur 200, une trentaine de souvenirs | la somme de Nim (16 positions gagnables sur 102 encore ratées) |
+| Jumper, Partition | 1 | jusqu'au plafond sur 50 graines jamais vues, un petit motif | des règles pour un joueur seul |
+| Tours de Hanoï | 1 | range la pile en 7 coups dès la 5e partie | il a retenu un chemin : 15 positions de départ sur 27 seulement |
+| Le compte est bon | 1 | gagne le tirage du labo | 3 tirages jamais vus sur 100 : le labo rejoue un seul tirage, pas de « configuration » |
+| Morpion à trois | 3 | **en cours** (`feature/plus-de-deux-joueurs`) | voir la PR |
+| Mastermind, Mot mystère | 1 | trouve les actions, pas leur effet | un bloc de cases écrites, une information cachée |
+| Pylos 3×3 | 2 | décrit les trois actions | tour de longueur variable, plusieurs sortes d'actions, défaite « plus de coup » |
+| Problèmes entrée → sortie | 0 | lot jamais vu 25/34 | programmes plus grands (jalon 2), notions absentes |
+
+Le détail de chaque jeu (règles, professeur, ce que la mère comprend, où
+l'éducation bloque) est dans `docs/jeux.md`. Commandes :
+`python -m xander res/exampleX.py` (ce qu'elle comprend),
+`python -m xander res/exampleX.py --prof module:fonction --son nom --parties N`
+(une éducation), `python -m xander.examen <dossier>` (un examen).
+
+### Priorités pour la suite, dans l'ordre
+
+1. **Fusionner le Morpion à trois** : la branche `feature/plus-de-deux-joueurs`
+   a sa PR ou l'aura ; la relire comme ci-dessus, intégrer `main`, vérifier
+   la CI, fusionner, et reporter ses chiffres dans le tableau ci-dessus.
+2. **Le bulletin du fils** (section suivante), d'abord comme mesure seule.
+   C'est lui qui dira si les fils actuels ont compris ou seulement retenu.
+3. **Généraliser au lieu de retenir** : Hanoï depuis toute position, Le
+   compte est bon sur des tirages jamais vus. Il faut que le labo varie
+   l'état de départ (d'autres tirages, d'autres positions) et que la mère
+   reconnaisse des configurations plutôt que des positions entières. Le
+   bulletin le mesure.
+4. **L'information cachée** (Mastermind, Mot mystère) : décrire un bloc de
+   cases écrites à une position calculée (« la première rangée vide »), et
+   raisonner sur les secrets encore possibles au lieu d'apprendre par cœur
+   celui du labo (qui rejoue toujours la même graine).
+5. **Pylos 3×3** : tours de longueur variable, plusieurs sortes d'actions
+   par tour, défaite quand on ne peut plus jouer.
+6. **Des règles pour un joueur seul** : les concepts parlent de `gagne` et
+   d'`adversaire` ; il faut une forme pour « atteindre le but » ou « durer ».
+7. **Un moteur commun** pour `effets.py` et `transformations.py` (énumérer
+   par taille, confondre par les valeurs) : premier pas vers le jalon 2.
+8. **Examen blanc n° 2**, quand plusieurs de ces points sont faits : un
+   nouveau jeu de problèmes sous scellé, avec arbitres, passé une fois au
+   nouveau barème (score binaire et score relatif).
+
+## Le bulletin du fils : mesurer la qualité, pas seulement la victoire
+
+**Pourquoi.** La seule récompense d'une partie est aujourd'hui son issue, et
+pour un joueur seul « plus tôt vaut mieux » (`Solo.end_value`). Cela pousse
+à retenir plutôt qu'à comprendre : à Hanoï, le fils range la pile en 7
+coups avec 7 souvenirs, mais seulement depuis 15 positions sur 27. Il gagne
+vite sans avoir compris. Le projet cherche l'inverse : la plus petite
+logique qui explique tous les cas (le refactor), des configurations
+reconnues plutôt que des positions entières (Chase et Simon). Un bulletin
+automatique dit, pour chaque fils, s'il a compris ou s'il a retenu.
+
+### 1. Le bulletin, une mesure pour nous (à faire d'abord)
+
+Un module `xander/bulletin.py`, qui ne modifie rien. Il lit une éducation
+finie (`Education` ou `Solo` : `knowledge["memories"]`, `["patterns"]`,
+`["rules"]`, `["concepts"]`, `cases`, `records`, `max_views`) et le code du
+fils, et rend un bulletin chiffré :
+
+| Mesure | Calcul | Ce qu'elle dit |
+|---|---|---|
+| **Taille de ce qu'il sait** | nombre de souvenirs ; nœuds des règles (et des briques dont elles dépendent) ; cases fixées des petits motifs | un fils court qui gagne vaut mieux qu'un fils long qui gagne (longueur de description minimale) |
+| **Compression** | cas enregistrés bien joués ÷ taille | une règle qui couvre 40 cas en 6 nœuds est propre ; un souvenir qui couvre un cas ne compresse rien |
+| **Origine des coups** | sur les coups des dernières parties : part décidée par une règle, un petit motif, un souvenir, le coup par défaut | un fils qui gagne avec le coup par défaut a eu de la chance (Allumettes, Jumper) |
+| **Généralisation** | réussite depuis des positions ou des tirages **jamais vus** pendant l'éducation : autres graines, positions de départ tirées au hasard et atteignables, comparée à celle du professeur depuis les mêmes positions | la vraie mesure de la compréhension (Hanoï 15/27, Compte est bon 3/100) |
+| **Solidité des règles** | pour chaque règle : cas qui la soutiennent, cas où elle a décidé, règles jamais utilisées ou toujours vraies (« vraie sans rien dire ») | repère les coïncidences et le code mort |
+| **Stabilité** | relancer l'éducation avec d'autres graines et comparer les règles trouvées (mêmes arbres, à symétrie près) | des règles qui changent à chaque graine sont des coïncidences |
+| **Budget** | positions regardées par coup (existe déjà) | penser comme un joueur, pas comme un minimax |
+
+Sortie : `python -m xander res/exampleX.py --prof … --son … --bulletin`
+l'affiche après l'éducation, et le lanceur d'examen l'écrit dans son
+rapport à côté du score (sans rien dire du contenu des problèmes). Un test
+par mesure, sur des fils connus : au Morpion, peu de souvenirs et des
+règles qui décident ; à Hanoï, la généralisation doit être mauvaise
+aujourd'hui (15/27), et le bulletin doit le dire. Les positions « jamais
+vues » sont tirées par le bulletin, jamais montrées à la mère.
+
+La lisibilité au sens humain ne s'automatise pas ; la taille, la
+compression et l'absence de nœuds inutiles s'en approchent. Les seuils
+d'interprétation (bonne ou mauvaise généralisation) ne sont pas fixés :
+le bulletin donne des nombres, on les compare d'un fils à l'autre.
+
+### 2. Le bulletin dans la mère (ensuite, une fois la mesure lue)
+
+La mère préfère déjà le plus petit concept, et un refactor doit libérer au
+moins deux souvenirs. L'étape suivante est d'en faire un **critère
+explicite** : entre deux fils qui jouent aussi bien tous les cas
+enregistrés, elle garde **le plus court** (souvenirs, nœuds, cases des
+motifs). Un souvenir coûte ; une règle qui en remplace plusieurs rapporte.
+Concrètement :
+
+- un refactor, une réduction en petit motif ou un oubli sont acceptés s'ils
+  font baisser la taille totale sans faire rater un cas (aujourd'hui :
+  « au moins deux souvenirs libérés ») ;
+- pour un joueur seul, la valeur d'un coup reste son issue, mais à issue
+  égale la mère préfère la description la plus courte, ce qui pousse vers
+  des motifs plutôt que vers un chemin retenu par cœur ;
+- la taille d'un concept compte aussi ses briques, pour ne pas cacher la
+  complexité dans une brique.
+
+C'est le rasoir d'Ockham (longueur de description minimale), général et
+déjà dans l'esprit du projet ; il sert le jalon 4 (conclure à partir de peu).
+
+**Garde-fou.** Si la mère optimise l'indice, l'indice ne peut plus la
+juger. La **généralisation à des positions jamais vues** reste donc le
+juge : la mère n'y a jamais accès (ni pendant l'éducation, ni pour choisir
+un refactor), et un changement du critère n'est gardé que s'il ne la fait
+pas baisser sur les jeux d'entraînement (Morpion parfait, Allumettes,
+Nim, Hanoï, Jumper). Les poids éventuels du critère vont dans le tableau
+« Réglages fixés à la main », et ne se règlent jamais sur un examen blanc.
 
 ## Prochaines étapes proposées
 
