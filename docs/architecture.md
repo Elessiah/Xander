@@ -8,7 +8,8 @@
       │  rebuilder.py       réécriture en script + exécution dans un sous-processus
       ▼
  observations   ── {time: valeur renvoyée}
-      │  analyzer.py        comparaison avant / après chaque coup
+      │  analyzer.py        comparaison avant / après chaque coup (des cas)
+      │  effets.py          la mère construit le programme qui explique les cas
       ▼
  AnalysisReport ── opérations par fonction, getters / setters par variable
       │  game_model.py      synthèse : joueurs, déroulé d'un tour, annulation
@@ -70,38 +71,68 @@ Pour chaque appel qui agit (`INPUT` / `INOUT`) on cherche des couples
   puis celles des getters appelés juste après lui ;
 - **avant** : la dernière valeur observée de la même variable avant l'appel.
 
-On teste ensuite des hypothèses codées en dur, dans l'ordre, et on garde la
-première qui colle (`FunctionOperation`) :
+Chaque couple est un **cas** (`xander/effets.py`). Un couple où il n'y a rien
+à comparer n'est pas un cas : le dernier coup renvoie un booléen au lieu du
+plateau, ou rien n'a changé.
 
-| Avant / après | Paramètres | Hypothèses |
-|---|---|---|
-| tableaux | 1 | `SINGLE_TARGET_INDEX` (seule la case d'indice *p* change), puis `SINGLE_TARGET_NAME` (seules les cases valant *p* changent) |
-| tableaux | 2 | `SRC_DEST_TARGET_INDEX`, puis `SRC_DEST_TARGET_NAME` (deux cases changent : un déplacement) |
-| nombres | 1 | `QUANTITY_RM` (−*p*), `QUANTITY_ADD` (+*p*), `QUANTITY_SET` (= *p*) |
-| tableaux | 1 | sinon `SEQUENCE_TARGET_INDEX` : *p* désigne une **file** de cases (*p* + décalage, puis + pas…) et seule la première case libre de la file change |
+**La mère construit la description de l'action.** Il n'y a plus d'hypothèses
+nommées à la main. Comme pour les concepts (§ 7), elle énumère par taille
+croissante de petits programmes qui prédisent, à partir de la valeur d'avant
+et des arguments :
+
+- pour un nombre, la nouvelle valeur : `apres = …` ;
+- pour un tableau, l'ensemble des cases qui ont changé : `changees = …`.
+
+Les programmes s'écrivent avec des feuilles (`arg0`, `arg1`…, `avant` et des
+**constantes mesurées** sur les cas) et six opérations : `plus`, `moins`,
+`case(x)` (la case d'indice *x*), `valant(x)` (les cases dont la valeur est
+*x*), `union` et `premiere(x, pas, v)` (la première case qui vaut *v* sur la
+file *x*, *x* + *pas*, *x* + 2 *pas*…). Pour chaque
+fonction et chaque variable, elle garde les plus petits programmes qui
+expliquent **tous** les cas, avec au moins deux cas distincts (un seul cas peut
+être une coïncidence). Deux programmes qui donnent les mêmes valeurs sur tous
+les cas sont confondus et on garde le plus petit ; à taille égale, ils
+coexistent.
+
+Elle retrouve ainsi seule les anciennes hypothèses :
+
+| Ce qu'elle trouve | Ancienne étiquette |
+|---|---|
+| `changees = case(arg0)` | `SINGLE_TARGET_INDEX` |
+| `changees = valant(arg0)` | `SINGLE_TARGET_NAME` |
+| `changees = union(case(arg0), case(arg1))` | `SRC_DEST_TARGET_INDEX` |
+| `changees = union(valant(arg0), valant(arg1))` | `SRC_DEST_TARGET_NAME` |
+| `apres = moins(avant, arg0)` / `plus(arg0, avant)` / `arg0` | `QUANTITY_RM` / `_ADD` / `_SET` |
+
+Elle trouve aussi des combinaisons qu'aucune étiquette ne décrivait
+(`apres = moins(avant, plus(arg0, arg1))`).
 
 **Une file de cases (gravité).** Au Puissance 4, `play(3)` remplit la case 3,
 puis 10, puis 17 : la case changée n'est l'argument que sur la rangée du bas.
-L'Analyzer ne connaît ni la gravité ni la forme du plateau. Il mesure deux
-nombres sur tous les appels de la fonction :
+La mère ne connaît ni la gravité ni la forme du plateau. Elle remarque trois
+sortes de constantes dans les cas (`constantes`) :
 
-- les **décalages** essayés sont « case changée − argument » ;
-- les **pas** essayés sont l'écart entre les cases changées par deux appels
-  successifs de même argument (ici 10 − 3 = 7).
+- les **décalages** « case changée − argument » ;
+- les **pas** : l'écart entre les cases changées par deux appels de mêmes
+  arguments (ici 10 − 3 = 7) ;
+- les **valeurs** qu'avaient les cases changées (ici `' '`, la case vide).
 
-Il garde la file qui explique le plus d'appels (puis le plus petit décalage et
-le plus petit pas). Une case libre est une case qui valait ce que valait la
-case changée : le jeton n'a pas pu s'arrêter avant. Sur l'exemple, la file
-« *p* + 0, puis + 7 » explique les 10 coups. La même hypothèse décrit une
-gravité vers le haut (décalage 35, pas −7), un tube qui se remplit case par
-case (pas 1) ou une pile. Elle n'est essayée que si l'argument ne désigne pas
-directement la case dans la majorité des appels.
+Avec elles, le plus petit programme qui explique tous les coups de l'exemple
+est `changees = premiere(arg0, 7, ' ')` : la première case vide de la file
+qui part de *p* et monte de 7. Le même programme décrit un tube qui se
+remplit case par case (pas 1) ou une pile. Un exemple qui ne joue que sur la
+rangée du bas ne montre aucun pas : la mère y trouve `case(arg0)`, que le
+labo réfute dès qu'elle joue deux fois dans la même colonne (§ 6).
 
-**Lissage.** Un coup particulier peut tromper une hypothèse (la fin de partie,
-une coïncidence de valeurs…). Pour chaque fonction, on ne garde que les
-opérations observées sur au moins la moitié de ses appels (`MAJORITY`), et on
-les applique à tous ses appels. Les appels pour lesquels rien n'a été trouvé
-sont listés dans `AnalysisReport.unknown_calls`.
+Au Morpion, `case(arg0)` et
+`valant(arg0)` coexistent (la case *n* contient le texte `"n"`) : l'exemple
+ne les départage pas, le labo s'en charge (§ 6). Les appels dont aucun cas
+n'est expliqué sont listés dans `AnalysisReport.unknown_calls`.
+
+Ce qui est encore fourni à la main : les deux formes (`apres`, `changees`), les
+feuilles et les sortes de constantes, les six opérations (dont `premiere`,
+une brique de parcours), la taille maximale des programmes (5 nœuds) et le
+minimum de deux cas.
 
 **Getters / setters.** Enfin, chaque variable (identifiée par son nom) reçoit
 la liste des fonctions qui la renvoient (getters) et de celles dont une
@@ -128,8 +159,24 @@ mère voit quel coup il a choisi sans rien savoir de son fonctionnement.
 
 ## 6. L'éducation du fils — `xander/education.py`
 
+0. **Mettre à l'épreuve la description de l'action.** Avant tout, la mère
+   joue dans son labo des coups que l'exemple ne montrait pas : depuis les
+   positions de l'exemple et de 8 parties au hasard, avec les valeurs vues
+   dans les arguments de l'exemple. Elle joue d'abord les expériences
+   **décisives** (les programmes restants n'annoncent pas tous la même
+   chose), puis d'autres en partant des positions les plus proches du début,
+   pour tenter de réfuter ce qui reste (40 coups en tout). Chaque coup accepté
+   est un nouveau cas ; un programme qu'il contredit est abandonné.
+   - Morpion : `case(arg0)` et `valant(arg0)` résistent à tout, ils sont
+     **indiscernables** et la mère prend le premier.
+   - Morpion à pions chiffrés (jeu d'essai des tests) : dès qu'un pion `"2"`
+     est posé, jouer la case libre 2 ne change qu'une case, ce qui réfute
+     `valant(arg0)`.
+   - Puissance 4 joué sur la rangée du bas : l'indice de la case vaut la
+     colonne, et l'Analyzer trouve `case(arg0)`. En jouant deux fois dans la
+     même colonne, la mère le réfute et sait qu'elle n'a pas compris l'action.
 1. **Leçon de l'exemple.** La mère rejoue l'exemple, vérifie que l'action
-   modifie bien la case annoncée par l'Analyzer, apprend quel pion pose
+   change bien les cases que prédit son programme, apprend quel pion pose
    chaque joueur, puis comprend pourquoi la partie finit (ci-dessous).
 2. **Comprendre une fin de partie (contre-épreuve).** Pour chaque pion du
    joueur qui a fini la partie, la mère rejoue la partie en posant ce pion
@@ -346,10 +393,17 @@ Le fils est un **fichier Python autonome**, écrit par la mère, réécrit aprè
 chaque correction, qui n'importe rien de Xander :
 
 1. **Perception** : `possibles`, `apres`, `gagne`, `adversaire`, écrites à
-   partir de ce qu'elle a compris (pions observés, motifs, action
-   `SINGLE_TARGET_INDEX` ou file `SEQUENCE_TARGET_INDEX` avec les actions que
-   le jeu accepte au départ), plus `case_jouee`, `action_pour` et `VUES`, le
-   compteur des positions regardées.
+   partir de ce qu'elle a compris, plus `case_jouee`, `action_pour` et
+   `VUES`, le compteur des positions regardées. `apres` recopie le programme
+   qu'elle a construit pour décrire l'action (§ 3), traduit en Python
+   (`changees(avant, args)`, ou `valeur_apres` pour un nombre) : ce qu'elle a
+   vérifié sur les cas est exactement ce que le fils exécute. La case jouée est
+   la seule case que le programme annonce, si elle est libre ; elle reçoit le
+   pion du joueur (encore supposé à la main). `possibles` garde les actions
+   que le jeu accepte au départ et qui remplissent une case ; `action_pour`
+   vient des portées mesurées dans le labo (chaque action rejouée depuis le
+   début). La mère pense avec la même perception. Si plusieurs programmes de
+   même taille coexistent, elle prend le premier trouvé.
 2. **Règles** : les concepts qu'elle a construits et appris au fils, **et
    seulement ceux-là** (avec les briques dont ils dépendent), traduits en
    Python, `REGLES` dans l'ordre appris, `SOUVENIRS` et `SYMETRIES`.
@@ -370,22 +424,22 @@ fils dans `output/sons/<nom>.py`.
 
 ## Limites connues
 
-- Les hypothèses sont codées en dur : un jeu dont l'état défile (Jumper)
-  n'est compris par aucune d'elles, et c'est attendu à ce stade.
-- La première hypothèse compatible l'emporte : au Morpion, où la case *n*
-  contient le texte `"n"`, `SINGLE_TARGET_INDEX` et `SINGLE_TARGET_NAME` sont
-  toutes deux vraies, seule la première est retenue.
-- Le lissage majoritaire peut généraliser une coïncidence : au Puissance 4,
-  un exemple qui ne joue que sur la rangée du bas ferait retenir
-  `SINGLE_TARGET_INDEX` (l'indice de la case y vaut le numéro de colonne).
-  L'exemple doit montrer au moins deux jetons dans une même colonne.
+- Le langage des effets (deux formes, feuilles, constantes mesurées, six
+  opérations dont `premiere`) est fourni. `premiere` est une brique générale
+  de parcours (pile, tube, gravité), pas une découverte de la mère. Un jeu
+  dont l'état défile (Jumper) n'est pas encore décrit, ni une gravité
+  décalée (« la file part de *p* + 35, pas −7 »), qui dépasse 5 nœuds.
+- Les expériences n'essaient que les valeurs vues dans les arguments de
+  l'exemple ; un coup qui ne change rien de visible est pris pour un coup
+  refusé et n'apprend rien. Deux programmes qui résistent aux 40 expériences
+  sont déclarés indiscernables, pas prouvés équivalents.
 - Découpage des tours : un getter de confirmation appelé juste après le coup
   (`get, play, get`) est rattaché au tour suivant.
 - Éducation : seulement pour deux joueurs qui alternent, un état en tableau et
-  une action qui remplit une case, directement (`SINGLE_TARGET_INDEX`) ou par
-  une file (`SEQUENCE_TARGET_INDEX`). Les actions sont celles que le jeu
-  accepte au départ. Les Allumettes (quantité) attendent que la perception
-  sache décrire une quantité.
+  une action qui remplit une case (le programme trouvé annonce une seule case
+  changée). Les actions sont celles que le jeu accepte au départ, essayées
+  parmi les indices du plateau. Les Allumettes (quantité) attendent que la
+  perception sache décrire une quantité.
 - Les concepts sont construits par la mère, mais leur langage (les quatre
   sortes de nœuds) est fourni. Ses concepts sont parfois
   difficiles à lire : ils sont justes sur tous les cas vus, pas forcément

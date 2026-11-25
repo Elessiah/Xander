@@ -6,8 +6,9 @@ Un fichier d'exemple (voir ``res/``) est découpé en :
 * :class:`Function`  – un appel de fonction observé dans l'exemple, horodaté
   par sa position chronologique (``time``) dans la partie ;
 * :class:`Player`    – la liste des appels faits par un joueur ;
-* :class:`Operation` – l'effet déduit d'une fonction sur une variable
-  (« ``play(4)`` modifie la case d'indice 4 de ``board`` »).
+* :class:`Operation` – l'effet d'une fonction sur une variable, décrit par un
+  programme que la mère a construit (« ``changees = case(arg0)`` » : seule
+  la case d'indice du premier argument change).
 """
 
 from __future__ import annotations
@@ -23,22 +24,6 @@ class FunctionKind(Enum):
     OUTPUT = 1  # « getter » : board = game.get_game_state()
     INPUT = 2   # « setter » : game.play(4)
     INOUT = 3   # les deux : board = game.play(4)
-
-
-class FunctionOperation(Enum):
-    """Effet qu'une fonction INPUT/INOUT a sur une variable observée."""
-
-    UNKNOWN = 0
-    SINGLE_TARGET_INDEX = 1    # modifie la case d'indice <param> d'un tableau
-    SINGLE_TARGET_NAME = 2     # modifie la case dont la valeur vaut <param>
-    SRC_DEST_TARGET_INDEX = 3  # déplace de l'indice <p1> vers l'indice <p2>
-    SRC_DEST_TARGET_NAME = 4   # déplace de la case <p1> vers la case <p2>
-    QUANTITY_SET = 5           # variable = <param>
-    QUANTITY_RM = 6            # variable -= <param>
-    QUANTITY_ADD = 7           # variable += <param>
-    CHECK_VICTORY = 8          # (réservé) la fonction signale une victoire
-    SEQUENCE_TARGET_INDEX = 9  # <param> désigne une file de cases (<param> + décalage, puis + pas…) :
-                               # la première case libre de la file change (gravité, pile…)
 
 
 VARIABLE_KINDS = ("array", "string", "integer", "bool", "game", "back")
@@ -68,15 +53,18 @@ class Variable:
 
 @dataclass(eq=False)
 class Operation:
-    """Effet observé d'une fonction sur une variable."""
+    """Effet d'une fonction sur une variable, tel que la mère l'a décrit.
 
-    kind: FunctionOperation = FunctionOperation.UNKNOWN
+    ``programme`` est une :class:`~xander.effets.Hypothese` construite par la
+    mère (« ``changees = case(arg0)`` »), pas une étiquette écrite à la main.
+    """
+
+    programme: object = None
     variable: Variable | None = None
-    parameters: tuple = ()   # ce que l'Analyzer a mesuré (SEQUENCE_TARGET_INDEX : décalage, pas)
 
     @property
-    def key(self) -> tuple:
-        return self.kind, self.variable.name if self.variable else "", self.parameters
+    def key(self) -> tuple[object, str]:
+        return self.programme, self.variable.name if self.variable else ""
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, Operation) and self.key == other.key
@@ -85,8 +73,7 @@ class Operation:
         return hash(self.key)
 
     def __repr__(self) -> str:
-        extra = f", {self.parameters!r}" if self.parameters else ""
-        return f"Operation({self.kind.name}, {self.key[1]!r}{extra})"
+        return f"Operation({self.programme!r}, {self.key[1]!r})"
 
 
 @dataclass(eq=False)

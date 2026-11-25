@@ -56,9 +56,9 @@ imbattable : au-delà de son horizon, un humain attentif peut le piéger.
 
 Exemple de partie : [`res/examplePuissance4.py`](../res/examplePuissance4.py).
 À cause de la gravité, la case modifiée n'est la case `colonne` que pour la
-ligne du bas. L'Analyzer le comprend (`SEQUENCE_TARGET_INDEX` : la file
-*colonne* + 0, puis + 7, dont la première case libre change), et la mère peut
-y éduquer un fils.
+ligne du bas. La mère le décrit elle-même (`changees = premiere(arg0, 7, ' ')` :
+la première case vide de la file *colonne*, *colonne* + 7…, avec le pas et la
+case vide mesurés sur l'exemple), et elle peut y éduquer un fils.
 
 ## Jumper — `Games/Jumper.py`
 

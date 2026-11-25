@@ -62,7 +62,8 @@ def main(argv: list[str] | None = None) -> int:
                                      on_game=None if args.quiet else print)
         print_curve(education.records)
         knowledge = education.knowledge
-        print(f"\nMotifs compris : {knowledge['patterns']}")
+        print(f"\nAction : {education.trials.describe()}")
+        print(f"Motifs compris : {knowledge['patterns']}")
         print(f"Symétries : {len(knowledge['symmetries']) + 1} façon(s) de voir une position "
               "(renumérotations vérifiées dans le labo)")
         memories = knowledge["memories"]

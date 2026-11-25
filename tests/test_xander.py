@@ -6,14 +6,15 @@ from pathlib import Path
 from Games.MinmaxMorpion import minmax_morpion_play
 from Games.MinmaxPuissance4 import WINDOWS, minmax_puissance4_play
 from Games.Morpion import LINES, Morpion, is_free, winner_of
-from xander.analyzer import guess_operation, test_sequence_target_index
+from xander.analyzer import analyse
 from xander.education import Education
+from xander.game_model import GameModel
 from xander.lab import Lab, LabError
-from xander.model import Function, FunctionOperation, Variable
+from xander.model import Function, Variable
 from xander.mother import Mother, render_son
 from xander.parser import ExampleParser, parse_example
 from xander.rebuilder import ReplayError, build_pool_test, parse_observations, replay
-from xander import concepts, son_writer, symmetries, vocabulary
+from xander import concepts, effets, son_writer, symmetries, vocabulary
 from xander.concepts import LUI, MOI
 
 RES = Path(__file__).resolve().parent.parent / "res"
@@ -25,6 +26,23 @@ def parse(text: str):
 
 def call(*arguments):
     return Function("game.f", Variable("array", 3, "board"), [repr(a) for a in arguments], 0, list(arguments))
+
+
+#: Les anciennes hypothèses écrites à la main, que la mère doit retrouver seule
+#: (écrites ici pour comparer, jamais données à la mère).
+A0, A1, AVANT = effets.arg(0), effets.arg(1), effets.avant()
+CASE_INDICE = effets.Hypothese(effets.CHANGEES, effets.case(A0))
+CASE_VALANT = effets.Hypothese(effets.CHANGEES, effets.valant(A0))
+DEPLACER_INDICE = effets.Hypothese(effets.CHANGEES, effets.union(effets.case(A0), effets.case(A1)))
+DEPLACER_VALANT = effets.Hypothese(effets.CHANGEES, effets.union(effets.valant(A0), effets.valant(A1)))
+RETIRER = effets.Hypothese(effets.APRES, effets.moins(AVANT, A0))
+AJOUTER = effets.Hypothese(effets.APRES, effets.plus(AVANT, A0))
+FIXER = effets.Hypothese(effets.APRES, A0)
+
+
+def discover(*transitions):
+    """``(avant, arguments, après)`` -> hypothèses trouvées par la mère."""
+    return effets.decouvrir([effets.Cas(a, tuple(args), b) for a, args, b in transitions])
 
 
 class RebuilderTest(unittest.TestCase):
@@ -56,42 +74,159 @@ class RebuilderTest(unittest.TestCase):
             replay(parsed, timeout=1)
 
 
-class GuessOperationTest(unittest.TestCase):
+class EffectDiscoveryTest(unittest.TestCase):
+    """La mère retrouve les anciennes hypothèses sans qu'elles soient nommées nulle part."""
+
     def test_single_target_index(self):
-        self.assertIs(guess_operation(["a", "b", "c"], ["a", "X", "c"], call(1)),
-                      FunctionOperation.SINGLE_TARGET_INDEX)
+        self.assertEqual(discover((["a", "b", "c"], [1], ["a", "X", "c"]),
+                                  (["a", "b", "c"], [2], ["a", "b", "X"])), [CASE_INDICE])
 
     def test_single_target_name(self):
-        self.assertIs(guess_operation(["a", "b", "c"], ["a", "X", "c"], call("b")),
-                      FunctionOperation.SINGLE_TARGET_NAME)
+        self.assertEqual(discover((["a", "b", "c"], ["b"], ["a", "X", "c"]),
+                                  (["a", "b", "c"], ["c"], ["a", "b", "X"])), [CASE_VALANT])
+
+    def test_index_and_name_coexist(self):
+        """Au Morpion, la case d'indice p vaut « p » : rien ne les départage encore."""
+        self.assertEqual(discover((["0", "1", "2"], [1], ["0", "X", "2"]),
+                                  (["0", "X", "2"], [2], ["0", "X", "O"])), [CASE_INDICE, CASE_VALANT])
 
     def test_src_dest(self):
-        self.assertIs(guess_operation(["P", " ", "c"], [" ", "P", "c"], call(0, 1)),
-                      FunctionOperation.SRC_DEST_TARGET_INDEX)
-        self.assertIs(guess_operation(["P", "e", "c"], ["e", "P", "c"], call("P", "e")),
-                      FunctionOperation.SRC_DEST_TARGET_NAME)
+        self.assertEqual(discover((["P", " ", "c"], [0, 1], [" ", "P", "c"]),
+                                  (["c", "P", " "], [1, 2], ["c", " ", "P"])), [DEPLACER_INDICE])
+        self.assertEqual(discover((["P", "e", "c"], ["P", "e"], ["e", "P", "c"]),
+                                  (["c", "P", "e"], ["P", "e"], ["c", "e", "P"])), [DEPLACER_VALANT])
 
     def test_quantity(self):
-        self.assertIs(guess_operation(10, 7, call(3)), FunctionOperation.QUANTITY_RM)
-        self.assertIs(guess_operation(10, 13, call(3)), FunctionOperation.QUANTITY_ADD)
-        self.assertIs(guess_operation(10, 3, call(3)), FunctionOperation.QUANTITY_SET)
+        self.assertEqual(discover((10, [3], 7), (7, [2], 5)), [RETIRER])
+        self.assertEqual(discover((10, [3], 13), (7, [2], 9)), [AJOUTER])
+        self.assertEqual(discover((10, [3], 3), (7, [2], 2)), [FIXER])
 
-    def test_sequence_target_index(self):
-        """Le paramètre désigne une file de cases ; la première libre change (gravité, pile…)."""
-        # 2 colonnes de 3 cases : case = ligne * 2 + colonne
-        self.assertTrue(test_sequence_target_index(
-            ["X", " ", " ", " ", " ", " "], ["X", " ", "O", " ", " ", " "], 0, 0, 2))  # sur le premier
-        self.assertFalse(test_sequence_target_index(
-            [" ", " ", " ", " ", " ", " "], [" ", " ", "O", " ", " ", " "], 0, 0, 2))  # il serait en bas
-        self.assertTrue(test_sequence_target_index(  # la même chose à l'envers : il tombe vers le haut
-            [" ", " ", " ", " ", "X", " "], [" ", " ", "O", " ", "X", " "], 0, 4, -2))
-        self.assertTrue(test_sequence_target_index(  # un tube : la file avance d'une case
-            ["X", "X", " ", " "], ["X", "X", "O", " "], 0, 0, 1))
+    def test_sequence(self):
+        """Gravité, pile, tube : la première case libre d'une file, avec un pas et une valeur
+        « libre » que la mère mesure elle-même sur les cas."""
+        vide = [" "] * 6  # 2 colonnes de 3 cases : case = ligne * 2 + colonne
+        found = discover((vide, [0], ["O", " ", " ", " ", " ", " "]),
+                         (["O", " ", " ", " ", " ", " "], [0], ["O", " ", "X", " ", " ", " "]),
+                         (vide, [1], [" ", "X", " ", " ", " ", " "]))
+        self.assertEqual(found, [effets.Hypothese(effets.CHANGEES,
+                                                  effets.premiere(A0, effets.const(2), effets.const(" ")))])
+        tube = discover((["X", " ", " ", " "], [0], ["X", "O", " ", " "]),
+                        (["X", "O", " ", " "], [0], ["X", "O", "X", " "]))
+        # un tube à une seule entrée : l'argument vaut toujours 0, « à partir de la case 1 » marche aussi
+        self.assertIn(effets.Hypothese(effets.CHANGEES, effets.premiere(A0, effets.const(1), effets.const(" "))),
+                      tube)
+
+    def test_measured_constants(self):
+        """Décalages, pas (même argument, autre case) et valeurs des cases changées."""
+        cas = [effets.Cas([" "] * 4, (1,), [" ", "O", " ", " "]),
+               effets.Cas([" ", "O", " ", " "], (1,), [" ", "O", " ", "X"])]
+        self.assertEqual(effets.constantes(cas), (0, 2, " "))
 
     def test_nothing_matches(self):
-        self.assertIsNone(guess_operation(["a", "b"], ["X", "X"], call(1)))
-        self.assertIsNone(guess_operation(["a", "b"], True, call(1)))
-        self.assertIsNone(guess_operation(10, 9, call(3)))
+        self.assertEqual(discover((["a", "b", "c"], [1], ["X", "X", "c"]),
+                                  (["a", "b", "c"], [0], ["a", "Y", "Y"])), [])
+        self.assertEqual(discover((10, [3], 9), (7, [2], 1)), [])
+
+    def test_not_a_case(self):
+        """La fin de partie renvoie un booléen, un coup refusé ne change rien : rien à expliquer."""
+        self.assertIsNone(effets.Cas(["a", "b"], (1,), True).forme)
+        self.assertIsNone(effets.Cas(["a", "b"], (1,), ["a", "b"]).forme)
+
+    def test_one_case_is_a_coincidence(self):
+        self.assertEqual(discover((10, [3], 7)), [])
+        self.assertEqual(discover((10, [3], 7), (10, [3], 7)), [])  # le même cas deux fois
+
+    def test_every_case_must_be_explained(self):
+        self.assertEqual(discover((10, [3], 7), (7, [2], 5), (5, [1], 5)), [])
+
+    def test_composition_beyond_old_hypotheses(self):
+        """Un effet qu'aucune ancienne hypothèse ne décrivait : retirer la somme de deux arguments.
+
+        Les trois écritures de même taille disent la même chose : elles coexistent."""
+        found = discover((10, [1, 2], 7), (7, [2, 2], 3), (3, [0, 1], 2))
+        self.assertIn(effets.Hypothese(effets.APRES, effets.moins(AVANT, effets.plus(A0, A1))), found)
+        self.assertEqual(len(found), 3)
+
+
+class EffectSourceTest(unittest.TestCase):
+    """Ce que la mère a vérifié est exactement ce que le fils exécute."""
+
+    def test_translation_matches_evaluation(self):
+        cas = [effets.Cas(["0", "X", "2", "O"], (2, 1), ["0", "X", "X", "O"]),
+               effets.Cas(["a", "b", "c", "d"], ("b", 3), ["a", "Y", "c", "d"]),
+               effets.Cas(10, (3, 2), 7)]
+        nb = 0
+        for terme, _ in effets.termes(cas, 2):
+            expression = effets.traduire(terme)
+            for c in cas:
+                attendu = effets.evaluer(terme, c)
+                if attendu is effets.INDEFINI:
+                    continue
+                obtenu = eval(expression, {"avant": c.valeur_avant, "args": c.arguments,
+                                           "_premiere": effets._premiere})
+                self.assertEqual(obtenu, attendu, f"{terme!r} sur {c}")
+                nb += 1
+        self.assertGreater(nb, 50)
+
+    def test_apres_from_a_quantity(self):
+        """Aux Allumettes, le apres écrit par la mère retire ce que dit l'argument."""
+        module = son_writer.load(son_writer.apres_source(RETIRER) + "\nVUES = 0\n")
+        self.assertEqual(module.apres(10, 3, "X"), 7)
+
+    def test_son_apres_is_the_discovered_program(self):
+        source = render_son("fils", education())
+        self.assertIn("def changees(avant, args):", source)
+        self.assertIn("return {args[0]}", source)
+        self.assertNotIn("suite[action] = joueur", source)  # plus de gabarit
+        son = son_writer.load(source)
+        self.assertEqual(son.apres(["0", "1", "2"], 1, "X"), ["0", "X", "2"])
+
+
+def example(module: str, game: str, size: int, players: str, moves: list[int]) -> str:
+    """Un exemple de partie : chaque joueur lit le plateau puis joue."""
+    turns = "".join(f"# player {p}\nboard = game.get_game_state()  # array {size}\n"
+                    f"board = game.play({n})  # array {size}\n\n" for p, n in zip(players, moves))
+    return (f"# include\nfrom {module} import {game}\n\n# init\ngame = {game}()  # game\n"
+            f"board = game.init({players[0]!r})  # array {size}\n\n# back\nboard = game.back()  # array {size}\n\n"
+            + turns + f"# end player {players[0]}\n")
+
+
+def understood(text: str):
+    parsed = ExampleParser().parse_text(text)
+    return parsed, GameModel.from_analysis(parsed, analyse(parsed, replay(parsed)))
+
+
+class EffectExperimentTest(unittest.TestCase):
+    """La mère met à l'épreuve, dans son labo, ce qu'elle a compris de l'action."""
+
+    def test_decisive_experiment(self):
+        both = [CASE_INDICE, CASE_VALANT]
+        self.assertFalse(effets.decisive(both, ["0", "1", "X"], (1,)))
+        self.assertTrue(effets.decisive(both, ["0", "1", "X"], (2,)))  # la case 2 ne vaut plus 2
+        self.assertEqual(effets.departager(both, effets.Cas(["0", "1", "2"], (1,), ["0", "1", "2"])), both)
+
+    def test_morpion_hypotheses_are_indistinguishable(self):
+        """Au Morpion, aucune expérience ne sépare « la case d'indice n » et « la case qui vaut n »."""
+        trials = education().trials
+        self.assertEqual(trials.survivors, [CASE_INDICE, CASE_VALANT])
+        self.assertEqual(trials.refutations, {})
+        self.assertGreater(trials.played, 10)
+
+    def test_experiment_separates_hypotheses(self):
+        """Pions « 1 » et « 2 » : jouer la case 2 quand un « 2 » est posé ne change qu'une case."""
+        parsed, model = understood(example("tests.jeu_chiffres", "MorpionChiffres", 9, "12121", [2, 0, 4, 3, 6]))
+        self.assertEqual([op.programme for op in model.report.operations["game.play"]], [CASE_INDICE, CASE_VALANT])
+        trials = Education(parsed, model, None).trials
+        self.assertEqual(trials.survivors, [CASE_INDICE])
+        self.assertEqual(list(trials.refutations), [CASE_VALANT])
+
+    def test_experiment_refutes_a_coincidence(self):
+        """Puissance 4 joué sur la rangée du bas : l'indice de la case vaut la colonne… jusqu'à ce
+        que la mère joue deux fois dans la même colonne."""
+        parsed, model = understood(example("Games.Puissance4", "Puissance4", 42, "XOXOXOX", [0, 4, 1, 5, 2, 6, 3]))
+        self.assertEqual([op.programme for op in model.report.operations["game.play"]], [CASE_INDICE])
+        with self.assertRaisesRegex(LabError, r"réfuté \[changees = case\(arg0\)\]"):
+            Education(parsed, model, None)
 
 
 class MotherTest(unittest.TestCase):
@@ -100,21 +235,23 @@ class MotherTest(unittest.TestCase):
         self.assertEqual(model.nb_players, 2)
         self.assertEqual(model.turn_pattern, ["get_game_state", "play"])
         operations = model.report.operations["game.play"]
-        self.assertEqual([(op.kind, op.variable.name) for op in operations],
-                         [(FunctionOperation.SINGLE_TARGET_INDEX, "board")])
+        self.assertEqual([(op.programme, op.variable.name) for op in operations],
+                         [(CASE_INDICE, "board"), (CASE_VALANT, "board")])
+        self.assertEqual([f.time for f in model.report.unknown_calls], [11])  # le coup final renvoie True
         board = next(v for v in model.env if v.name == "board")
         self.assertEqual({f.short_name for f in board.setters}, {"play"})
 
     def test_learn_allumettes(self):
         model = Mother().learn(RES / "exampleAllumettes.py")
         operations = model.report.operations["game.play"]
-        self.assertEqual([op.kind for op in operations], [FunctionOperation.QUANTITY_RM])
+        self.assertEqual([op.programme for op in operations], [RETIRER])
 
     def test_learn_puissance4(self):
-        """La gravité : play(3) remplit 3, puis 10, 17… l'Analyzer mesure la file (+0, puis +7)."""
+        """La gravité : play(3) remplit 3, puis 10, 17… la mère mesure le pas (7) et la valeur
+        d'une case libre (" "), puis construit « la première case libre de la file »."""
         model = Mother().learn(RES / "examplePuissance4.py")
-        self.assertEqual(model.target.kind, FunctionOperation.SEQUENCE_TARGET_INDEX)
-        self.assertEqual(model.target.parameters, (0, 7))
+        self.assertEqual([op.programme for op in model.report.operations["game.play"]],
+                         [effets.Hypothese(effets.CHANGEES, effets.premiere(A0, effets.const(7), effets.const(" ")))])
         self.assertEqual(model.nb_players, 2)
         self.assertEqual(model.turn_pattern, ["get_game_state", "play"])
         self.assertEqual(model.winner, "X")
@@ -542,8 +679,8 @@ class EducationTest(unittest.TestCase):
         self.assertEqual(teaching.knowledge["symmetries"], [mirror])
 
     def test_unsupported_game(self):
-        with self.assertRaisesRegex(LabError, "SINGLE_TARGET_INDEX"):
-            Mother().raise_son(RES / "exampleAllumettes.py")
+        with self.assertRaisesRegex(LabError, "quelles cases change"):
+            Mother().raise_son(RES / "exampleAllumettes.py")  # elle a trouvé apres = moins(avant, arg0)
 
 
 if __name__ == "__main__":

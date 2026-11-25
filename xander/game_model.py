@@ -6,7 +6,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 
 from xander.analyzer import AnalysisReport
-from xander.model import Function, FunctionKind, FunctionOperation, Operation, Variable
+from xander.model import Function, FunctionKind, Variable
 from xander.parser import ParsedExample
 
 
@@ -30,19 +30,6 @@ class GameModel:
     @property
     def nb_players(self) -> int:
         return len(self.players_names)
-
-    @property
-    def target(self) -> Operation | None:
-        """Comment l'action désigne la case qu'elle remplit : directement
-        (``SINGLE_TARGET_INDEX``) ou par une file de cases (``SEQUENCE_TARGET_INDEX``)."""
-        if not (self.report and self.action):
-            return None
-        operations = self.report.operations.get(self.action.name, [])
-        for kind in TARGETS:
-            for operation in operations:
-                if operation.kind is kind:
-                    return operation
-        return None
 
     @classmethod
     def from_analysis(cls, parsed: ParsedExample, report: AnalysisReport) -> GameModel:
@@ -81,9 +68,7 @@ class GameModel:
         if self.report:
             lines.append("Opérations déduites :")
             for name, operations in self.report.operations.items():
-                text = ", ".join(f"{op.kind.name} sur {op.variable.name}"
-                                 + (f" {describe_parameters(op)}" if op.parameters else "")
-                                 for op in operations)
+                text = ", ".join(f"{op.variable.name} : {op.programme!r}" for op in operations)
                 lines.append(f"  {name} : {text or 'inconnue'}")
             if self.report.unknown_calls:
                 lines.append("Appels non compris :")
@@ -92,15 +77,6 @@ class GameModel:
 
 
 ACTING = (FunctionKind.INPUT, FunctionKind.INOUT)
-TARGETS = (FunctionOperation.SINGLE_TARGET_INDEX, FunctionOperation.SEQUENCE_TARGET_INDEX)
-
-
-def describe_parameters(operation: Operation) -> str:
-    if operation.kind is FunctionOperation.SEQUENCE_TARGET_INDEX:
-        offset, step = operation.parameters
-        return (f"(file : <param> {offset:+d}, puis {step:+d} à chaque case ; "
-                "la première case libre change)")
-    return repr(operation.parameters)
 
 
 def split_turns(parsed: ParsedExample) -> list[list[Function]]:
