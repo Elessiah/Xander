@@ -68,7 +68,7 @@ class GameModel:
         if self.report:
             lines.append("Opérations déduites :")
             for name, operations in self.report.operations.items():
-                text = ", ".join(f"{op.kind.name} sur {op.variable.name}" for op in operations)
+                text = ", ".join(f"{op.variable.name} : {op.programme!r}" for op in operations)
                 lines.append(f"  {name} : {text or 'inconnue'}")
             if self.report.unknown_calls:
                 lines.append("Appels non compris :")

@@ -6,7 +6,7 @@
 |---|---|
 | Lire un exemple de partie | fait |
 | Rejouer l'exemple et observer chaque valeur | fait |
-| Déduire l'effet des fonctions (opérations) | fait, hypothèses codées en dur |
+| Déduire l'effet des fonctions (opérations) | fait : programmes construits par la mère, langage fourni |
 | Associer getters et setters aux variables | fait |
 | Comprendre le déroulé d'un tour | fait |
 | Déduire les conditions de victoire | fait : motifs trouvés par contre-épreuve |
@@ -14,33 +14,80 @@
 | Corriger le fils cas par cas (souvenirs) | fait |
 | Refactoriser : des souvenirs aux règles, concepts construits par la mère | fait, Morpion : fils imbattable |
 | Découvrir les symétries (positions équivalentes) | fait, vérifiées dans le labo |
+| Petits motifs : un souvenir réduit à ce qui comptait, reconnu partout | fait, vérifiés dans le labo |
 | Réutiliser l'expérience d'un fils pour un autre | **plus tard** |
 
 ## Prochaines étapes proposées
 
 1. **Analyzer plus général.** C'est lui qui donne à la mère le vocabulaire
-   pour percevoir un jeu. Il doit décrire l'action du Puissance 4 (« le jeton
-   tombe dans la colonne *p* »), celle des Allumettes (quantité), et laisser
-   coexister plusieurs hypothèses vraies.
-2. **Configurations n'importe où.** Les motifs de fin se décalent déjà
-   (vérifiés dans le labo). Il reste à faire de même pour ce qu'elle apprend :
-   un souvenir ou une règle qui porte sur quelques cases, reconnu partout où
-   cette configuration apparaît (indispensable au Puissance 4, dont le plateau
-   n'a qu'une symétrie).
-3. **Symétries plus générales.** Aujourd'hui des renumérotations de cases.
+   pour percevoir un jeu. La mère construit la description de l'action avec
+   un petit langage (étape 1 : elle retrouve seule les anciennes hypothèses,
+   et celles de même taille coexistent). Le programme trouvé est le `apres`
+   qu'elle écrit dans le fils et avec lequel elle pense (étape 2). Elle le
+   met à l'épreuve dans le labo, d'abord par des expériences qui départagent,
+   puis pour réfuter ce qui reste (étape 3). Elle décrit aussi la gravité du
+   Puissance 4 (`premiere(arg0, 7, ' ')`, avec des constantes qu'elle mesure).
+   Reste à décrire la valeur écrite (aujourd'hui le pion du joueur, supposé)
+   et celle des Allumettes (quantité). Piste : un coup refusé est aussi une
+   observation (`valant(arg0)` annonce qu'une case occupée ne change rien),
+   qui pourrait apprendre `possibles`.
+
+   **Étape 4 : découvrir la gravité au lieu de la fournir.** La brique
+   `premiere(x, pas, v)` est écrite à la main : la mère s'en sert, elle ne
+   l'a pas trouvée. Il faut la remplacer par des briques plus petites qu'elle
+   compose elle-même :
+   - **les cases liées à une action**, observées et non calculées : en
+     rejouant une action dans le labo, la mère voit déjà quelles cases elle
+     remplit, dans quel ordre (`PORTEES` : au Puissance 4, la colonne de bas
+     en haut). Ce sera une feuille du langage, à la place de la file
+     « *x*, *x* + *pas*… » calculée avec des constantes ;
+   - **un ordre et un choix** : « la première case d'une suite qui vérifie
+     une condition », où la condition est un terme déjà connu (`valant(v)`,
+     la valeur qu'avaient les cases changées). La gravité devient alors une
+     composition, `premiere_de(portee(arg0), valant(' '))`, que la mère
+     construit et vérifie sur les cas ;
+   - **le test** : au Puissance 4, elle retrouve cette composition sans
+     `premiere` ; au Morpion elle garde `case(arg0)` (la portée d'une action
+     n'y a qu'une case) ; un tube ou une pile marchent sans rien changer ;
+     une gravité vers le haut ou décalée (« la file part de *p* + 35, pas
+     −7 », hors de portée de `premiere` à 5 nœuds) marche aussi, car l'ordre
+     vient de l'observation et non d'un calcul.
+
+   Ce qui restera fourni à la main : « la première d'une suite qui
+   vérifie… » (une brique d'ordre, générale) et la façon d'observer une
+   portée (rejouer la même action depuis le début).
+2. **Puissance 4 : une éducation praticable.** Tout fonctionne de bout en
+   bout : l'Analyzer comprend la gravité, la mère retrouve des alignements
+   horizontaux, verticaux et diagonaux et le miroir gauche-droite, corrige et
+   réduit les souvenirs. Deux problèmes. Les petits motifs y sont mal
+   vérifiés : après 3 parties, 391 souvenirs, presque tous des motifs décalés
+   que les positions imaginées au hasard « confirment » parce que le
+   professeur y joue souvent le centre. Et une partie prend 2 à 8 minutes : chaque
+   jugement fait finir la partie deux fois au professeur (environ 0,7 s), et
+   la réduction d'un souvenir en petit motif demande des centaines de
+   jugements. Pistes : juger moins de positions (variantes, positions
+   imaginées), réutiliser les jugements entre positions équivalentes, et des
+   concepts qui regardent plus loin (les pièges du Puissance 4 sont plus
+   profonds que deux coups).
+3. **Petits motifs dans les règles.** Les motifs de fin et les souvenirs se
+   décalent déjà : un souvenir est réduit aux cases qui comptaient, puis
+   reconnu partout (vérifié dans le labo). Il reste à en faire des briques
+   (« jouer un coup qui crée cette configuration »), et à les essayer sur un
+   grand plateau. Au Morpion, presque toutes les cases comptent, et les
+   petits motifs gardent 6 à 7 cases sur 9.
+4. **Symétries plus générales.** Aujourd'hui des renumérotations de cases.
    Il faudra des équivalences qui ne sont pas des permutations (échanger les
-   deux joueurs, une quantité décalée), et des motifs généraux (translation)
-   pour le Puissance 4.
-4. **Concepts plus lisibles.** La mère construit ses concepts, mais certains
+   deux joueurs, une quantité décalée).
+5. **Concepts plus lisibles.** La mère construit ses concepts, mais certains
    sont des combinaisons difficiles à lire, ou des coïncidences validées sur
    peu de cas. Pistes : préférer le concept qui explique le plus de cas,
    relire les concepts quand une nouvelle brique apparaît, et dire ce que le
    langage fournit encore à la main (les nœuds `Non`, `Et`, `AuMoins` avec
    k = 1, la forme « jouer une action après laquelle… »). `gagne` doit aussi apprendre qu'un coup peut faire perdre celui qui
    le joue (Allumettes « misère »), ce qui demande de percevoir le trait.
-5. **Autres formes de problèmes.** Jeux à un joueur (Jumper), plus de deux
+6. **Autres formes de problèmes.** Jeux à un joueur (Jumper), plus de deux
    joueurs, état qui n'est pas un tableau.
-6. **Jeux suivants, une fois Morpion, Allumettes et Puissance 4 appris.**
+7. **Jeux suivants, une fois Morpion, Allumettes et Puissance 4 appris.**
    Chaque jeu doit apporter de nouvelles notions sans tout changer à la
    fois, et avoir un professeur fiable.
    - **Pylos à base 3×3** (9 + 4 + 1 = 14 billes, 7 par joueur). Il réunit
@@ -71,7 +118,7 @@
      mini-échecs (5×5 ou 6×6), et seulement ensuite la partie complète.
      Si les déplacements d'une case à une autre posent problème, les dames
      sur petit plateau peuvent servir d'étape intermédiaire.
-7. **Plus tard : l'expérience.** Partir des apprentissages réussis (motifs,
+8. **Plus tard : l'expérience.** Partir des apprentissages réussis (motifs,
    règles) d'un fils pour en élever un autre plus vite.
 
 ## Nettoyage et corrections de cette révision

@@ -30,12 +30,13 @@ Gagnant de l'exemple : X
 Variables :
   board (array, taille 9) | lue par : get_game_state, init, play | modifiée par : play
 Opérations déduites :
-  game.play : SINGLE_TARGET_INDEX sur board
+  game.play : board : changees = case(arg0), board : changees = valant(arg0)
 Appels non compris :
   t=11  board = game.play(7)                [INOUT]
 ```
 
-La mère a compris que `play(n)` modifie la case `n` du plateau. Le dernier coup
+La mère a construit elle-même la description de `play(n)` : seule la case
+d'indice `n` change (ou, ce qui revient au même ici, la case qui contient `"n"`). Le dernier coup
 n'est « pas compris » parce qu'il renvoie `True` (fin de partie) au lieu du
 plateau : il n'y a pas d'état « après » à comparer.
 
@@ -54,7 +55,9 @@ hasard et contre un adversaire mixte, puis revient sur chacune de ses erreurs.
 Elle corrige d'abord **cas par cas** (un souvenir par erreur), puis
 **refactorise** : le plus petit concept qui explique au moins deux souvenirs,
 construit avec ses briques, devient une règle si tous les cas déjà vus restent
-bien joués. Chaque partie est affichée avec ses leçons et ses refactors (`-q`
+bien joués. Les souvenirs restants sont réduits à ce qui comptait, puis
+reconnus partout : ce sont des **petits motifs** (`MM.??????` → 2), vérifiés
+dans le labo. Chaque partie est affichée avec ses leçons et ses refactors (`-q`
 pour ne voir que le bilan), suivie de la courbe d'apprentissage et des
 concepts construits :
 
