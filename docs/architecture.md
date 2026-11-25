@@ -930,6 +930,71 @@ fonctions, le minimum de deux paires, le budget et la préférence à taille
   l'élément. Une paire « entrée → sortie » deviendrait alors un cas
   `apres = t(avant)` sans arguments.
 
+## 11. Les examens blancs — `xander/examen.py`
+
+Un examen blanc mesure la mère sur des problèmes **inédits**, écrits à
+l'avance et gardés sous scellé hors du dépôt (jalon 6 de la feuille de
+route). Le lanceur ne connaît aucun problème : il ne fait que de la
+plomberie, puis appelle `Mother.raise_son` comme pour n'importe quel jeu. Il
+ne change rien à la mère.
+
+```powershell
+python -m xander.examen C:\chemin\hors\du\depot\examen-blanc-N
+```
+
+**Convention.** Chaque sous-dossier du dossier d'examen est un problème
+(ordre alphabétique, numérotés à partir de 1) qui contient `exemple.py` (une
+vraie partie, au format de `docs/format-exemple.md`, dont le `# include`
+importe le jeu par son nom de module) et `professeur.py` (une fonction
+`professeur(game)` qui joue un coup). Le jeu suit l'interface des jeux à deux
+joueurs (`docs/jeux.md`).
+
+**Plomberie.** Le dossier du problème est ajouté à `PYTHONPATH`, que le rejeu
+(`xander/rebuilder.py`) conserve : l'exemple s'importe aussi dans le
+sous-processus du rejeu et dans le labo. Avant que la mère voie quoi que ce
+soit, le lanceur vérifie que l'exemple s'exécute tel quel depuis la racine du
+dépôt et que le professeur s'importe ; sinon l'examen s'arrête sur une
+« erreur de branchement » (ce n'est pas un échec de la mère). Chaque problème
+passe dans son propre sous-processus (modules isolés, limite de temps tenue
+en l'arrêtant, `PYTHONHASHSEED` fixé). Les problèmes et le rapport doivent
+être hors du dépôt.
+
+**Budget et barème, fixés avant tout examen** (`BUDGET`, vérifié par un test) :
+
+| | |
+|---|---|
+| Éducation | 200 parties (le défaut de `raise_son`), graine 0 |
+| Limite de temps | 30 minutes par problème, tout compris (compréhension, éducation, mesure) ; au-delà, raté |
+| Mesure, sans correction | 2 parties contre le professeur (une de chaque côté : fils et professeur sont déterministes), 100 contre le joueur au hasard de la mère (50 de chaque côté) |
+| Réussi | aucune partie de mesure perdue, et aucun coup impossible après les 5 premières parties d'éducation ni pendant la mesure |
+| Raté | sinon, et aussi si la mère dit qu'elle ne sait pas éduquer ce problème, si elle plante ou si le temps est dépassé |
+| Score | problèmes réussis / total |
+
+Le verdict d'une partie de mesure est lu **dans le jeu** (`win`, et
+`get_turn()` pour savoir quel joueur est l'adversaire), pas dans ce que la
+mère en comprend ; sans `win`, on garde celui de la mère. Le joueur au
+hasard, lui, est celui de la mère : il tire parmi les actions qu'elle a
+trouvées.
+
+**Rapport.** Sur la sortie et dans un fichier hors du dépôt (par défaut
+`<dossier>/rapport-<date>.txt`) : le commit (signalé s'il y a des
+modifications non commitées), la date, le budget, puis pour chaque problème
+son numéro, réussi ou raté, et la durée. Rien d'autre sur le contenu des
+problèmes, ni sur la raison d'un échec.
+
+**Passer un examen.**
+
+1. Écrire les problèmes avant de regarder ce que la mère sait faire, les
+   mettre sous scellé hors du dépôt (voir le `PROTOCOLE.txt` du dossier des
+   scellés) et vérifier qu'ils sont bien formés sans lancer la mère.
+2. Commiter : le commit de l'examen est celui qu'affiche le rapport.
+3. Lancer `python -m xander.examen <dossier>` une seule fois, sans rien
+   toucher pendant l'examen. Si le lanceur s'arrête sur une erreur de
+   branchement, on ne corrige que le lanceur et on relance tout.
+4. Noter la date, l'examen, le jeu de problèmes, le commit et le score dans
+   le « Journal des examens » de `docs/feuille-de-route.md`. Ne pas regarder
+   pourquoi un problème a raté : ce jeu de problèmes ne sert plus.
+
 ## Limites connues
 
 - Le langage des effets (deux formes, feuilles, constantes mesurées, sept

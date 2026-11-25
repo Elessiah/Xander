@@ -92,7 +92,7 @@ pas ARC.
 
 | Date | Examen | Jeu de problèmes | Commit | Score |
 |---|---|---|---|---|
-| | *aucun examen passé* | | | |
+| 2026-11-25 | Examen blanc n° 1 | 5 problèmes inédits, sous scellé hors du dépôt | `e757e7e` | 1/5 |
 
 ## Où en est le projet
 
@@ -111,7 +111,7 @@ pas ARC.
 | Petits motifs : un souvenir réduit à ce qui comptait, reconnu partout | fait, vérifiés dans le labo |
 | Réutiliser l'expérience d'un fils pour un autre | **plus tard**, nécessaire pour ARC (jalon 5) |
 | Problèmes qui ne sont pas des jeux (une entrée, une sortie) | fait, première forme : 18 briques listées ; entraînement 52/55 (53 en deux essais), lot jamais vu 25/34 (jalon 1) |
-| Examens blancs sous scellé | à faire (jalon 6) |
+| Examens blancs sous scellé | premier passé (jalon 6) : `python -m xander.examen` |
 | Branchement ARC (adaptateur et lanceur d'examen) | à faire (jalon 7) |
 | Examen ARC | **le cap** (jalon 8) |
 
