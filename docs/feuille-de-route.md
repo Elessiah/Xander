@@ -28,6 +28,13 @@ pas ARC.
    à partir de paires, sur des problèmes que nous inventons dans des
    domaines variés (listes, mots, nombres, plateaux de nos jeux), sans
    recopier ARC. Le fils est alors un programme qui répond, pas un joueur.
+   *Un joueur seul : fait* (étape 6). Sans adversaire ni professeur, la mère
+   juge un coup par ce qui arrive (la partie finit ou dure), avec `back` dans
+   son labo ; elle décrit un état qui défile comme « l'état d'avant, décalé »,
+   en disant ce qu'elle ne prévoit pas. Jumper et Partition (inventé pour
+   cette étape) sont appris : un petit motif d'une case, trouvé par elle,
+   tient sur des graines jamais vues. Reste « aucun joueur » (le genre
+   entrée → sortie).
 2. **Un langage qui grandit.** Les concepts que la mère trouve deviennent des
    briques qu'elle garde d'un problème à l'autre (étapes 3 et 5). Ce qui
    reste fourni à la main se réduit à une liste courte et documentée,
@@ -143,6 +150,12 @@ comparant des résultats.
 | Désaccords jugés par petit motif | 2 | `holds` | réglé au Puissance 4 (temps) |
 | Adversaires de l'éducation | professeur, hasard, mixte (le professeur une fois sur deux) | `train`, `mixed_player` | a priori |
 | Durée maximale du rejeu d'un exemple | 30 s | `rebuilder.replay` | a priori (plomberie) |
+| Défilement : profondeur de l'entrée par le bord / part de l'état qu'elle peut couvrir | 2 \|d\| cases / la moitié (4 \|d\| ≤ n) | `effets._defilement` | 2 \|d\| réglé à Jumper (un obstacle naît une case avant le bord) ; la moitié réglée au Puissance 4 (sans elle, un faux décalage de −28 y « expliquait » l'exemple) |
+| Un joueur : coups d'une partie du labo (au-delà, survie) | 300 | `un_joueur.COUPS_MAX` | a priori |
+| Un joueur : positions où mesurer la durée d'effet / durée mesurée au plus | 30 / 40 | `un_joueur.MESURES`, `DUREE_MAX` | a priori |
+| Un joueur : horizon pour juger un coup | durée d'effet la plus longue vue + 1 | `Solo.measure_horizon` | principe (voir l'effet d'un coup jusqu'au bout) ; le « + 1 » a priori |
+| Un joueur : petits motifs essayés avant d'oublier les cases une à une | 20 000 | `un_joueur.COMBINAISONS` | a priori (vérifier un motif ne coûte ici aucune partie : les cas sont déjà jugés) |
+| Un joueur : choix entre motifs de même taille | la plus grande part de cas qui confirment, puis le plus de confirmations | `Solo.smallest` | réglé à Jumper (l'ordre des cases choisissait une coïncidence à égalité) |
 
 Les réglages « réglés » sont les premiers à remettre en cause quand un
 nouveau problème échoue. L'objectif, à terme, est que la mère choisisse
@@ -241,9 +254,30 @@ de plus petit n'explique les cas), ce qui rejoint le jalon 2.
    faiblesses vues aux Allumettes : une règle « aucun de ses coups… » est
    vraie sans rien dire quand la partie est finie (il n'a plus de coup), et
    la période 4 demande de regarder plus loin que deux `AuMoins`.
-6. **Autres formes de problèmes.** Jeux à un joueur (Jumper), plus de deux
-   joueurs, état qui n'est ni un tableau ni un nombre (un nombre : fait, les
-   Allumettes).
+6. **Autres formes de problèmes.** Plus de deux joueurs, état qui n'est ni
+   un tableau ni un nombre (un nombre : fait, les Allumettes).
+   **Un joueur seul : fait** (`xander/un_joueur.py`, `docs/architecture.md`
+   § 3 et § 6). Trois généralisations, chacune justifiée par un autre problème :
+   - *l'état qui défile* : `suite = decale(avant, d)` sauf ce qui entre par
+     le bord, un mobile qui ne défile pas et des cases fixes ; la description
+     est partielle et dit ce qu'elle ne prévoit pas (à Jumper : l'élan est
+     caché). Vaut pour une file d'attente, un bandeau, Partition ;
+   - *le résultat d'une partie à un joueur* : la fin (perdue, gagnée, nulle,
+     lue dans l'exemple), la durée d'effet d'une action (mesurée dans le labo :
+     quand deux suites se rejoignent) et la valeur d'un coup (combien la
+     partie dure au mieux, mesuré avec `back`). Les quatre notions restent
+     celles des jeux à deux ;
+   - *un coup joué sans rien changer de visible* n'est plus pris pour un
+     refus si l'action renvoie ce qu'elle renvoie d'habitude.
+   Partition (jeu inventé, sans état caché) : 2 erreurs, puis
+   `{0: 'o'} -> True`. Jumper : 2 erreurs (les deux premiers obstacles), puis
+   `{162: 'T'} -> True`, « sauter quand un obstacle est juste devant » ; 0
+   souvenir, 0 coup impossible, 0 position regardée à l'avance ; sur 50
+   graines jamais vues, de 51,7 coups en moyenne à la naissance à 2 000 sur
+   2 000 (plafond). Restent : des règles construites pour un joueur seul (les
+   concepts parlent de `gagne` et d'`adversaire`), vérifier un motif sur des
+   positions imaginées (la mère ne sait pas placer un obstacle), un jeu où le
+   coup par défaut est le mauvais, et un score qui ne soit pas la durée.
 7. **Jeux suivants, une fois Morpion, Allumettes et Puissance 4 appris.**
    Chaque jeu doit apporter de nouvelles notions sans tout changer à la
    fois, et avoir un professeur fiable.

@@ -3,8 +3,8 @@
 Les jeux de `Games/` servent de terrain d'entraînement à la mère. Les jeux à
 deux joueurs (Morpion, Allumettes, Puissance 4, Pylos) suivent la même interface (les
 méthodes marquées `# Pattern Name` dans le code), ce qui permet d'écrire des
-exemples de partie semblables. Jumper, à un joueur, a sa propre interface
-(voir plus bas).
+exemples de partie semblables. Jumper et Partition, à un joueur, ont leur
+propre interface (voir plus bas).
 
 | Méthode | Rôle |
 |---|---|
@@ -129,6 +129,19 @@ le joueur est touché (jamais `True`). `get_board()` renvoie l'écran complet (2
 obstacles, joueur). Les obstacles sont aléatoires ; `Jumper(graine)` les rend
 reproductibles, ce qui est nécessaire pour un exemple de partie.
 `python -m Games.mainJumper` pour y jouer (Windows, Linux et macOS).
+Exemple de partie (`res/exampleJumper.py`) : une partie complète, graine 0,
+un saut à vide, un saut par-dessus le premier obstacle, puis le coureur
+touche le deuxième au coup 73.
+
+## Partition — `Games/Partition.py`
+
+Jeu à un joueur inventé pour apprendre à éduquer un fils seul, plus simple
+que Jumper : aucun état caché, une erreur se paie tout de suite. La partition
+montre les 8 prochains temps (`o` une note, `.` un silence) et avance d'un
+temps à chaque `play`. `play(True)` frappe, `play(False)` se tait ; frapper sur
+un silence ou se taire sur une note finit la partie (`play` renvoie `False`).
+Interface : `init()`, `get_partition()`, `play(frappe)`, `back()`.
+`Partition(n)` joue toujours le même morceau. Exemple : `res/examplePartition.py`.
 
 ## Lancer une série de parties
 
