@@ -839,10 +839,6 @@ class EducationTest(unittest.TestCase):
         mirror = [row * 7 + 6 - column for row in range(6) for column in range(7)]
         self.assertEqual(teaching.knowledge["symmetries"], [mirror])
 
-    def test_unsupported_game(self):
-        with self.assertRaisesRegex(LabError, "quelles cases change"):
-            Mother().raise_son(RES / "exampleAllumettes.py")  # elle a trouvé apres = moins(avant, arg0)
-
 
 if __name__ == "__main__":
     unittest.main()

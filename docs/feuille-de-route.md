@@ -158,9 +158,19 @@ de plus petit n'explique les cas), ce qui rejoint le jalon 2.
    puis pour réfuter ce qui reste (étape 3). Elle compose elle-même la
    gravité du Puissance 4 (étape 4, ci-dessous).
    La portée et la valeur écrite sont déduites de ce qu'elle voit en
-   explorant. Reste la valeur des Allumettes (quantité). Piste : un coup refusé est aussi une
-   observation (`valant(arg0)` annonce qu'une case occupée ne change rien),
-   qui pourrait apprendre `possibles`.
+   explorant. **La valeur des Allumettes (quantité) : faite.** La mère
+   éduque un fils quand l'état est un nombre (voir `docs/architecture.md`,
+   § 6). La position porte le trait (`[valeur, trait]`) : une valeur ne dit
+   pas qui a joué. Les actions permises viennent des coups refusés, qui sont
+   des observations : « la valeur d'après ne descend pas sous 0 », mesuré sur
+   ce qu'elle a vu. La fin est une valeur qu'elle vérifie par contre-épreuve
+   dans le labo, et l'exemple dit qui la gagne. Le fils ne rate aucune
+   position gagnable à 10 allumettes, avec une règle qu'elle construit
+   (laisser 5 ou 1) et sans souvenir ; avec 14, deux souvenirs par quantité
+   en plus. Restent la période 4 (au-delà de deux coups, étape 5), une fin
+   que l'exemple ne montre pas (prendre les deux dernières : elle ne sait pas
+   qui gagne et la compte nulle), et des bornes fournies à la main (toujours,
+   au moins, au plus, entre).
 
    **Étape 4 (faite) : découvrir la gravité au lieu de la fournir.** La
    brique `premiere(x, pas, v)`, écrite à la main, est remplacée par des
@@ -223,10 +233,17 @@ de plus petit n'explique les cas), ce qui rejoint le jalon 2.
    peu de cas. Pistes : préférer le concept qui explique le plus de cas,
    relire les concepts quand une nouvelle brique apparaît, et dire ce que le
    langage fournit encore à la main (les nœuds `Non`, `Et`, `AuMoins` avec
-   k = 1, la forme « jouer une action après laquelle… »). `gagne` doit aussi apprendre qu'un coup peut faire perdre celui qui
-   le joue (Allumettes « misère »), ce qui demande de percevoir le trait.
+   k = 1, la forme « jouer une action après laquelle… »). `gagne` sait
+   maintenant qu'un coup peut faire perdre celui qui le joue, quand l'état
+   est une valeur : la position porte le trait, et la variante des Allumettes
+   jouée jusqu'au bout (`res/exampleAllumettesMisere.py`, prendre la dernière
+   perd) donne `FINS = {0: "trait"}`. Pas encore pour un tableau. Deux
+   faiblesses vues aux Allumettes : une règle « aucun de ses coups… » est
+   vraie sans rien dire quand la partie est finie (il n'a plus de coup), et
+   la période 4 demande de regarder plus loin que deux `AuMoins`.
 6. **Autres formes de problèmes.** Jeux à un joueur (Jumper), plus de deux
-   joueurs, état qui n'est pas un tableau.
+   joueurs, état qui n'est ni un tableau ni un nombre (un nombre : fait, les
+   Allumettes).
 7. **Jeux suivants, une fois Morpion, Allumettes et Puissance 4 appris.**
    Chaque jeu doit apporter de nouvelles notions sans tout changer à la
    fois, et avoir un professeur fiable.
