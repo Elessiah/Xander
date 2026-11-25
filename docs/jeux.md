@@ -39,6 +39,16 @@ L'ancienne note « Schématisation Allumettes » cherchait ce motif à l'aide de
 `% 3` et `% 2` (« tiers gagnant / perdant ») ; la bonne période est 4
 (= prise maximale + 1).
 
+Pour la mère, la partie finit à 1 allumette et la gagne **celui qui vient de
+jouer**. Une prise qui mène à 0 (prendre les 2 ou 3 dernières) finit aussi la
+partie, mais la fait perdre à celui qui la joue : l'exemple ne le montre pas.
+
+**Variante jouée jusqu'au bout** — `Games/AllumettesMisere.py`, exemple
+`res/exampleAllumettesMisere.py`. La partie ne s'arrête plus à 1 : elle finit
+à 0, et celui qui prend la dernière perd. Le dernier coup fait donc perdre
+celui qui le joue : la fin à 0 fait gagner le joueur qui a le trait. La
+stratégie est la même (laisser 1, 5, 9…) : le professeur est le même Minmax.
+
 ## Puissance 4 — `Games/Puissance4.py`
 
 7 colonnes × 6 lignes, `play(colonne)`. Victoire par 4 alignés dans les quatre

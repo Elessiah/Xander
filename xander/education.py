@@ -53,8 +53,17 @@ voir :mod:`xander.effets`), après l'avoir mis à l'épreuve dans le labo. Sa
 perception (``case_jouee``, ``action_pour``) fait le lien ; elle a rejoué
 chaque action dans le labo pour savoir quelles cases elle peut remplir.
 
-Limites : jeux à deux joueurs qui jouent chacun leur tour, état en tableau, et
-chaque action remplit une case avec le pion du joueur.
+**Une valeur au lieu d'un tableau.** Quand l'état est un nombre (le programme
+qui décrit l'action a la forme ``apres``), il n'y a ni cases ni pions : la
+position vue est ``[valeur, trait]`` (une valeur ne dit pas qui doit jouer),
+les actions permises sont des bornes sur la valeur d'après
+(:func:`effets.bornes`), et une fin de partie est une valeur, vérifiée par
+contre-épreuve dans le labo, avec le joueur qu'elle fait gagner (celui qui
+vient de jouer, ou celui qui a le trait), lu dans l'exemple. Motifs décalés,
+symétries et petits motifs ne s'appliquent pas ; un souvenir retient l'action.
+
+Limites : jeux à deux joueurs qui jouent chacun leur tour ; état en tableau
+dont chaque action remplit une case, ou état qui est un nombre.
 """
 
 from __future__ import annotations
@@ -84,6 +93,8 @@ PARTIES_D_ESSAI = 8
 REPRISES = 3
 #: Refus de suite après lesquels la mère cesse d'essayer des entiers plus loin.
 PATIENCE = 2
+#: État valeur : depuis combien de valeurs différentes la mère vérifie qu'une fin en est une.
+CONTRE_EPREUVES = 3
 
 
 @dataclass
@@ -138,7 +149,7 @@ class GameRecord:
         for impossible in self.impossibles:
             text += f"\n      {impossible}"
         for pattern in self.patterns:
-            text += f"\n      motif compris : {pattern}"
+            text += f"\n      {pattern}" if isinstance(pattern, str) else f"\n      motif compris : {pattern}"
         for lesson in self.lessons:
             text += f"\n      {lesson}"
         for refactor in self.refactors:
@@ -198,9 +209,15 @@ class Education:
         state = model.getter.return_value.name if model.getter else None
         observed = (model.report.cases.get(model.action.name, {}).get(state, [])
                     if model.report and model.action else [])
-        if not any(case.forme == effets.CHANGEES for case in observed):
-            raise LabError("l'exemple ne montre pas quelles cases change l'action : "
-                           "la mère ne peut pas encore éduquer de fils")
+        forms = {case.forme for case in observed}
+        if effets.CHANGEES in forms:
+            self.forme = effets.CHANGEES             # un tableau : l'action change des cases
+        elif effets.APRES in forms:
+            self.forme = effets.APRES                # une valeur : l'action donne la valeur d'après
+        else:
+            raise LabError("l'exemple ne montre ni quelles cases change l'action, ni quelle valeur "
+                           "elle donne : la mère ne peut pas encore éduquer de fils")
+        self.tableau = self.forme == effets.CHANGEES
         self.parsed = parsed
         self.model = model
         self.lab = Lab(parsed, model)
@@ -212,33 +229,37 @@ class Education:
         if not self.alternate():
             raise LabError("dans l'exemple, deux joueurs ne jouent pas chacun leur tour : "
                            "la mère ne sait encore éduquer un fils que pour ces jeux-là")
+        self.endings: list[tuple] = []               # coups acceptés qui ont fini la partie (état avant, arguments)
         positions, seen = self.explore()
+        self.positions = positions                   # positions vues en explorant (coups, état)
         lab_cases = [case for case, _ in seen]
-        # Ce que chaque action remplit et la valeur qu'elle écrit : déduits de ce qu'elle a vu.
-        self.knowledge["reach"] = effets.portees_observees(lab_cases)
-        self.knowledge["written"] = effets.ecriture(seen)
-        if self.knowledge["written"] is None:
-            raise LabError("la mère ne sait pas décrire la valeur que l'action écrit : "
-                           "elle ne peut pas encore éduquer de fils")
+        if self.tableau:
+            # Ce que chaque action remplit et la valeur qu'elle écrit : déduits de ce qu'elle a vu.
+            self.knowledge["reach"] = effets.portees_observees(lab_cases)
+            self.knowledge["written"] = effets.ecriture(seen)
+            if self.knowledge["written"] is None:
+                raise LabError("la mère ne sait pas décrire la valeur que l'action écrit : "
+                               "elle ne peut pas encore éduquer de fils")
         # Avec ces portées, elle cherche de nouveau le programme qui explique les coups de
         # l'exemple et ceux de son exploration (l'Analyzer seul n'a que l'exemple).
-        observed = list(observed) + lab_cases
+        # (un coup refusé n'a rien changé : il n'y a rien à expliquer, il sert à `free`)
+        observed = list(observed) + [c for c in lab_cases if c.valeur_apres != c.valeur_avant]
         effects = [h for h in effets.decouvrir(observed, portees=self.knowledge["reach"])
-                   if h.forme == effets.CHANGEES]
+                   if h.forme == self.forme]
         if not effects:
-            raise LabError("aucun programme n'explique quelles cases change l'action, même avec ce "
+            raise LabError("aucun programme n'explique ce que change l'action, même avec ce "
                            "que la mère a vu dans le labo : elle ne peut pas encore éduquer de fils")
         self.trials = self.test_effects(effects, observed, positions)
         # Les programmes qui restent ont résisté à toutes les expériences : quand il en reste
         # plusieurs, aucune ne les a départagés, et la mère prend le premier trouvé.
         self.knowledge["effect"] = self.trials.survivors[0]
-        # Quand une case peut être jouée : déduit des coups joués et des coups refusés.
-        self.knowledge["start"] = list(self.lab.states[0])
+        # Quand une case peut être jouée (une action est permise) : déduit des coups joués et
+        # des coups refusés.
+        self.knowledge["start"] = self.copy(self.lab.states[0])
         self.lab_cases = lab_cases                   # coups vus (joués et refusés) : la perception en vient
-        self.knowledge["free"] = effets.liberte(self.knowledge["effect"], lab_cases,
-                                                self.knowledge["start"], self.knowledge["reach"])
+        self.knowledge["free"] = self.free()
         if self.knowledge["free"] is None:
-            raise LabError("la mère ne sait pas dire quand une case peut être jouée : "
+            raise LabError("la mère ne sait pas dire quand une action peut être jouée : "
                            "elle ne peut pas encore éduquer de fils")
         self._son = self._mind = None                # code du fils et espace de pensée, à réécrire
         self.max_views = 0                           # plus grand nombre de positions regardées par le fils
@@ -262,6 +283,13 @@ class Education:
         self.max_size, self.max_depth = 6, 2         # bornes de la recherche de concepts
         self.counts = (1,)                           # valeurs de k dans AuMoins(k, …) : « il existe »
         self.budget = BUDGET                         # positions que le fils peut regarder pour un coup
+        self.unknown_ends: list = []                 # état valeur : fins vues dont elle ignore le gagnant
+        if not self.tableau:
+            # Une valeur ne garde pas trace de qui a joué : les joueurs sont ceux de l'exemple,
+            # dans l'ordre où ils y jouent (la position est [valeur, trait]).
+            owners = self.owners()
+            self.marks = {0: owners[0], 1: owners[1]}
+            self.knowledge["marks"] = [owners[0], owners[1]]
 
     # ------------------------------------------------------------------ #
     # Mettre à l'épreuve la description de l'action
@@ -307,7 +335,7 @@ class Education:
                 # les nouveaux coups montrent peut-être des cases qu'une action remplit aussi
                 reach = self.knowledge["reach"] = effets.portees_observees(list(observed) + gathered)
                 survivors = [h for h in effets.decouvrir(list(observed) + gathered, portees=reach)
-                             if h.forme == effets.CHANGEES]
+                             if h.forme == self.forme]
                 for hypothesis in survivors:  # réfutée avec des portées incomplètes, pas avec celles-ci
                     trials.refutations.pop(hypothesis, None)
                 trials.survivors = survivors
@@ -339,8 +367,9 @@ class Education:
         if not survivors:
             case = next(iter(trials.refutations.values()))
             call = f"{self.model.action.short_name}({', '.join(map(repr, case.arguments))})"
+            seen = f"a changé les cases {sorted(case.cible())}" if self.tableau else f"a donné {case.cible()!r}"
             raise LabError(f"le labo a réfuté {list(trials.refutations)} : sur {case.valeur_avant}, {call} "
-                           f"a changé les cases {sorted(case.cible())}, et aucun programme n'explique tous les cas ; "
+                           f"{seen}, et aucun programme n'explique tous les cas ; "
                            "l'Analyzer doit d'abord mieux comprendre l'action")
         return trials
 
@@ -351,6 +380,35 @@ class Education:
     @staticmethod
     def action(arguments: tuple):
         return arguments[0]  # l'action a un argument : la case, ou la file, qu'elle désigne
+
+    def copy(self, state):
+        """Une copie d'un état lu dans le jeu (un tableau se copie, une valeur non)."""
+        return list(state) if isinstance(state, list) else state
+
+    def position(self) -> list:
+        """La position que voit la mère dans le labo. Un tableau dit qui a joué (les pions) ;
+        une valeur non : la position est alors ``[valeur, trait]``, le trait étant le joueur
+        qui doit jouer (la parité du coup : elle a vu dans l'exemple que les joueurs
+        alternent)."""
+        lab = self.lab
+        if self.tableau:
+            return list(lab.states[-1])
+        return [lab.states[-1], self.marks[len(lab.moves) % 2]]
+
+    def start_position(self) -> list:
+        """La position du début de la partie, telle que la mère la voit."""
+        start = self.lab.states[0]
+        return list(start) if self.tableau else [start, self.marks[0]]
+
+    def raw(self, position):
+        """L'état du jeu dans une position vue par la mère (sans le trait)."""
+        return list(position) if self.tableau else position[0]
+
+    def free(self) -> tuple | None:
+        """Quand une action peut être jouée, déduit des coups joués, refusés et de ceux qui ont
+        fini la partie (voir :func:`effets.liberte`)."""
+        return effets.liberte(self.knowledge["effect"], self.lab_cases, self.knowledge["start"],
+                              self.knowledge["reach"], acceptes=self.endings)
 
     def cell(self, state, arguments: tuple) -> int | None:
         """La case que remplit le coup ``arguments`` dans ``state`` (perception de la mère)."""
@@ -419,17 +477,21 @@ class Education:
         lab.goto([])
         return found
 
-    def alternate(self) -> bool:
-        """Dans l'exemple, deux joueurs jouent-ils l'action chacun leur tour ?
-
-        C'est ce qui permet ensuite de reconnaître le joueur à la parité du coup.
-        """
+    def owners(self) -> list:
+        """Les joueurs qui jouent l'action dans l'exemple, coup après coup."""
         name = self.model.action.name
         owners = [owner for owner, player in self.parsed.players.items()
                   for f in player.functions_used if f.name == name]
         times = [f.time for player in self.parsed.players.values()
                  for f in player.functions_used if f.name == name]
-        owners = [owner for _, owner in sorted(zip(times, owners))]
+        return [owner for _, owner in sorted(zip(times, owners))]
+
+    def alternate(self) -> bool:
+        """Dans l'exemple, deux joueurs jouent-ils l'action chacun leur tour ?
+
+        C'est ce qui permet ensuite de reconnaître le joueur à la parité du coup.
+        """
+        owners = self.owners()
         return len(set(owners)) == 2 and all(a != b for a, b in zip(owners, owners[1:]))
 
     def explore(self) -> tuple[list, list]:
@@ -461,6 +523,8 @@ class Education:
             seen.append((case, player))
             if arguments in counts:
                 counts[arguments] += 1
+                if case.forme != effets.CHANGEES:
+                    return  # une valeur n'a pas de cases : rien de surprenant à suivre
                 new = set(case.cible()) - filled[arguments]
                 filled[arguments] |= set(case.cible())
                 (surprising.add if new else surprising.discard)(arguments)
@@ -469,7 +533,10 @@ class Education:
         positions.append(([], lab.states[-1]))
         for k, arguments in enumerate(example):
             before = lab.states[-1]
-            if lab.play(*arguments) != "moved":
+            outcome = lab.play(*arguments)
+            if outcome == "end":
+                self.endings.append((self.copy(before), arguments))
+            if outcome != "moved":
                 break
             note(arguments, before, lab.states[-1], k % 2)
             positions.append((example[:k + 1], lab.states[-1]))
@@ -490,10 +557,11 @@ class Education:
                         positions.append((list(moves), lab.states[-1]))
                         break
                     surprising.discard(arguments)  # refusée ou finale : plus rien à voir ici
-                    if outcome == "end":
+                    if outcome == "end":  # le jeu l'a acceptée, et la partie a fini : noté aussi
+                        self.endings.append((self.copy(before), arguments))
                         lab.undo()
                     else:  # refusé : rien n'a changé, c'est aussi une observation
-                        seen.append((effets.Cas(before, arguments, list(before)), len(moves) % 2))
+                        seen.append((effets.Cas(before, arguments, self.copy(before)), len(moves) % 2))
                 else:
                     break  # aucun coup ne fait avancer la partie sans la finir
         lab.goto([])
@@ -511,7 +579,10 @@ class Education:
         return cells
 
     def learn_marks(self) -> None:
-        """Quel pion pose chaque joueur : la valeur qui apparaît dans la case jouée."""
+        """Quel pion pose chaque joueur : la valeur qui apparaît dans la case jouée. (Une valeur
+        n'a pas de pions : les joueurs sont ceux de l'exemple.)"""
+        if not self.tableau:
+            return
         states = self.lab.states
         for k in range(len(states) - 1):
             if k % 2 not in self.marks:
@@ -523,11 +594,13 @@ class Education:
             self.rethink()
 
     def final_state(self) -> list:
+        """La position à la fin de la partie (le jeu ne la montre pas : la mère la calcule)."""
         lab = self.lab
         if not lab.ended:
-            return list(lab.states[-1])
-        return self.mind.apres(list(lab.states[-1]), self.action(lab.moves[-1]),
-                               self.marks[(len(lab.moves) - 1) % 2])
+            return self.position()
+        mover = (len(lab.moves) - 1) % 2
+        before = list(lab.states[-1]) if self.tableau else [lab.states[-1], self.marks[mover]]
+        return self.mind.apres(before, self.action(lab.moves[-1]), self.marks[mover])
 
     # ------------------------------------------------------------------ #
     # Comprendre une fin de partie
@@ -541,6 +614,8 @@ class Education:
         presque toujours un nul, et la contre-épreuve y coûte cher (aucune case libre où
         déplacer un pion). Les motifs se découvrent dans les vraies parties.
         """
+        if not self.tableau:
+            return self.value_winner()
         lab = self.lab
         self.learn_marks()
         mover = (len(lab.moves) - 1) % 2
@@ -560,6 +635,76 @@ class Education:
         self.discovered.append(pattern)
         self.rethink()
         return mover
+
+    def value_winner(self) -> int | None:
+        """Parité du gagnant quand l'état est une valeur : la fin est une valeur que la mère a
+        comprise, avec le joueur qu'elle fait gagner (celui qui vient de jouer, ou l'autre).
+        Une fin à une valeur qu'elle n'a pas comprise : elle ne sait pas qui a gagné, elle le
+        note et la compte nulle (comme une fin sans motif au Morpion)."""
+        mover = (len(self.lab.moves) - 1) % 2
+        valeur = self.final_state()[0]
+        who = self.knowledge["ends"].get(valeur)
+        if who == "dernier":
+            return mover
+        if who == "trait":
+            return 1 - mover
+        if who is None and valeur not in self.unknown_ends:
+            self.unknown_ends.append(valeur)
+            self.discovered.append(f"fin à la valeur {valeur!r} : la mère ne sait pas qui l'a gagnée "
+                                   "(comptée nulle)")
+        return None
+
+    def understand_end(self, winner: str) -> str | None:
+        """Comprendre la fin de l'exemple quand l'état est une valeur : la partie finit à cette
+        valeur, et l'exemple dit qui l'a gagnée (celui qui vient de jouer, ou l'autre).
+
+        **Contre-épreuve** : est-ce bien la valeur qui finit la partie, et pas le chemin ? La
+        mère cherche, dans les positions vues en explorant, des coups qui y mènent depuis
+        d'autres valeurs (son programme le lui dit) et les joue dans le labo : la partie doit
+        finir à chaque fois. Il faut qu'elle ait fini depuis au moins deux valeurs différentes
+        (:data:`CONTRE_EPREUVES` au plus), et qu'aucun coup n'y ait mené sans la finir. Sinon,
+        elle ne comprend pas cette fin."""
+        lab, mind = self.lab, self.mind
+        moves, mover = list(lab.moves), (len(lab.moves) - 1) % 2
+        valeur = self.final_state()[0]
+        sources = {avant for avant, arguments in self.endings if mind.valeur_apres(avant, arguments) == valeur}
+        continued = [c for c in self.lab_cases if c.forme == effets.APRES and c.valeur_apres == valeur]
+        for path, avant in self.positions:
+            if continued or len(sources) >= CONTRE_EPREUVES:
+                break
+            if avant in sources:
+                continue
+            for action in self.knowledge["actions"]:
+                if mind.valeur_apres(avant, (action,)) != valeur or not lab.goto(path) or lab.ended:
+                    continue
+                outcome = lab.play(action)
+                if outcome == "end":
+                    self.endings.append((avant, (action,)))
+                    sources.add(avant)
+                    break
+                if outcome == "moved":  # la valeur atteinte sans finir : ce n'est pas elle
+                    continued.append(effets.Cas(avant, (action,), lab.states[-1]))
+                    break
+        lab.goto(moves)
+        if continued or len(sources) < 2:
+            return None
+        if winner == "D":
+            who = "nul"
+        elif winner == self.marks[mover]:
+            who = "dernier"
+        elif winner == self.marks[1 - mover]:
+            who = "trait"
+        else:
+            return None
+        if self.knowledge["ends"].get(valeur) == who:
+            return None
+        self.knowledge["ends"][valeur] = who
+        self.rethink()
+        text = {"nul": "un nul", "dernier": "gagnée par celui qui vient de jouer",
+                "trait": "gagnée par celui qui a le trait (le dernier coup fait perdre celui qui le joue)"}
+        return (f"fin comprise : la partie finit à la valeur {valeur!r}, {text[who]} ; contre-épreuve "
+                f"dans le labo : elle y a fini depuis les valeurs {sorted(sources)}, aucun coup n'y a "
+                "mené sans la finir")
 
     def counter_test(self, final: list, mover: int) -> list[int] | None:
         """Quels pions étaient nécessaires à la fin ? Rejoue la fin sans chacun d'eux.
@@ -805,6 +950,8 @@ class Education:
             if lab.play(*arguments) == "refused":
                 raise LabError(f"le coup {arguments} de l'exemple est refusé par le jeu")
         self.learn_marks()
+        if not self.tableau:
+            return self.first_lesson_value()
         for k in range(len(lab.states) - 1 if len(self.marks) == 2 else 0):
             before, after = lab.states[k], lab.states[k + 1]  # elle vérifie qu'elle a compris l'action
             changed = [i for i, (a, b) in enumerate(zip(before, after)) if a != b]
@@ -815,6 +962,26 @@ class Education:
                                "l'action, la mère ne peut pas encore éduquer de fils")
         record = GameRecord(0, "exemple", "-", "terminé" if lab.ended else "inachevé")
         if lab.ended:
+            winner = self.winner()
+            record.result = "nul" if winner is None else f"gagné par {self.marks[winner]}"
+        record.patterns, self.discovered = self.discovered, []
+        self.records.append(record)
+        return record
+
+    def first_lesson_value(self) -> GameRecord:
+        """La leçon de l'exemple quand l'état est une valeur : la mère vérifie que son programme
+        prédit chaque valeur, puis comprend à quelle valeur la partie finit et qui la gagne."""
+        lab, mind = self.lab, self.mind
+        for k in range(len(lab.states) - 1):
+            expected = mind.valeur_apres(lab.states[k], lab.moves[k])
+            if expected != lab.states[k + 1]:
+                raise LabError(f"{self.model.action.short_name}{lab.moves[k]} a donné {lab.states[k + 1]!r}, "
+                               f"pas {expected!r} : l'Analyzer doit d'abord mieux comprendre l'action")
+        record = GameRecord(0, "exemple", "-", "terminé" if lab.ended else "inachevé")
+        if lab.ended:
+            understood = self.understand_end(self.parsed.winner)
+            if understood:
+                self.discovered.append(understood)
             winner = self.winner()
             record.result = "nul" if winner is None else f"gagné par {self.marks[winner]}"
         record.patterns, self.discovered = self.discovered, []
@@ -864,7 +1031,7 @@ class Education:
         decisions, self.impossibles = [], []
         while not lab.ended:
             if len(lab.moves) % 2 == son_side:
-                moves, state = list(lab.moves), list(lab.states[-1])
+                moves, state = list(lab.moves), self.position()
                 action, reason = self.son.choisir(list(state), self.marks[son_side])
                 self.max_views = max(self.max_views, self.son.VUES)
                 if lab.play(action) == "refused":
@@ -882,16 +1049,16 @@ class Education:
         une case peut être jouée (:func:`effets.liberte`) et réécrit le fils. Si elle ne
         comprend pas, ou si le fils croirait encore ce coup possible, elle s'arrête : un fils
         qui essaie des coups jusqu'à ce que le jeu en accepte un tricherait."""
-        self.lab_cases.append(effets.Cas(list(state), (action,), list(state)))
-        free = effets.liberte(self.knowledge["effect"], self.lab_cases,
-                              self.knowledge["start"], self.knowledge["reach"])
+        raw = self.raw(state)
+        self.lab_cases.append(effets.Cas(self.copy(raw), (action,), self.copy(raw)))
+        free = self.free()
         if free is not None:
             self.knowledge["free"] = free
             self.rethink()
         if free is None or action in self.mind.possibles(list(state)):
             raise LabError(f"le jeu refuse l'action {action}, que le fils croyait possible, "
                            "et la mère ne comprend pas pourquoi")
-        return f"coup impossible : {action} refusé ; une case peut être jouée : {free}"
+        return f"coup impossible : {action} refusé ; une action peut être jouée : {free}"
 
     def variations(self, decisions: list, son_side: int) -> list:
         """« Et s'il avait joué ailleurs ? » La mère revient (``back``) sur chaque coup de
@@ -907,7 +1074,7 @@ class Education:
                 continue
             before = moves[:-1]
             lab.goto(before)
-            others = [a for a in self.mind.possibles(list(lab.states[-1])) if (a,) != moves[-1]]
+            others = [a for a in self.mind.possibles(self.position()) if (a,) != moves[-1]]
             if self.variants is not None and len(others) > self.variants:
                 best = self.action(self.teacher_move(before))
                 others = ([best] if best in others else []) + [a for a in others if a != best]
@@ -915,7 +1082,7 @@ class Education:
             for action in others:
                 if not lab.goto(before + [(action,)]) or lab.ended:
                     continue
-                state = list(lab.states[-1])
+                state = self.position()
                 son_cell, reason = self.son.choisir(list(state), me)
                 self.max_views = max(self.max_views, self.son.VUES)
                 imagined.append((list(lab.moves), state, son_cell, reason))
@@ -1225,7 +1392,7 @@ class Education:
     def bank(self) -> list:
         """Les concepts que la mère sait former, du plus petit au plus grand."""
         if self._bank is None:
-            positions = concepts.echantillon(self.mind, self.lab.states[0], self.knowledge["marks"])
+            positions = concepts.echantillon(self.mind, self.start_position(), self.knowledge["marks"])
             self._bank = concepts.enumerer(self.pensee, positions, self.max_size, self.max_depth, self.counts)
         return self._bank
 
@@ -1375,8 +1542,9 @@ class Education:
         for number in range(1, nb_games + 1):
             name, opponent = opponents[(number - 1) // 2 % len(opponents)]
             side = (number - 1) % 2
-            shifted = [] if self._shapes_known else self.shift_patterns()
-            symmetry = None if self._symmetries_known else self.discover_symmetries()
+            # Motifs décalés, symétries, petits motifs : des cases. Une valeur n'en a pas.
+            shifted = [] if self._shapes_known or not self.tableau else self.shift_patterns()
+            symmetry = None if self._symmetries_known or not self.tableau else self.discover_symmetries()
             result, decisions = self.play_game(opponent, side)
             record = GameRecord(len(self.records), name, str(self.marks[side]), RESULTS[result])
             record.impossibles = self.impossibles
@@ -1386,7 +1554,8 @@ class Education:
             record.lessons = self.review(decisions + self.variations(decisions, side), side)
             if record.lessons:
                 record.refactors += self.refactor()
-                record.refactors += self.generalize()
+                if self.tableau:
+                    record.refactors += self.generalize()
             record.patterns, self.discovered = self.discovered, []
             self.records.append(record)
             if on_game:

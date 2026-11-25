@@ -124,9 +124,15 @@ def main(argv: list[str] | None = None) -> int:
         print_curve(education.records)
         knowledge = education.knowledge
         print(f"\nAction : {education.trials.describe()}")
-        print(f"Motifs compris : {knowledge['patterns']}")
-        print(f"Symétries : {len(knowledge['symmetries']) + 1} façon(s) de voir une position "
-              "(renumérotations vérifiées dans le labo)")
+        if education.tableau:
+            print(f"Motifs compris : {knowledge['patterns']}")
+            print(f"Symétries : {len(knowledge['symmetries']) + 1} façon(s) de voir une position "
+                  "(renumérotations vérifiées dans le labo)")
+        else:
+            print(f"Actions permises : {knowledge['actions']}, si {knowledge['free']} (vu dans le labo)")
+            print(f"Fins comprises (valeur -> qui gagne) : {knowledge['ends']}")
+            if education.unknown_ends:
+                print(f"Fins vues sans savoir qui gagne : {education.unknown_ends}")
         memories = knowledge["memories"]
         small = sum("?" in key for key in memories)
         print(f"Règles : {' > '.join(knowledge['rules']) or 'aucune'} ; souvenirs : {len(memories)}"

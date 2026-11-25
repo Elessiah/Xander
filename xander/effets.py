@@ -442,7 +442,7 @@ def ecriture(observations: list[tuple[Cas, object]]) -> tuple | None:
 
 
 def liberte(hypothese: Hypothese, observations: list[Cas], depart: list,
-            portees: dict | None = None) -> tuple | None:
+            portees: dict | None = None, acceptes: list = ()) -> tuple | None:
     """Quand une case peut-elle recevoir l'action ? Déduit des coups joués et des coups refusés.
 
     ``observations`` : les coups vus dans le labo ; un coup refusé est un cas où
@@ -459,7 +459,11 @@ def liberte(hypothese: Hypothese, observations: list[Cas], depart: list,
       Morpion, la case *n* contient « n » tant que personne n'y a joué).
 
     ``None`` si aucune ne convient (ou si aucune case n'a été remplie).
+
+    Pour un nombre (forme ``apres``), voir :func:`bornes`.
     """
+    if hypothese.forme == APRES:
+        return bornes(hypothese, observations, acceptes)
     remplies, annoncees = [], []  # (état avant, case)
     for c in observations:
         if c.forme == CHANGEES and len(c.cible()) == 1:
@@ -476,6 +480,53 @@ def liberte(hypothese: Hypothese, observations: list[Cas], depart: list,
                   (("depart",), lambda e, c: c < len(depart) and _cle(e[c]) == _cle(depart[c]))]
     for description, vraie in conditions:
         if all(vraie(e, c) for e, c in remplies) and not any(vraie(e, c) for e, c in annoncees):
+            return description
+    return None
+
+
+def bornes(hypothese: Hypothese, observations: list[Cas], acceptes: list = ()) -> tuple | None:
+    """Quand une action est-elle permise, pour un nombre ? Déduit des coups joués et refusés.
+
+    Il n'y a pas de case à remplir : le programme annonce la valeur d'après. La
+    mère regarde les valeurs d'après des coups que le jeu a acceptés (``observations``
+    où la valeur a changé, et ``acceptes`` : des couples (valeur avant, arguments)
+    de coups acceptés dont elle n'a pas relu la valeur, comme ceux qui finissent la
+    partie : elle la calcule avec le programme), et celles que le programme annonçait
+    pour les coups refusés (rien n'a changé). Elle essaie, de la plus simple à la
+    moins simple, les descriptions qu'elle connaît et garde la première qui convient
+    (toutes les valeurs acceptées la vérifient, aucune valeur refusée) :
+
+    * ``("toujours",)`` : toute action est permise ;
+    * ``("au_moins", m)`` : la valeur d'après ne descend pas sous ``m``, la plus
+      petite qu'elle a vue (aux Allumettes : 0, on ne prend pas plus qu'il n'en
+      reste) ;
+    * ``("au_plus", m)`` : elle ne dépasse pas ``m``, la plus grande vue ;
+    * ``("entre", m, n)`` : les deux.
+
+    ``None`` si aucune ne convient (ou si aucun coup accepté n'a été vu).
+    """
+    def annoncee(avant, arguments):
+        valeur = evaluer(hypothese.terme, Cas(avant, tuple(arguments), None))
+        return valeur if _est_nombre(valeur) else None
+
+    vues, refusees = [], []
+    for c in observations:
+        if c.forme == APRES and c.valeur_apres != c.valeur_avant:
+            vues.append(c.valeur_apres)
+        elif _est_nombre(c.valeur_avant) and c.valeur_apres == c.valeur_avant:
+            refusees.append(annoncee(c.valeur_avant, c.arguments))
+    vues += [annoncee(avant, arguments) for avant, arguments in acceptes]
+    vues = [v for v in vues if v is not None]
+    refusees = [v for v in refusees if v is not None]
+    if not vues:
+        return None
+    bas, haut = min(vues), max(vues)
+    conditions = [(("toujours",), lambda v: True),
+                  (("au_moins", bas), lambda v: v >= bas),
+                  (("au_plus", haut), lambda v: v <= haut),
+                  (("entre", bas, haut), lambda v: bas <= v <= haut)]
+    for description, vraie in conditions:
+        if not any(vraie(v) for v in refusees):
             return description
     return None
 
