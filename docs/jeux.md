@@ -1,7 +1,7 @@
 # Les jeux de test
 
 Les jeux de `Games/` servent de terrain d'entraînement à la mère. Les jeux à
-deux joueurs (Morpion, Allumettes, Puissance 4) suivent la même interface (les
+deux joueurs (Morpion, Allumettes, Puissance 4, Pylos) suivent la même interface (les
 méthodes marquées `# Pattern Name` dans le code), ce qui permet d'écrire des
 exemples de partie semblables. Jumper, à un joueur, a sa propre interface
 (voir plus bas).
@@ -59,6 +59,46 @@ La mère n'y comprend pas encore `play`. À cause de la gravité, la case modifi
 n'est la case `colonne` que pour la ligne du bas : il faudra une opération
 « premier emplacement libre d'une colonne ».
 
+## Pylos — `Games/Pylos.py`
+
+Une pyramide de billes sur une base de `size` × `size` (3 par défaut :
+9 + 4 + 1 = 14 emplacements, 7 billes par joueur ; 4 pour le jeu du
+commerce : 30 emplacements). Le plateau liste les emplacements étage par
+étage ; un emplacement d'étage supérieur repose sur les quatre du dessous.
+
+Un tour peut compter plusieurs actions, d'où plusieurs fonctions de jeu :
+
+| Action | Rôle |
+|---|---|
+| `play(dest)` | poser une bille de la réserve sur un emplacement libre et soutenu |
+| `move(src, dest)` | monter une de ses billes libres vers un emplacement plus haut qu'elle ne soutient pas |
+| `take(cell)` | après un carré 2 × 2 de sa couleur : reprendre une de ses billes libres |
+| `stop()` | ne pas reprendre de deuxième bille |
+
+`get_phase()` dit où en est le tour (`0` : poser ou monter, `1` : reprendre,
+`2` : reprendre encore ou s'arrêter), `get_reserve(joueur)` le nombre de
+billes en réserve, `get_moves()` les actions permises. Un joueur qui ne peut
+plus rien faire à son tour perd : poser la bille du sommet fait gagner. Il
+n'y a pas de nul. Variante choisie : un joueur à la réserve vide continue tant
+qu'il peut monter une bille.
+
+Adversaire : `Games/MinmaxPylos.py`. Sur la base 3 × 3, les 79 453 positions
+atteignables sont énumérées puis résolues à rebours depuis les fins de partie
+(environ 2 secondes au premier appel). Il est donc exact, et l'analyse reste
+juste même si une partie revient sur une position déjà vue. Il gagne le plus
+vite possible ou perd le plus tard possible. La base 4 × 4 demandera un
+Minmax à profondeur limitée.
+
+Ce que dit la résolution de la base 3 × 3 (vérifié par les tests) :
+
+- le premier joueur gagne, mais **seulement en commençant au centre** ;
+- en jeu parfait, il gagne grâce à un **carré** au deuxième étage : il
+  reprend une bille, ce qui lui laisse la bille du sommet ;
+- dans 3 801 positions gagnantes, **monter** une bille est la seule façon de
+  gagner ; un joueur qui pose toujours au plus bas sans jamais monter perd.
+
+Le jeu n'est donc pas dégénéré : carrés, reprises et montées comptent.
+
 ## Jumper — `Games/Jumper.py`
 
 Jeu à un joueur : un coureur saute (`play(True)`) par-dessus des obstacles qui
@@ -75,5 +115,6 @@ reproductibles, ce qui est nécessaire pour un exemple de partie.
 python -m Games.GamePlayer morpion --x humain --o minmax --score 3 --start R
 ```
 
-`--x` / `--o` : `humain` ou `minmax`. La série s'arrête quand un joueur atteint
+`--x` / `--o` : `humain` ou `minmax`. Au Pylos, on tape `4` (poser), `2 9` (monter de 2 vers 9),
+`r 5` (reprendre) ou `s` (s'arrêter). La série s'arrête quand un joueur atteint
 `--score` points, ou après `3 × score` matchs nuls. Tapez `q` pour quitter.

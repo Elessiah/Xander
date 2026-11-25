@@ -52,9 +52,14 @@
      (reprendre 1 ou 2 billes après un carré), une défaite qui n'est pas un
      motif (ne plus pouvoir jouer) et des symétries sur plusieurs étages.
      La base 3×3 contient déjà toutes les règles, garde des parties courtes
-     et permet un Minmax exact comme professeur. Avant de s'y lancer,
-     vérifier avec ce Minmax qu'elle n'est pas dégénérée : les carrés et
-     les reprises doivent compter dans le jeu parfait.
+     et permet un Minmax exact comme professeur. **Fait :** le jeu
+     (`Games/Pylos.py`) et son Minmax exact (`Games/MinmaxPylos.py`). La
+     résolution montre que la base 3×3 n'est pas dégénérée : seul le coup
+     au centre gagne, la partie parfaite passe par un carré, et monter une
+     bille est parfois la seule façon de gagner (voir `docs/jeux.md`).
+     Reste à écrire un exemple de partie pour la mère, quand l'Analyzer
+     saura percevoir plusieurs sortes d'actions et un tour à longueur
+     variable.
    - **Pylos à base 4×4** (30 billes) ensuite. Le Minmax devra y limiter
      sa profondeur : il faudra apprendre avec un professeur faillible.
      C'est un bon test de « configurations n'importe où », et plus tard de
