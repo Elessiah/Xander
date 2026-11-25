@@ -6,6 +6,7 @@ Exemples ::
     python -m Games.GamePlayer allumettes --x minmax --o minmax --score 3
     python -m Games.GamePlayer puissance4
     python -m Games.GamePlayer pylos --x humain --o minmax
+    python -m Games.GamePlayer nim --x humain --o minmax
     python -m Games.GamePlayer morpion --x xander --o humain
 
 ``xander`` : le fils élevé par la logique mère, lu dans ``output/sons/<jeu>.py``.
@@ -21,9 +22,12 @@ from pathlib import Path
 from Games.Allumettes import Allumettes
 from Games.MinmaxAllumettes import minmax_allumettes_play
 from Games.MinmaxMorpion import minmax_morpion_play
+from Games.MinmaxNim import minmax_nim_play
 from Games.MinmaxPuissance4 import minmax_puissance4_play
 from Games.MinmaxPylos import minmax_pylos_play
 from Games.Morpion import Morpion
+from Games.Nim import Nim
+from Games.NimMisere import NimMisere
 from Games.Puissance4 import Puissance4
 from Games.Pylos import Pylos
 
@@ -34,6 +38,8 @@ GAMES = {
     "allumettes": (Allumettes, minmax_allumettes_play),
     "puissance4": (Puissance4, minmax_puissance4_play),
     "pylos": (Pylos, minmax_pylos_play),
+    "nim": (Nim, minmax_nim_play),
+    "nim-misere": (NimMisere, minmax_nim_play),
 }
 
 
@@ -50,7 +56,7 @@ def player_turn(game, score: dict, score_for_win: int):
         answer = input(f"Quelle est ta prochaine action, {turn} ? (q pour quitter)\n --> ").strip()
         if answer.lower() == "q":
             raise KeyboardInterrupt
-        if hasattr(game, "play_text"):  # jeux à plusieurs sortes d'actions (Pylos)
+        if hasattr(game, "play_text"):  # actions à plusieurs arguments ou de plusieurs sortes (Nim, Pylos)
             if game.play_text(answer) is not False:
                 return
             print("Coup invalide.")
