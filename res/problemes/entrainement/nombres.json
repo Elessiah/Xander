@@ -1,0 +1,108 @@
+{
+  "lot": "entraînement : nombres",
+  "domaine": "nombres",
+  "problemes": [
+    {
+      "nom": "le-suivant",
+      "enonce": "Le nombre qui vient juste après.",
+      "paires": [
+        {"entree": 3, "sortie": 4},
+        {"entree": 10, "sortie": 11},
+        {"entree": 0, "sortie": 1}
+      ],
+      "questions": [{"entree": 41, "sortie": 42}]
+    },
+    {
+      "nom": "le-precedent",
+      "enonce": "Le nombre qui vient juste avant.",
+      "paires": [
+        {"entree": 3, "sortie": 2},
+        {"entree": 10, "sortie": 9},
+        {"entree": 1, "sortie": 0}
+      ],
+      "questions": [{"entree": 50, "sortie": 49}]
+    },
+    {
+      "nom": "le-double",
+      "enonce": "Le double du nombre.",
+      "paires": [
+        {"entree": 3, "sortie": 6},
+        {"entree": 10, "sortie": 20},
+        {"entree": 7, "sortie": 14}
+      ],
+      "questions": [{"entree": 25, "sortie": 50}]
+    },
+    {
+      "nom": "le-carre",
+      "enonce": "Le nombre multiplié par lui-même.",
+      "paires": [
+        {"entree": 3, "sortie": 9},
+        {"entree": 5, "sortie": 25},
+        {"entree": 10, "sortie": 100}
+      ],
+      "questions": [{"entree": 7, "sortie": 49}]
+    },
+    {
+      "nom": "addition",
+      "enonce": "Deux nombres : leur somme.",
+      "paires": [
+        {"entree": [2, 3], "sortie": 5},
+        {"entree": [10, 4], "sortie": 14},
+        {"entree": [0, 7], "sortie": 7}
+      ],
+      "questions": [{"entree": [12, 30], "sortie": 42}]
+    },
+    {
+      "nom": "soustraction",
+      "enonce": "Deux nombres : le premier moins le second.",
+      "paires": [
+        {"entree": [5, 3], "sortie": 2},
+        {"entree": [10, 4], "sortie": 6},
+        {"entree": [7, 7], "sortie": 0}
+      ],
+      "questions": [{"entree": [20, 8], "sortie": 12}]
+    },
+    {
+      "nom": "produit",
+      "enonce": "Deux nombres : leur produit.",
+      "paires": [
+        {"entree": [2, 3], "sortie": 6},
+        {"entree": [4, 5], "sortie": 20},
+        {"entree": [1, 7], "sortie": 7}
+      ],
+      "questions": [{"entree": [6, 8], "sortie": 48}]
+    },
+    {
+      "nom": "le-plus-grand-des-deux",
+      "enonce": "Deux nombres : le plus grand.",
+      "paires": [
+        {"entree": [2, 9], "sortie": 9},
+        {"entree": [8, 3], "sortie": 8},
+        {"entree": [5, 5], "sortie": 5}
+      ],
+      "questions": [{"entree": [14, 6], "sortie": 14}]
+    },
+    {
+      "nom": "sont-ils-egaux",
+      "enonce": "Deux nombres : sont-ils égaux ?",
+      "paires": [
+        {"entree": [2, 2], "sortie": true},
+        {"entree": [3, 4], "sortie": false},
+        {"entree": [7, 7], "sortie": true},
+        {"entree": [1, 0], "sortie": false}
+      ],
+      "questions": [{"entree": [6, 6], "sortie": true}]
+    },
+    {
+      "nom": "est-il-plus-petit",
+      "enonce": "Deux nombres : le premier est-il plus petit que le second ?",
+      "paires": [
+        {"entree": [2, 5], "sortie": true},
+        {"entree": [7, 3], "sortie": false},
+        {"entree": [4, 4], "sortie": false},
+        {"entree": [0, 1], "sortie": true}
+      ],
+      "questions": [{"entree": [1, 9], "sortie": true}]
+    }
+  ]
+}

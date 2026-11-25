@@ -96,3 +96,67 @@ Exemples fournis : [`res/exampleMorpion.py`](../res/exampleMorpion.py),
 [`res/examplePuissance4.py`](../res/examplePuissance4.py),
 [`res/examplePylos.py`](../res/examplePylos.py),
 [`res/exampleJumper.py`](../res/exampleJumper.py).
+
+## Problèmes « entrée → sortie »
+
+Un genre de problème qui n'est pas un jeu : ni partie, ni adversaire, ni
+action. Quelques **paires** montrent une entrée et la sortie attendue ; une ou
+plusieurs **questions** donnent une entrée dont il faut trouver la sortie. La
+mère cherche le plus petit programme qui transforme chaque entrée en sa sortie
+(voir `docs/architecture.md`, § 10) et écrit un fils qui **répond**.
+
+Le fichier est du **JSON** (extension `.json`, c'est ainsi que
+`python -m xander` reconnaît le genre) :
+
+```json
+{
+  "nom": "initiales",
+  "domaine": "mots",
+  "enonce": "La première lettre de chaque mot.",
+  "paires": [
+    {"entree": "jean pierre", "sortie": ["j", "p"]},
+    {"entree": "le petit chat", "sortie": ["l", "p", "c"]}
+  ],
+  "questions": [
+    {"entree": "un deux trois", "sortie": ["u", "d", "t"]}
+  ]
+}
+```
+
+| Clé | Rôle |
+|---|---|
+| `paires` | obligatoire, non vide : des objets `{"entree": …, "sortie": …}` |
+| `questions` | des objets `{"entree": …}` ; `"sortie"` est permise mais **réservée à l'examinateur** : elle sert à noter le fils et n'est jamais donnée à la mère |
+| `nom` | le nom du problème (unique dans un lot) |
+| `domaine`, `enonce` | pour les humains (ranger, comprendre, mesurer) ; la mère ne les lit pas |
+
+Les **valeurs** sont des nombres, des textes, des booléens (`true`,
+`false`) et des listes de ces valeurs, imbriquées autant qu'on veut. Rien
+n'est propre à un domaine : une liste de nombres, une phrase, un plateau de
+Morpion (une liste de 9 cases, ou 3 rangées de 3) s'écrivent avec les mêmes
+valeurs. `null` et les objets ne sont pas permis : une erreur le dit, avec la
+paire fautive.
+
+Un fichier peut aussi contenir un **lot** : `{"domaine": …, "problemes":
+[…]}`. Le `domaine` du lot vaut pour chaque problème qui n'en donne pas.
+
+Il faut au moins deux paires distinctes : une seule peut être une
+coïncidence (la mère refuse alors de conclure).
+
+**Lien avec la forme commune visée** (jalon 1 de la feuille de route : un
+exemple est une suite d'observations, *un état, ce qui s'est passé, l'état
+suivant*). Une paire est une suite d'**une seule** observation où il ne s'est
+rien passé de visible : l'état est l'entrée, l'état suivant la sortie, sans
+action ni joueur (`Probleme.en_observations()` la donne sous cette forme). Une
+partie, elle, est une suite de plusieurs observations reliées par des actions.
+Le programme cherché, `sortie = t(x)`, est l'analogue de `apres = t(avant,
+args)` que la mère construit pour une action (`xander/effets.py`), sans
+arguments. Le jour où les deux formats se rejoindront, un problème « entrée →
+sortie » sera un exemple d'une observation par paire ; rien n'est réécrit
+pour l'instant.
+
+Problèmes fournis : `res/problemes/entrainement/` (listes, mots, nombres,
+plateaux de nos jeux), qui ont servi à choisir les briques, et
+`res/problemes/inedits/`, écrits une fois les briques figées et passés une
+seule fois (voir la feuille de route). Aucun ne ressemble à ARC : ni grilles
+de couleurs, ni objets à déplacer.

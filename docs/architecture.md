@@ -770,6 +770,166 @@ leçons, refactors) ; `Mother.create_son(nom, exemple, professeur=…)` écrit l
 fils dans `output/sons/<nom>.py`. Un exemple à un seul joueur est éduqué
 sans professeur (`python -m xander res/exampleJumper.py --son jumper --parties 30`).
 
+## 10. Problèmes « entrée → sortie » — `xander/transformations.py`
+
+Un genre de problème qui n'est pas un jeu (jalon 1) : quelques **paires**
+(une entrée, la sortie attendue) et des **questions** (une entrée seule). Le
+format et son lecteur : `docs/format-exemple.md` et `xander/problemes.py`.
+
+```text
+ res/problemes/*.json
+      │  problemes.py       lecture ; les réponses attendues restent à l'examinateur
+      ▼
+ paires + entrées des questions
+      │  transformations.py la mère cherche le plus petit programme sortie = t(x)
+      │  briques.py         l'équipement de naissance (18 briques)
+      ▼
+ Comprehension ── premier essai, deuxième essai, ou « je ne trouve pas »
+      │  fils_repondeur.py  la mère écrit le fils et le vérifie sur les paires
+      ▼
+ output/sons/<nom>.py ── fichier autonome : le programme trouvé et ses briques
+      │  mesure.py          l'examinateur lance le fils sur les questions et note
+```
+
+**Le même geste que pour une action.** Quand elle décrit l'effet d'une
+action (§ 3), la mère cherche par taille croissante le plus petit programme
+`apres = t(avant, args)` qui explique tous les cas. Ici, elle cherche
+`sortie = t(x)` qui explique toutes les paires : les paires jouent le rôle
+des cas (et des souvenirs, les tests du refactor), le programme trouvé
+devient le fils.
+
+**Le langage.** Un programme est un arbre : la feuille `x` (l'entrée), des
+constantes, et des briques. `chaque(f, s)` et `garder(p, s)` reçoivent une
+**fonction de l'élément**, un petit programme où la feuille `e` désigne
+l'élément : `chaque(plus(e, 1), x)` ajoute 1 à chaque nombre. La taille d'un
+programme est son nombre de nœuds (la feuille `e` ne compte pas) ; la mère
+cherche jusqu'à 6 nœuds, et une fonction de l'élément en a au plus 3 (sans
+`chaque` ni `garder` dedans).
+
+**Les constantes** : `0`, `1`, et au plus quatre valeurs simples qu'elle
+remarque dans les paires (un nombre, un texte, une lettre d'un texte, un
+booléen présents dans au moins deux paires ; celles qui reviennent dans le
+plus de paires, puis le plus souvent). Elle remarque ainsi l'espace d'une
+phrase, le tiret d'une date, le « . » d'un plateau, sans qu'on les lui
+donne.
+
+**L'équipement de naissance** (`xander/briques.py`). C'est tout ce qui est
+fourni à la main, avec une convention de perception : *un texte est une
+suite de lettres* (`inverser("chat")` vaut `"tahc"`). Chaque brique est
+justifiée par au moins deux problèmes d'entraînement de domaines différents,
+et un test le vérifie sur ce que la mère trouve réellement :
+
+| Brique | Ce qu'elle fait | Problèmes d'entraînement qui s'en servent (domaine) |
+|---|---|---|
+| `longueur(s)` | nombre d'éléments | combien-de-nombres (listes), nombre-de-lettres, nombre-de-mots (mots) |
+| `premier(s)`, `dernier(s)` | premier, dernier élément | initiale, derniere-lettre (mots), soustraction (nombres), colonne-de-gauche (plateaux), le-plus-grand (listes) |
+| `inverser(s)` | la suite à l'envers | liste-a-l-envers (listes), mot-a-l-envers (mots), plateau-haut-en-bas, plateau-dans-le-miroir (plateaux) |
+| `trier(s)` | ordre croissant | liste-dans-l-ordre (listes), lettres-dans-l-ordre (mots), le-plus-grand-des-deux (nombres) |
+| `somme(s)` | somme des nombres | la-somme (listes), addition (nombres) |
+| `non(b)` | contraire | sans-les-zeros (listes), sans-espaces (mots), pions-dans-l-ordre (plateaux) |
+| `element(s, i)` | l'élément d'indice *i* | l-element-designe (listes), rangee-du-milieu, case-du-centre (plateaux) |
+| `compter(s, v)` | combien d'éléments valent *v* | combien-de-zeros (listes), pions-de-x, x-par-rangee (plateaux) |
+| `positions(s, v)` | indices des éléments qui valent *v* | ou-sont-les-zeros (listes), ou-est-cette-lettre (mots), cases-libres (plateaux) |
+| `couper(s, v)` | morceaux séparés par *v* | groupes-separes-par-zero (listes), les-mots, l-annee (mots) |
+| `plus`, `fois` | addition, multiplication | un-de-plus, les-carres (listes), le-suivant, le-carre (nombres) |
+| `moins` | soustraction | le-precedent (nombres), allumettes-restantes (plateaux : l'état des Allumettes est un nombre) |
+| `egal(a, b)` | identiques ? | liste-symetrique (listes), palindrome (mots), sont-ils-egaux (nombres) |
+| `inferieur(a, b)` | *a* < *b* | les-positifs (listes), est-il-plus-petit (nombres) |
+| `chaque(f, s)` | *f* sur chaque élément | doubler (listes), initiales (mots), plateau-dans-le-miroir (plateaux) |
+| `garder(p, s)` | les éléments qui vérifient *p* | les-positifs (listes), sans-espaces (mots), pions-dans-l-ordre (plateaux) |
+
+Deux valeurs ne sont égales que si elles ont le même type (`1`, `1.0`,
+`True` et `"1"` diffèrent) : aucune conversion cachée. Une brique qui n'a pas
+de sens sur ses valeurs (la longueur d'un nombre, le premier d'une liste
+vide) rend le programme **indéfini** sur cette entrée.
+
+**La recherche.** Comme dans `effets.py` : énumération par taille croissante,
+et deux programmes qui donnent les mêmes valeurs sont confondus (on garde le
+plus petit, ou le premier trouvé). Les valeurs comparées sont celles des
+entrées des paires **et des questions** : deux programmes d'accord sur les
+paires mais pas sur une question restent distincts, puisqu'ils proposent deux
+réponses. La mère ne voit jamais les réponses attendues. Deux fonctions de
+l'élément sont confondues si elles donnent les mêmes valeurs sur un
+échantillon d'éléments (ceux des suites déjà construites, 48 au plus) ; à
+taille égale, la moins composée d'abord (`0 < e` plutôt que `e < e + e`). Les
+sortes de valeurs (nombre, booléen, texte, liste) écartent d'avance les
+compositions absurdes (`plus` d'un texte). Un budget borne le nombre de
+programmes distincts examinés (400 000).
+
+**Conclure à partir de peu (jalon 4).**
+
+- Il faut au moins deux paires distinctes ; deux paires contradictoires (la
+  même entrée, deux sorties) arrêtent tout.
+- **Premier essai** : le plus petit programme qui explique toutes les paires
+  et sait répondre à toutes les questions. À taille égale : le premier trouvé
+  dans l'ordre d'énumération (la feuille `x`, les constantes, puis les
+  briques dans l'ordre de `BRIQUES`). C'est la préférence documentée,
+  simple et arbitraire ; elle dit aussi combien de programmes de cette taille
+  donnaient d'autres réponses.
+- **Deuxième essai** : le plus petit programme suivant qui explique aussi
+  toutes les paires mais donne une **autre** réponse à au moins une question
+  (sinon ce ne serait pas un autre essai).
+- **Rien dans la taille permise** : elle le dit (« aucun programme de taille
+  6 au plus n'explique toutes les paires ») et n'écrit pas de fils.
+
+Exemple d'entraînement : « combien de fois cette lettre est dans le mot ».
+Sur les paires `banane/a → 2`, `chat/c → 1`, `lune/z → 0`, `kayak/k → 2`,
+le plus petit programme est la coïncidence `compter(premier(x), "a")` (compter
+les « a » !), taille 4 ; le deuxième essai, `compter(premier(x),
+dernier(x))`, taille 5, est le bon. Une règle tirée de peu de cas peut être
+une coïncidence : le deuxième essai est là pour ça.
+
+**Le fils** (`xander/fils_repondeur.py`) est un fichier Python autonome qui
+n'importe rien de Xander : `repondre(x)` (le programme trouvé, traduit en
+Python), `deuxieme_essai(x)` s'il y en a un, les briques dont ils se servent
+**et seulement celles-là** (recopiées de `briques.py` avec leurs outils), et
+les entrées des questions. Lancé seul, il y répond ; on peut aussi lui donner
+une entrée en JSON. Avant de le livrer, la mère l'exécute sur toutes les
+paires : ce qu'elle a vérifié est exactement ce qu'il exécute.
+
+**La mesure** (`xander/mesure.py`) sépare les rôles : la mère reçoit les
+paires et les entrées des questions ; l'examinateur lance le fils et compare
+ses réponses aux réponses attendues, qui ne reviennent jamais vers la mère.
+`python -m xander res/problemes/entrainement/mots.json` affiche, pour chaque
+problème, le programme trouvé, le deuxième essai, ce que répond le fils et le
+score ; `--probleme NOM` en choisit un, `--son NOM` écrit le fils dans
+`output/sons/`.
+
+**Ce qui est fourni à la main** : les 18 briques et leur ordre, la
+convention « un texte est une suite de lettres », la feuille `x`, les
+constantes 0 et 1, la façon de remarquer les autres, la taille maximale des
+programmes (6) et des fonctions (3), l'échantillon qui confond deux
+fonctions, le minimum de deux paires, le budget et la préférence à taille
+égale.
+
+**Limites et suites.**
+
+- La taille 6 suffit à l'entraînement (le plus grand programme trouvé en a 5)
+  et la recherche prend 0,4 s au plus par problème (8 s pour les 55). Une
+  taille 7 multiplie le temps total par 4 environ, une taille 8 par 8 : au-delà,
+  c'est le jalon 2 (chercher sans tout énumérer, guidée par ce qu'elle
+  observe), pas une raison d'ajouter une brique.
+- Pas de « si », pas de façon de voir des lignes sur un plateau : « qui a
+  trois pions alignés » et « à qui le tour » restent hors de portée, et elle
+  le dit. Pas de constante qu'elle n'a pas vue (« ajouter 10 » quand 10
+  n'apparaît dans aucune paire).
+- L'échantillon qui confond deux fonctions de l'élément ne contient que les
+  éléments des suites de taille 3 au plus : deux fonctions d'accord sur lui
+  mais pas ailleurs sont confondues, et l'une peut manquer.
+- Les briques sont fournies. Elles devraient devenir, au jalon 2, des
+  concepts que la mère garde d'un problème à l'autre (« le plus grand » =
+  `dernier(trier(x))`, trouvé ici, pourrait devenir une brique) ; et
+  certaines devraient être découvertes plutôt que données.
+- **Refactor à faire : un moteur commun avec `effets.py`.** Les deux
+  énumèrent des arbres par taille croissante, confondent ceux qui donnent les
+  mêmes valeurs et gardent le plus petit qui explique tous les cas ;
+  `transformations.py` réutilise déjà `_compositions` et `INDEFINI`. Il
+  faudrait un moteur partagé (nœuds, énumération, confusion par les valeurs,
+  sortes) où `effets.py` ajoute ses feuilles (`arg`, `avant`) et ses briques
+  de cases, et `transformations.py` les siennes et les fonctions de
+  l'élément. Une paire « entrée → sortie » deviendrait alors un cas
+  `apres = t(avant)` sans arguments.
+
 ## Limites connues
 
 - Le langage des effets (deux formes, feuilles, constantes mesurées, sept

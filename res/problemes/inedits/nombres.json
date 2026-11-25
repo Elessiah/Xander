@@ -1,0 +1,86 @@
+{
+  "lot": "jamais vus : nombres (écrits après le gel du commit e7e14f3, passés une seule fois)",
+  "domaine": "nombres",
+  "problemes": [
+    {
+      "nom": "le-triple",
+      "enonce": "Le nombre multiplié par trois.",
+      "paires": [
+        {"entree": 2, "sortie": 6},
+        {"entree": 5, "sortie": 15},
+        {"entree": 10, "sortie": 30}
+      ],
+      "questions": [{"entree": 7, "sortie": 21}]
+    },
+    {
+      "nom": "plus-deux",
+      "enonce": "Ajouter deux.",
+      "paires": [
+        {"entree": 3, "sortie": 5},
+        {"entree": 10, "sortie": 12},
+        {"entree": 0, "sortie": 2}
+      ],
+      "questions": [{"entree": 98, "sortie": 100}]
+    },
+    {
+      "nom": "la-moitie",
+      "enonce": "La moitié du nombre.",
+      "paires": [
+        {"entree": 4, "sortie": 2},
+        {"entree": 10, "sortie": 5},
+        {"entree": 6, "sortie": 3}
+      ],
+      "questions": [{"entree": 20, "sortie": 10}]
+    },
+    {
+      "nom": "somme-de-trois",
+      "enonce": "Trois nombres : leur somme.",
+      "paires": [
+        {"entree": [1, 2, 3], "sortie": 6},
+        {"entree": [10, 0, 5], "sortie": 15},
+        {"entree": [4, 4, 4], "sortie": 12}
+      ],
+      "questions": [{"entree": [7, 1, 2], "sortie": 10}]
+    },
+    {
+      "nom": "le-plus-petit-des-deux",
+      "enonce": "Deux nombres : le plus petit.",
+      "paires": [
+        {"entree": [3, 8], "sortie": 3},
+        {"entree": [9, 2], "sortie": 2},
+        {"entree": [5, 5], "sortie": 5}
+      ],
+      "questions": [{"entree": [11, 4], "sortie": 4}]
+    },
+    {
+      "nom": "ecart",
+      "enonce": "Deux nombres : l'écart entre eux (toujours positif).",
+      "paires": [
+        {"entree": [3, 8], "sortie": 5},
+        {"entree": [9, 2], "sortie": 7},
+        {"entree": [5, 5], "sortie": 0}
+      ],
+      "questions": [{"entree": [4, 10], "sortie": 6}]
+    },
+    {
+      "nom": "est-ce-zero",
+      "enonce": "Le nombre vaut-il zéro ?",
+      "paires": [
+        {"entree": 0, "sortie": true},
+        {"entree": 5, "sortie": false},
+        {"entree": 12, "sortie": false}
+      ],
+      "questions": [{"entree": 3, "sortie": false}]
+    },
+    {
+      "nom": "carre-plus-un",
+      "enonce": "Le carré du nombre, plus un.",
+      "paires": [
+        {"entree": 2, "sortie": 5},
+        {"entree": 3, "sortie": 10},
+        {"entree": 0, "sortie": 1}
+      ],
+      "questions": [{"entree": 5, "sortie": 26}]
+    }
+  ]
+}

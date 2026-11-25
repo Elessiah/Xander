@@ -1,0 +1,159 @@
+{
+  "lot": "entraînement : mots et textes",
+  "domaine": "mots",
+  "problemes": [
+    {
+      "nom": "mot-a-l-envers",
+      "enonce": "Le mot écrit à l'envers.",
+      "paires": [
+        {"entree": "chat", "sortie": "tahc"},
+        {"entree": "bonjour", "sortie": "ruojnob"},
+        {"entree": "lune", "sortie": "enul"}
+      ],
+      "questions": [{"entree": "maison", "sortie": "nosiam"}]
+    },
+    {
+      "nom": "lettres-dans-l-ordre",
+      "enonce": "Les lettres du mot rangées dans l'ordre alphabétique.",
+      "paires": [
+        {"entree": "chat", "sortie": "acht"},
+        {"entree": "lune", "sortie": "elnu"},
+        {"entree": "dormir", "sortie": "dimorr"}
+      ],
+      "questions": [{"entree": "table", "sortie": "abelt"}]
+    },
+    {
+      "nom": "nombre-de-lettres",
+      "enonce": "Le nombre de lettres du mot.",
+      "paires": [
+        {"entree": "chat", "sortie": 4},
+        {"entree": "bonjour", "sortie": 7},
+        {"entree": "il", "sortie": 2}
+      ],
+      "questions": [{"entree": "fenetre", "sortie": 7}]
+    },
+    {
+      "nom": "initiale",
+      "enonce": "La première lettre du mot.",
+      "paires": [
+        {"entree": "chat", "sortie": "c"},
+        {"entree": "bonjour", "sortie": "b"},
+        {"entree": "lune", "sortie": "l"}
+      ],
+      "questions": [{"entree": "rose", "sortie": "r"}]
+    },
+    {
+      "nom": "derniere-lettre",
+      "enonce": "La dernière lettre du mot.",
+      "paires": [
+        {"entree": "chat", "sortie": "t"},
+        {"entree": "bonjour", "sortie": "r"},
+        {"entree": "lune", "sortie": "e"}
+      ],
+      "questions": [{"entree": "sel", "sortie": "l"}]
+    },
+    {
+      "nom": "nombre-de-mots",
+      "enonce": "Le nombre de mots de la phrase.",
+      "paires": [
+        {"entree": "le chat dort", "sortie": 3},
+        {"entree": "bonjour", "sortie": 1},
+        {"entree": "il fait beau ce matin", "sortie": 5},
+        {"entree": "on part", "sortie": 2}
+      ],
+      "questions": [{"entree": "la lune brille fort", "sortie": 4}]
+    },
+    {
+      "nom": "les-mots",
+      "enonce": "Les mots de la phrase.",
+      "paires": [
+        {"entree": "le chat dort", "sortie": ["le", "chat", "dort"]},
+        {"entree": "il pleut", "sortie": ["il", "pleut"]},
+        {"entree": "un deux trois quatre", "sortie": ["un", "deux", "trois", "quatre"]}
+      ],
+      "questions": [{"entree": "bonne nuit", "sortie": ["bonne", "nuit"]}]
+    },
+    {
+      "nom": "premier-mot",
+      "enonce": "Le premier mot de la phrase.",
+      "paires": [
+        {"entree": "le chat dort", "sortie": "le"},
+        {"entree": "bonne nuit", "sortie": "bonne"},
+        {"entree": "un deux trois", "sortie": "un"}
+      ],
+      "questions": [{"entree": "il fait beau", "sortie": "il"}]
+    },
+    {
+      "nom": "initiales",
+      "enonce": "La première lettre de chaque mot.",
+      "paires": [
+        {"entree": "jean pierre", "sortie": ["j", "p"]},
+        {"entree": "le petit chat", "sortie": ["l", "p", "c"]},
+        {"entree": "bonne nuit les amis", "sortie": ["b", "n", "l", "a"]}
+      ],
+      "questions": [{"entree": "un deux trois", "sortie": ["u", "d", "t"]}]
+    },
+    {
+      "nom": "longueur-des-mots",
+      "enonce": "Le nombre de lettres de chaque mot.",
+      "paires": [
+        {"entree": "le chat dort", "sortie": [2, 4, 4]},
+        {"entree": "bonjour a tous", "sortie": [7, 1, 4]},
+        {"entree": "il pleut", "sortie": [2, 5]}
+      ],
+      "questions": [{"entree": "un petit oiseau", "sortie": [2, 5, 6]}]
+    },
+    {
+      "nom": "combien-de-fois-cette-lettre",
+      "enonce": "Un mot et une lettre : combien de fois la lettre est dans le mot.",
+      "paires": [
+        {"entree": ["banane", "a"], "sortie": 2},
+        {"entree": ["chat", "c"], "sortie": 1},
+        {"entree": ["lune", "z"], "sortie": 0},
+        {"entree": ["kayak", "k"], "sortie": 2}
+      ],
+      "questions": [{"entree": ["chocolat", "o"], "sortie": 2}]
+    },
+    {
+      "nom": "ou-est-cette-lettre",
+      "enonce": "Un mot et une lettre : les positions (à partir de 0) de la lettre dans le mot.",
+      "paires": [
+        {"entree": ["banane", "n"], "sortie": [2, 4]},
+        {"entree": ["chat", "t"], "sortie": [3]},
+        {"entree": ["ete", "e"], "sortie": [0, 2]}
+      ],
+      "questions": [{"entree": ["parapluie", "p"], "sortie": [0, 4]}]
+    },
+    {
+      "nom": "sans-espaces",
+      "enonce": "La phrase sans ses espaces.",
+      "paires": [
+        {"entree": "le chat", "sortie": "lechat"},
+        {"entree": "a b c", "sortie": "abc"},
+        {"entree": "bonne nuit", "sortie": "bonnenuit"}
+      ],
+      "questions": [{"entree": "il pleut fort", "sortie": "ilpleutfort"}]
+    },
+    {
+      "nom": "palindrome",
+      "enonce": "Le mot se lit-il pareil dans les deux sens ?",
+      "paires": [
+        {"entree": "kayak", "sortie": true},
+        {"entree": "chat", "sortie": false},
+        {"entree": "elle", "sortie": true},
+        {"entree": "lune", "sortie": false}
+      ],
+      "questions": [{"entree": "radar", "sortie": true}]
+    },
+    {
+      "nom": "l-annee",
+      "enonce": "Une date écrite année-mois-jour : l'année.",
+      "paires": [
+        {"entree": "2024-05-17", "sortie": "2024"},
+        {"entree": "1999-12-31", "sortie": "1999"},
+        {"entree": "2010-01-02", "sortie": "2010"}
+      ],
+      "questions": [{"entree": "1871-03-18", "sortie": "1871"}]
+    }
+  ]
+}

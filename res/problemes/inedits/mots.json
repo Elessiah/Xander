@@ -1,0 +1,87 @@
+{
+  "lot": "jamais vus : mots et textes (écrits après le gel du commit e7e14f3, passés une seule fois)",
+  "domaine": "mots",
+  "problemes": [
+    {
+      "nom": "deuxieme-lettre",
+      "enonce": "La deuxième lettre du mot.",
+      "paires": [
+        {"entree": "chat", "sortie": "h"},
+        {"entree": "lune", "sortie": "u"},
+        {"entree": "bonjour", "sortie": "o"}
+      ],
+      "questions": [{"entree": "table", "sortie": "a"}]
+    },
+    {
+      "nom": "dernier-mot",
+      "enonce": "Le dernier mot de la phrase.",
+      "paires": [
+        {"entree": "le chat dort", "sortie": "dort"},
+        {"entree": "il fait beau", "sortie": "beau"},
+        {"entree": "bonne nuit", "sortie": "nuit"}
+      ],
+      "questions": [{"entree": "la lune brille", "sortie": "brille"}]
+    },
+    {
+      "nom": "nombre-de-voyelles",
+      "enonce": "Combien de voyelles dans le mot.",
+      "paires": [
+        {"entree": "chat", "sortie": 1},
+        {"entree": "maison", "sortie": 3},
+        {"entree": "arbre", "sortie": 2}
+      ],
+      "questions": [{"entree": "bateau", "sortie": 4}]
+    },
+    {
+      "nom": "chaque-mot-a-l-envers",
+      "enonce": "Les mots de la phrase, chacun écrit à l'envers.",
+      "paires": [
+        {"entree": "le chat", "sortie": ["el", "tahc"]},
+        {"entree": "bon jour", "sortie": ["nob", "ruoj"]},
+        {"entree": "un deux trois", "sortie": ["nu", "xued", "siort"]}
+      ],
+      "questions": [{"entree": "il pleut", "sortie": ["li", "tuelp"]}]
+    },
+    {
+      "nom": "commence-par-a",
+      "enonce": "Le mot commence-t-il par « a » ?",
+      "paires": [
+        {"entree": "arbre", "sortie": true},
+        {"entree": "chat", "sortie": false},
+        {"entree": "ami", "sortie": true},
+        {"entree": "lune", "sortie": false}
+      ],
+      "questions": [{"entree": "avion", "sortie": true}]
+    },
+    {
+      "nom": "nombre-d-espaces",
+      "enonce": "Combien d'espaces dans la phrase.",
+      "paires": [
+        {"entree": "le chat dort", "sortie": 2},
+        {"entree": "bonjour", "sortie": 0},
+        {"entree": "il fait beau ce matin", "sortie": 4}
+      ],
+      "questions": [{"entree": "un deux", "sortie": 1}]
+    },
+    {
+      "nom": "mots-de-plus-de-trois-lettres",
+      "enonce": "Les mots de la phrase qui ont plus de trois lettres.",
+      "paires": [
+        {"entree": "le chat dort bien", "sortie": ["chat", "dort", "bien"]},
+        {"entree": "il fait beau", "sortie": ["fait", "beau"]},
+        {"entree": "un petit oiseau", "sortie": ["petit", "oiseau"]}
+      ],
+      "questions": [{"entree": "la lune est belle", "sortie": ["lune", "belle"]}]
+    },
+    {
+      "nom": "le-mot-le-plus-long",
+      "enonce": "Le mot le plus long de la phrase.",
+      "paires": [
+        {"entree": "le petit chat", "sortie": "petit"},
+        {"entree": "un oiseau vole", "sortie": "oiseau"},
+        {"entree": "il pleut", "sortie": "pleut"}
+      ],
+      "questions": [{"entree": "un gros chien", "sortie": "chien"}]
+    }
+  ]
+}
