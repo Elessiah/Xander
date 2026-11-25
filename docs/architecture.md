@@ -135,7 +135,7 @@ mère voit quel coup il a choisi sans rien savoir de son fonctionnement.
    **cas** : les cas sont les tests des refactors (une position bien jouée est
    un test de non-régression).
 6. **Refactoriser.** Après chaque partie, la mère cherche le plus petit concept
-   (section 7) vrai après le coup du professeur et faux après celui du fils
+   (section 8) vrai après le coup du professeur et faux après celui du fils
    dans **au moins deux** souvenirs. Elle l'essaie comme règle à chaque rang
    de priorité, du plus bas au plus haut. Le refactor est gardé si le fils
    joue encore bien dans **tous** les cas (vérifié dans le labo), si au moins
@@ -143,25 +143,73 @@ mère voit quel coup il a choisi sans rien savoir de son fonctionnement.
    dans son budget de réflexion. Le concept devient une **brique** pour les
    suivants. Enfin, elle retire les règles devenues inutiles (sans elles,
    tous les cas restent bien joués). Puis elle **réécrit le code du fils**.
+7. **Motifs décalés, situations équivalentes** (section 7). Dès qu'elle
+   comprend un nouveau motif, la mère l'essaie décalé partout, puis cherche
+   les renumérotations des cases qui ne changent rien au jeu. Un souvenir
+   vaut alors pour toutes les positions équivalentes.
 
-La mère part **sans aucun concept**. Au Morpion, en 200 parties (une
-vingtaine de secondes) : les 8 alignements sont découverts, et elle construit
-seule ses règles. Selon les parties rencontrées, le chemin diffère. Avec une
-graine, elle retrouve exactement `gagner > parer > fourchette >
-contre_fourchette` :
+La mère part **sans aucun concept**. Au Morpion, en 200 parties (une dizaine
+de secondes) : les 8 alignements et les 8 symétries sont découverts, et elle
+construit seule ses règles. Le chemin dépend des parties rencontrées. Par
+exemple :
 
 ```text
-gagne(moi)                                   je gagne
-Non(AuMoins(1, lui, gagne(lui)))             aucun de ses coups ne le fait gagner
-AuMoins(2, moi, gagne(moi))                  au moins 2 de mes coups me font gagner
-Non(AuMoins(1, lui, concept_2(lui)))         aucun de ses coups ne lui donne une fourchette
+gagne(moi)                                    j'ai gagné
+concept_1 = AuMoins(1, moi, gagne(moi))       (brique) j'ai un coup gagnant : une menace
+Non(Et(Non(gagne(moi)), concept_1(lui)))      j'ai gagné ou il n'a pas de menace : gagner ou parer
+Non(AuMoins(1, lui, Et(concept_1(lui),        aucun de ses coups ne lui donne une menace
+                       concept_2(lui))))      sans danger pour lui : contre-fourchette
 ```
 
-Avec une autre, elle fond « gagner ou parer » en un seul concept, ou trouve
-des combinaisons que personne n'a écrites. Un test explore toutes les suites
-de coups adverses possibles : le fils ne peut plus perdre. Sur 10 graines, 5 donnent un fils parfait dès 200 parties, 6 à 400 et 8 à 800 ; les 2 autres perdent encore sur une seule suite de coups, qu'elles n'ont pas rencontrée. C'est plus lent qu'avec le vocabulaire écrit à la main (17 sur 20 à 200 parties), mais c'est la mère qui apprend.
+Avec une autre graine (et `AuMoins(2, …)` permis), elle retrouve exactement
+`gagner > parer > fourchette > contre_fourchette`, ou des combinaisons que
+personne n'a écrites. Un test explore toutes les suites de coups adverses
+possibles : le fils ne peut plus perdre.
 
-## 7. Les briques — `xander/concepts.py`
+| Ce qui est donné à la mère | Fils parfaits à 200 parties (10 graines) | Souvenirs restants |
+| --- | --- | --- |
+| `AuMoins` avec k = 1 ou 2, sans symétries | 5 (8 à 800) | 10 à 46 |
+| k = 1 ou 2, symétries découvertes | 10 | 4 à 16 |
+| **k = 1 seulement** (« il existe »), symétries (par défaut) | 9 (la 10e perd encore 2 suites à 800) | 9 à 30 |
+| k = 1, 2 ou 3 | 1 sur 5 | 20 à 24 |
+
+Lui donner moins (k = 1) marche presque aussi bien, deux fois plus vite : elle
+exprime la fourchette autrement (« il ne peut pas me menacer sans danger »).
+Lui donner plus (k jusqu'à 3) est pire : plus de concepts possibles, donc plus
+de coïncidences validées sur peu de cas.
+
+## 7. Motifs décalés et symétries — `xander/symmetries.py`
+
+**Un motif marcherait-il ailleurs ?** Dès qu'elle comprend un motif, la mère
+fait l'hypothèse qu'il vaut aussi décalé (chaque case + d) et la vérifie dans
+le labo : le premier joueur pose ses pions sur le motif décalé, l'autre joue
+ailleurs, et la contre-épreuve dit quel motif a fini la partie. Elle ne sait
+rien de la forme du plateau (l'état n'est qu'une liste de cases) : c'est le
+jeu qui dit qu'au Morpion la rangée du haut décalée de 3 est une rangée, et
+que décalée de 1 elle déborde sur la rangée suivante (la partie ne finit pas).
+Au Morpion, la colonne de l'exemple donne les deux autres avant la première
+partie. Au Puissance 4, les 69 alignements devraient venir de 4 formes
+décalées ; ce n'est pas encore essayé, car l'Analyzer ne comprend pas encore
+la gravité (l'éducation n'y est pas possible).
+
+Au Morpion, une position tournée de 90° est la même situation ; au Puissance
+4, la gravité interdit de retourner le plateau. La mère ne le sait pas
+d'avance. Elle cherche les **renumérotations des cases** qui envoient chaque
+motif de fin sur un motif de fin, par retour arrière (une case ne peut aller
+que sur une case qui appartient au même nombre de motifs) : on évite les
+9! = 362 880 essais. Puis elle les **vérifie dans le labo** : 20 parties
+jouées au hasard sont rejouées renumérotées ; le jeu doit accepter les mêmes
+coups, passer par les mêmes positions et finir au même moment. Quand elle ne
+connaît qu'un motif, 4 320 renumérotations le préservent ; le labo n'en garde
+que 4 (identité, deux miroirs, demi-tour), les seules qui ne changent vraiment
+rien au jeu. Avec les 8 motifs, elle en garde 8 (4 rotations, 4 miroirs).
+
+Le fils reçoit la liste `SYMETRIES` : pour retrouver un souvenir, il regarde
+sa position sous chacune des 8 façons de la voir, et renumérote le coup
+retenu. Un refactor compte deux positions équivalentes comme un seul
+souvenir.
+
+## 8. Les briques — `xander/concepts.py`
 
 Un concept est un **arbre** (une structure Python, pas du texte, pas de
 modèle de langage) qui décrit une position du point de vue de « moi ». Il
@@ -174,7 +222,7 @@ jeu : `possibles(etat)`, `apres(etat, action, joueur)` (vient de l'Analyzer),
 | --- | --- |
 | `Brique(nom, J)` | une brique connue, vue du côté de J (moi ou lui) ; au départ, seulement `gagne` |
 | `Non(x)`, `Et(x, y)` | négation, conjonction |
-| `AuMoins(k, J, x)` | au moins k actions de J (k = 1 ou 2) mènent à une position où x est vrai |
+| `AuMoins(k, J, x)` | au moins k actions de J mènent à une position où x est vrai ; par défaut k = 1 : « il existe une action de J après laquelle x » |
 
 Une règle se lit « jouer une action après laquelle le concept est vrai » ;
 une règle qui accepte toutes les actions ne choisit rien et est ignorée. La
@@ -184,12 +232,13 @@ mère énumère les arbres par taille croissante (jusqu'à 6 nœuds, 2 niveaux d
 adopté devient une brique, d'où des concepts plus grands à taille égale
 (composition, comme les configurations de Chase et Simon).
 
-**Fourni à la main** : ces quatre sortes de nœuds, les valeurs 1 et 2 de k,
-les bornes de la recherche et le budget du fils. Le vocabulaire écrit à la
+**Fourni à la main** : ces quatre sortes de nœuds (avec k = 1, c'est la
+logique minimale : non, et, il existe), les bornes de la recherche, le budget
+du fils, et la forme d'une règle (« jouer une action après laquelle… »). Le vocabulaire écrit à la
 main (`xander/vocabulary.py` : `gagner`, `parer`, `fourchette`,
 `contre_fourchette`, `attaque`) ne sert plus qu'aux tests, pour comparer.
 
-## 8. Le fils — `xander/son_writer.py`
+## 9. Le fils — `xander/son_writer.py`
 
 Le fils est un **fichier Python autonome**, écrit par la mère, réécrit après
 chaque correction, qui n'importe rien de Xander :
@@ -199,7 +248,7 @@ chaque correction, qui n'importe rien de Xander :
    `SINGLE_TARGET_INDEX`), plus `VUES`, le compteur des positions regardées.
 2. **Règles** : les concepts qu'elle a construits et appris au fils, **et
    seulement ceux-là** (avec les briques dont ils dépendent), traduits en
-   Python, `REGLES` dans l'ordre appris et `SOUVENIRS`.
+   Python, `REGLES` dans l'ordre appris, `SOUVENIRS` et `SYMETRIES`.
 3. **Squelette** : `choisir` (souvenir, sinon première règle qui choisit,
    sinon première action possible) et `play(game)`. C'est ici qu'on pourra
    plus tard transmettre l'expérience de ses frères.
@@ -233,15 +282,21 @@ fils dans `output/sons/<nom>.py`.
   Puissance 4 (gravité) et les Allumettes (quantité) attendent que l'Analyzer
   sache décrire leur action.
 - Les concepts sont construits par la mère, mais leur langage (les quatre
-  sortes de nœuds, k = 1 ou 2) est fourni. Ses concepts sont parfois
+  sortes de nœuds) est fourni. Ses concepts sont parfois
   difficiles à lire : ils sont justes sur tous les cas vus, pas forcément
   élégants. Un concept validé sur peu de cas peut être une coïncidence ; il
   est corrigé quand une erreur le contredit.
-- Les symétries (une position tournée de 90°) ne sont pas encore découvertes :
-  chaque souvenir ne vaut que pour sa position exacte.
+- Les symétries sont des renumérotations de cases : elles supposent qu'une
+  action désigne une case. Leur vérification par 20 parties au hasard est
+  une épreuve, pas une preuve.
+- Les concepts regardent au plus deux coups plus loin que la règle (deux
+  niveaux de `AuMoins`) : assez pour le Morpion, pas pour un jeu dont les
+  pièges sont plus profonds (Puissance 4). Il faudra alors des briques
+  composées plus loin, ou des suites forcées.
 - `gagne(etat, joueur)` ne sait pas encore dire qu'un coup fait **perdre**
   celui qui le joue (Allumettes « misère » : prendre la dernière perd). Il
   faudra que la perception sache qui a le trait.
-- Les motifs sont des ensembles de cases précis : la mère ne généralise pas
-  encore un alignement par translation ou symétrie (indispensable au
-  Puissance 4).
+- Les motifs sont généralisés par décalage d'indice et vérifiés dans le labo,
+  mais pas encore les souvenirs : un souvenir reste une position entière (ou
+  équivalente). Reconnaître une petite configuration n'importe où sur le
+  plateau (un « chunk » de Chase et Simon) est la prochaine étape.

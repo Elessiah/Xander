@@ -12,7 +12,7 @@ from xander.model import Function, FunctionOperation, Variable
 from xander.mother import Mother, render_son
 from xander.parser import ExampleParser, parse_example
 from xander.rebuilder import ReplayError, build_pool_test, parse_observations, replay
-from xander import concepts, son_writer, vocabulary
+from xander import concepts, son_writer, symmetries, vocabulary
 from xander.concepts import LUI, MOI
 
 RES = Path(__file__).resolve().parent.parent / "res"
@@ -303,6 +303,49 @@ class EducationTest(unittest.TestCase):
                 self.assertIn(teaching.decide(case.state, case.me, rules), threat, case.key)
                 parried += 1
         self.assertGreater(parried, 10)
+
+    def test_shifted_patterns(self):
+        """Un motif décalé est essayé dans le labo : la mère ne sait pas que le plateau est
+        un carré, c'est le jeu qui dit si le décalage est encore un alignement."""
+        teaching = education()
+        teaching.knowledge["patterns"] = [[0, 1, 2], [0, 3, 6]]
+        done = teaching.shift_patterns()
+        rows_and_columns = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8]]
+        self.assertEqual(sorted(teaching.knowledge["patterns"]), sorted(rows_and_columns))
+        self.assertIn((1, 2, 3), teaching._shifts_tried)  # essayé, mais déborde sur la rangée suivante
+        self.assertEqual(len(done), 4)
+
+    def test_symmetry_candidates(self):
+        """Les renumérotations qui préservent les 8 alignements : 4 rotations et 4 miroirs."""
+        found = symmetries.candidates(9, [list(line) for line in LINES])
+        self.assertEqual(len(found), 8)
+        self.assertIn([6, 3, 0, 7, 4, 1, 8, 5, 2], found)  # un quart de tour
+        self.assertEqual(len(symmetries.candidates(9, [[1, 4, 7]])), 4320)  # un seul motif : trop peu
+
+    def test_lab_rejects_false_symmetries(self):
+        """Avec un seul motif compris, des milliers de renumérotations le préservent ; le labo
+        ne garde que celles qui ne changent vraiment rien au jeu."""
+        teaching = education()  # la mère ne connaît que [1, 4, 7]
+        teaching.discover_symmetries()
+        true = [s for s in symmetries.candidates(9, [list(line) for line in LINES]) if s != list(range(9))]
+        self.assertEqual(sorted(teaching.knowledge["symmetries"]),
+                         sorted(s for s in true if sorted(s[c] for c in (1, 4, 7)) == [1, 4, 7]))
+        self.assertEqual(len(teaching.knowledge["symmetries"]), 3)  # deux miroirs et le demi-tour
+
+    def test_memory_holds_for_rotated_position(self):
+        """Un souvenir vaut pour la position tournée d'un quart de tour."""
+        teaching = education()
+        teaching.knowledge["symmetries"] = [[6, 3, 0, 7, 4, 1, 8, 5, 2]]
+        teaching.knowledge["memories"] = {"M........": 4}  # coin en haut à gauche -> centre
+        teaching.rewrite()
+        rotated = ["0", "1", "X", "3", "4", "5", "6", "7", "8"]  # le même coin, tourné
+        self.assertEqual(teaching.son.choisir(rotated, "X"), (4, "souvenir"))
+        corner = ["0", "1", "2", "3", "4", "5", "6", "7", "X"]  # le coin opposé : pas cette symétrie
+        self.assertNotEqual(teaching.son.choisir(corner, "X")[1], "souvenir")
+
+    def test_mother_discovers_symmetries(self):
+        teaching = education(200)
+        self.assertEqual(len(teaching.knowledge["symmetries"]), 7)  # + l'identité : 8 façons de voir
 
     def test_son_becomes_unbeatable(self):
         teaching = education(200)

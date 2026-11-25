@@ -63,6 +63,8 @@ def main(argv: list[str] | None = None) -> int:
         print_curve(education.records)
         knowledge = education.knowledge
         print(f"\nMotifs compris : {knowledge['patterns']}")
+        print(f"Symétries : {len(knowledge['symmetries']) + 1} façon(s) de voir une position "
+              "(renumérotations vérifiées dans le labo)")
         print(f"Règles : {' > '.join(knowledge['rules']) or 'aucune'} ; souvenirs : {len(knowledge['memories'])}")
         print("Concepts construits par la mère (une règle : jouer un coup après lequel…) :")
         needed = concepts.dependances(knowledge["rules"], knowledge["concepts"])

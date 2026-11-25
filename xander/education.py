@@ -51,7 +51,7 @@ from xander.game_model import GameModel
 from xander.lab import Lab, LabError
 from xander.model import FunctionOperation
 from xander.parser import ParsedExample
-from xander import concepts, son_writer
+from xander import concepts, son_writer, symmetries
 from xander.concepts import MOI
 
 RESULTS = {1: "victoire", 0: "nul", -1: "défaite"}
@@ -164,7 +164,11 @@ class Education:
         self._pensee = None                          # évalue les concepts (à refaire si le jeu est mieux compris)
         self._bank = None                            # concepts énumérés par taille (à refaire si une brique s'ajoute)
         self._judged: dict = {}                      # (cas, coup) -> aussi bon que le professeur ?
+        self._symmetries_known = False               # à chercher de nouveau si un motif s'ajoute
+        self._shapes_known = False                   # motifs à essayer décalés (idem)
+        self._shifts_tried: set = set()              # motifs décalés déjà essayés dans le labo
         self.max_size, self.max_depth = 6, 2         # bornes de la recherche de concepts
+        self.counts = (1,)                           # valeurs de k dans AuMoins(k, …) : « il existe »
         self.budget = BUDGET                         # positions que le fils peut regarder pour un coup
 
     # ------------------------------------------------------------------ #
@@ -268,6 +272,102 @@ class Education:
         return sorted([last] + [self.cell(current[index]) for index in needed])
 
     # ------------------------------------------------------------------ #
+    # Situations équivalentes
+    # ------------------------------------------------------------------ #
+
+    def shift_patterns(self) -> list[str]:
+        """« Ce motif marcherait-il ailleurs ? » La mère essaie chaque motif décalé (chaque
+        case + d) et le joue dans le labo. Elle ne sait rien de la forme du plateau : un
+        décalage qui déborde d'une rangée sur la suivante ne finit pas la partie, et il est
+        rejeté.
+        """
+        size, patterns, done = len(self.lab.states[0]), self.knowledge["patterns"], []
+        grown = True
+        while grown:
+            grown = False
+            for pattern in list(patterns):
+                for shift in range(1 - size, size):
+                    image = [cell + shift for cell in pattern]
+                    if (not shift or image[0] < 0 or image[-1] >= size or image in patterns
+                            or tuple(image) in self._shifts_tried):
+                        continue
+                    self._shifts_tried.add(tuple(image))
+                    found = self.play_pattern(image)
+                    if found is not None and found not in patterns:
+                        patterns.append(found)
+                        self.discovered.append(found)
+                        grown = True
+                        done.append(f"motif {found} : le motif {pattern} décalé de {shift:+d}, "
+                                    "vérifié dans le labo")
+        if done:
+            self.rethink()
+        self._shapes_known = True
+        self.lab.goto([])
+        return done
+
+    def play_pattern(self, cells: list[int]) -> list[int] | None:
+        """Le premier joueur pose ses pions sur ``cells`` (l'autre joue ailleurs) : si la partie
+        finit au dernier pion, la contre-épreuve dit quel motif l'a finie."""
+        others = [c for c in range(len(self.lab.states[0])) if c not in cells]
+        for start in range(len(others)):
+            replies = (others[start:] + others[:start])[:len(cells) - 1]
+            if len(replies) < len(cells) - 1:
+                return None
+            moves = []
+            for mine, his in zip(cells, replies + [None]):
+                moves.append((mine,))
+                if his is not None:
+                    moves.append((his,))
+            if self.lab.goto(moves) and self.lab.ended:
+                return self.counter_test(self.final_state(), 0)
+        return None
+
+    def abstract(self, state) -> tuple:
+        """Ce qui compte d'une position : les pions (une case libre n'a pas d'identité)."""
+        marks = self.knowledge["marks"]
+        return tuple(v if v in marks else None for v in state)
+
+    def probe_games(self, number: int = 20) -> list:
+        """Des parties jouées au hasard dans le labo, jusqu'au bout."""
+        rng, lab, games = random.Random(len(self.knowledge["patterns"])), self.lab, []
+        for _ in range(number):
+            lab.goto([])
+            while not lab.ended:
+                lab.play(rng.choice(self.mind.possibles(list(lab.states[-1]))))
+            games.append((list(lab.moves), [self.abstract(s) for s in lab.states]))
+        return games
+
+    def symmetric_in_lab(self, sigma: list[int], games: list) -> bool:
+        """Le jeu renuméroté se joue-t-il exactement comme le jeu ? (vérifié avec ``back``)"""
+        lab = self.lab
+        for moves, states in games:
+            if not lab.goto([(sigma[self.cell(m)],) for m in moves]) or not lab.ended:
+                return False
+            if len(lab.states) != len(states) or any(
+                    self.abstract(s) != tuple(symmetries.transform(t, sigma))
+                    for s, t in zip(lab.states, states)):
+                return False
+        return True
+
+    def discover_symmetries(self) -> str | None:
+        """Cherche les renumérotations qui ne changent rien au jeu et les vérifie dans le labo."""
+        self._symmetries_known = True
+        size = len(self.lab.states[0])
+        found = symmetries.candidates(size, self.knowledge["patterns"])
+        if found is None:
+            return None  # trop de candidates : les motifs ne disent pas encore assez
+        identity = list(range(size))
+        games = self.probe_games()
+        kept = [s for s in found if s != identity and self.symmetric_in_lab(s, games)]
+        self.lab.goto([])
+        if kept == self.knowledge["symmetries"]:
+            return None
+        self.knowledge["symmetries"] = kept
+        self._son = self._mind = None
+        return (f"symétries : {len(kept) + 1} façons de voir une position ({len(found)} "
+                f"renumérotation(s) préservent les motifs, {len(kept) + 1} vérifiée(s) dans le labo)")
+
+    # ------------------------------------------------------------------ #
     # Le professeur
     # ------------------------------------------------------------------ #
 
@@ -341,6 +441,8 @@ class Education:
         """La mère comprend mieux le jeu (pions, motifs) : sa perception est à refaire."""
         self._son = self._mind = self._pensee = self._bank = None
         self._judged = {}
+        self._symmetries_known = False
+        self._shapes_known = False
 
     def source(self, name: str = "fils") -> str:
         return son_writer.son_source(name, self.knowledge, len(self.records) - 1)
@@ -418,7 +520,7 @@ class Education:
         key = self.mind.cle(list(state), me)
         changes = []
         if reason == "souvenir":
-            del memories[key]
+            del memories[self.mind.rappel(list(state), me, memories)[0]]
             changes.append("souvenir faux oublié")
         memories[key] = teacher_cell
         changes.append("nouveau souvenir")
@@ -440,7 +542,7 @@ class Education:
         """Les concepts que la mère sait former, du plus petit au plus grand."""
         if self._bank is None:
             positions = concepts.echantillon(self.mind, self.lab.states[0], self.knowledge["marks"])
-            self._bank = concepts.enumerer(self.pensee, positions, self.max_size, self.max_depth)
+            self._bank = concepts.enumerer(self.pensee, positions, self.max_size, self.max_depth, self.counts)
         return self._bank
 
     def rule(self, name: str) -> concepts.Concept:
@@ -465,24 +567,33 @@ class Education:
                                  >= self.value(case.moves + [(case.teacher_cell,)], side))
         return self._judged[key]
 
-    def check(self, rules: list[str]) -> list[Case] | None:
+    def covering(self) -> dict[str, str | None]:
+        """Pour chaque cas, la clé du souvenir qui décide (le sien ou celui d'une position
+        équivalente), ou ``None`` si ce sont les règles qui décident."""
+        memories, mind = self.knowledge["memories"], self.mind
+        return {case.key: mind.rappel(list(case.state), case.me, memories)[0]
+                for case in self.cases.values()}
+
+    def check(self, rules: list[str], covering: dict) -> list[str] | None:
         """Rejoue tous les cas avec ces règles : ``None`` si un cas sans souvenir est raté,
-        sinon les cas à souvenir qui n'en ont plus besoin."""
-        memories, freed = self.knowledge["memories"], []
+        sinon les souvenirs dont plus aucun cas n'a besoin."""
+        needed, useful = set(), set()
         for case in self.cases.values():
             ok = self.good(case, self.decide(case.state, case.me, rules))
-            if case.key in memories:
-                if ok:
-                    freed.append(case)
-            elif not ok:
-                return None
-        return freed
+            memory = covering[case.key]
+            if memory is None:
+                if not ok:
+                    return None
+            else:
+                useful.add(memory)
+                if not ok:
+                    needed.add(memory)
+        return sorted(useful - needed)
 
-    def views(self, rules: list[str], freed: list[Case]) -> int:
+    def views(self, rules: list[str], freed: list[str]) -> int:
         """Positions regardées au plus par le fils écrit avec ces règles, sur les cas enregistrés."""
         knowledge = dict(self.knowledge, rules=rules,
-                         memories={k: v for k, v in self.knowledge["memories"].items()
-                                   if k not in {case.key for case in freed}})
+                         memories={k: v for k, v in self.knowledge["memories"].items() if k not in freed})
         son = son_writer.load(son_writer.son_source("essai", knowledge))
         most = 0
         for case in self.cases.values():
@@ -510,7 +621,7 @@ class Education:
         done = []
         for name in list(reversed(self.knowledge["rules"])):
             rules = [r for r in self.knowledge["rules"] if r != name]
-            if self.check(rules) is not None:
+            if self.check(rules, self.covering()) is not None:
                 self.knowledge["rules"] = rules
                 self.rewrite()
                 done.append(f"{name} retirée (inutile) ; règles : {' > '.join(rules) or 'aucune'}")
@@ -518,18 +629,20 @@ class Education:
 
     def refactor_once(self) -> str | None:
         memories, definitions = self.knowledge["memories"], self.knowledge["concepts"]
-        pending = [case for case in self.cases.values() if case.key in memories]
-        if len(pending) < 2:
+        covering = self.covering()
+        pending = [case for case in self.cases.values() if covering[case.key] is not None]
+        if len({covering[case.key] for case in pending}) < 2:
             return None
         pensee = self.pensee
         candidates = []
         for rank, concept in enumerate(self.bank):
-            explained = 0
+            explained = set()  # souvenirs expliqués (deux positions équivalentes comptent pour un)
             for case in pending:
                 cells = pensee.choix(concept, case.state, case.me)
-                explained += case.teacher_cell in cells and case.son_cell not in cells
-            if explained >= 2:
-                candidates.append((concept.size, -explained, rank, concept))
+                if case.teacher_cell in cells and case.son_cell not in cells:
+                    explained.add(covering[case.key])
+            if len(explained) >= 2:
+                candidates.append((concept.size, -len(explained), rank, concept))
         names = {c.id: name for name, c in definitions.items()}
         for _, _, _, concept in sorted(candidates):
             if concept.kind == "brique" and concept.args[1] == MOI and concept.args[0] in definitions:
@@ -541,7 +654,7 @@ class Education:
             others = [r for r in self.knowledge["rules"] if r != name]
             for rank in range(len(others), -1, -1):  # du moins prioritaire au plus prioritaire
                 rules = others[:rank] + [name] + others[rank:]
-                freed = self.check(rules)
+                freed = self.check(rules, covering)
                 if freed is not None and len(freed) >= 2 and self.views(rules, freed) <= self.budget:
                     return self.adopt(name, concept, rules, freed, known)
             if not known:
@@ -550,8 +663,8 @@ class Education:
 
     def adopt(self, name, concept, rules, freed, known) -> str:
         self.knowledge["rules"] = rules
-        for case in freed:
-            del self.knowledge["memories"][case.key]
+        for key in freed:
+            del self.knowledge["memories"][key]
         if not known:
             self._bank = None  # une nouvelle brique : la mère sait former de nouveaux concepts
         self.rewrite()
@@ -576,11 +689,16 @@ class Education:
         for number in range(1, nb_games + 1):
             name, opponent = opponents[(number - 1) // 2 % len(opponents)]
             side = (number - 1) % 2
+            shifted = [] if self._shapes_known else self.shift_patterns()
+            symmetry = None if self._symmetries_known else self.discover_symmetries()
             result, decisions = self.play_game(opponent, side)
             record = GameRecord(len(self.records), name, str(self.marks[side]), RESULTS[result])
+            record.refactors += shifted
+            if symmetry:
+                record.refactors.append(symmetry)
             record.lessons = self.review(decisions + self.variations(decisions, side), side)
             if record.lessons:
-                record.refactors = self.refactor()
+                record.refactors += self.refactor()
             record.patterns, self.discovered = self.discovered, []
             self.records.append(record)
             if on_game:

@@ -36,7 +36,12 @@ def empty_knowledge(model) -> dict:
         "concepts": {},     # nom -> arbre de concept construit par la mère (une brique)
         "rules": [],        # concepts appris comme règles, du plus prioritaire au moins prioritaire
         "memories": {},     # cle(etat, moi) -> action
+        "symmetries": [],   # renumérotations des cases qui ne changent rien au jeu (vérifiées)
     }
+
+
+def symmetries_literal(knowledge: dict) -> str:
+    return pformat([None] + knowledge["symmetries"], compact=True, width=70)
 
 
 def perception_source(knowledge: dict) -> str:
@@ -74,6 +79,28 @@ def cle(etat, moi):
     """La position vue de mon côté : M mes pions, A les siens, . libre."""
     lui = adversaire(moi)
     return "".join("M" if v == moi else "A" if v == lui else "." for v in etat)
+
+
+SYMETRIES = {symmetries_literal(knowledge)}  # None : la position telle quelle
+
+
+def transformer(etat, sigma):
+    """La position renumérotée : ce qui était en case i passe en case sigma[i]."""
+    image = list(etat)
+    for i, valeur in enumerate(etat):
+        image[sigma[i]] = valeur
+    return image
+
+
+def rappel(etat, moi, souvenirs):
+    """Un souvenir de cette position, ou d'une position équivalente : (sa clé, mon coup ici)."""
+    for sigma in SYMETRIES:
+        vue = etat if sigma is None else transformer(etat, sigma)
+        k = cle(vue, moi)
+        if k in souvenirs:
+            coup = souvenirs[k]
+            return k, (coup if sigma is None else sigma.index(coup))
+    return None, None
 
 
 def qui_suis_je(etat, memoire):
@@ -115,7 +142,7 @@ def choisir(etat, moi):
     """Mon coup et sa raison : souvenir, sinon première règle qui s'applique, sinon défaut."""
     global VUES
     VUES = 0
-    coup = SOUVENIRS.get(cle(etat, moi))
+    _, coup = rappel(etat, moi, SOUVENIRS)
     if coup is not None and coup in possibles(etat):
         return coup, "souvenir"
     for regle in REGLES:

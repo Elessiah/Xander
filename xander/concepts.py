@@ -10,8 +10,10 @@ quatre notions que la mère apprend pour chaque jeu (``possibles``, ``apres``,
   trouve devient une nouvelle brique (composition) ;
 * ``Non(x)`` ;
 * ``Et(x, y)`` ;
-* ``AuMoins(k, J, x)`` : au moins ``k`` actions de ``J`` (k vaut 1 ou 2)
-  mènent à une position où ``x`` est vrai.
+* ``AuMoins(k, J, x)`` : au moins ``k`` actions de ``J`` mènent à une position
+  où ``x`` est vrai. Par défaut k vaut 1 (« il existe ») : avec 1 et 2, la
+  mère apprend à peine mieux, avec 1, 2 et 3 elle apprend moins bien (plus de
+  coïncidences).
 
 Une **règle** se lit « jouer une action après laquelle le concept est vrai ».
 Une règle qui accepte toutes les actions ne choisit rien : elle est ignorée.
@@ -20,8 +22,8 @@ Exemples (que la mère doit trouver seule, ils ne sont écrits nulle part) :
 « jouer là où je gagne » est ``Brique(gagne, moi)`` ; « jouer là où il n'a plus
 de coup gagnant » est ``Non(AuMoins(1, lui, Brique(gagne, lui)))``.
 
-Ce qui est fourni à la main : ces quatre sortes de nœuds, les valeurs 1 et 2
-de ``k``, et les bornes de la recherche (taille et profondeur des arbres).
+Ce qui est fourni à la main : ces quatre sortes de nœuds, les valeurs de
+``k``, et les bornes de la recherche (taille et profondeur des arbres).
 
 La mère énumère les arbres par taille croissante. Deux arbres qui disent la
 même chose sur un échantillon de positions sont confondus (on garde le plus
@@ -187,7 +189,7 @@ def echantillon(notions, depart, joueurs, nombre: int = 120, graine: int = 0) ->
 
 
 def enumerer(pensee: Pensee, positions: list[tuple], taille_max: int = 5,
-             profondeur_max: int = 2) -> list[Concept]:
+             profondeur_max: int = 2, comptes: tuple = (1, 2)) -> list[Concept]:
     """Les concepts distincts, du plus petit au plus grand.
 
     Un concept qui dit la même chose qu'un plus petit sur ``positions``, ou qui
@@ -212,7 +214,7 @@ def enumerer(pensee: Pensee, positions: list[tuple], taille_max: int = 5,
     for taille in range(2, taille_max + 1):
         for x in par_taille[taille - 1]:
             essayer(non(x))
-            for k in (1, 2):
+            for k in comptes:
                 for qui in (MOI, LUI):
                     essayer(au_moins(k, qui, x))
         for gauche in range(1, (taille - 1) // 2 + 1):

@@ -13,7 +13,7 @@
 | Créer un fils qui part de zéro | fait |
 | Corriger le fils cas par cas (souvenirs) | fait |
 | Refactoriser : des souvenirs aux règles, concepts construits par la mère | fait, Morpion : fils imbattable |
-| Découvrir les symétries (positions équivalentes) | **à faire** |
+| Découvrir les symétries (positions équivalentes) | fait, vérifiées dans le labo |
 | Réutiliser l'expérience d'un fils pour un autre | **plus tard** |
 
 ## Prochaines étapes proposées
@@ -22,20 +22,21 @@
    pour percevoir un jeu. Il doit décrire l'action du Puissance 4 (« le jeton
    tombe dans la colonne *p* »), celle des Allumettes (quantité), et laisser
    coexister plusieurs hypothèses vraies.
-2. **Motifs généraux.** Passer de « les cases 0, 4, 8 » à « trois cases
-   alignées », par translation et symétrie, pour qu'un motif appris serve
-   partout (indispensable au Puissance 4).
-3. **Symétries.** Au Morpion, une position tournée de 90° est la même
-   situation. La mère doit les découvrir : les renumérotations des cases qui
-   préservent les motifs de fin et les actions permises, vérifiées dans le
-   labo. Un souvenir vaudrait alors pour 8 positions, et il faut une
-   recherche plus maline que d'essayer les 9! renumérotations.
+2. **Configurations n'importe où.** Les motifs de fin se décalent déjà
+   (vérifiés dans le labo). Il reste à faire de même pour ce qu'elle apprend :
+   un souvenir ou une règle qui porte sur quelques cases, reconnu partout où
+   cette configuration apparaît (indispensable au Puissance 4, dont le plateau
+   n'a qu'une symétrie).
+3. **Symétries plus générales.** Aujourd'hui des renumérotations de cases.
+   Il faudra des équivalences qui ne sont pas des permutations (échanger les
+   deux joueurs, une quantité décalée), et des motifs généraux (translation)
+   pour le Puissance 4.
 4. **Concepts plus lisibles.** La mère construit ses concepts, mais certains
    sont des combinaisons difficiles à lire, ou des coïncidences validées sur
    peu de cas. Pistes : préférer le concept qui explique le plus de cas,
    relire les concepts quand une nouvelle brique apparaît, et dire ce que le
-   langage fournit encore à la main (les nœuds `Non`, `Et`, `AuMoins`, k = 1
-   ou 2). `gagne` doit aussi apprendre qu'un coup peut faire perdre celui qui
+   langage fournit encore à la main (les nœuds `Non`, `Et`, `AuMoins` avec
+   k = 1, la forme « jouer une action après laquelle… »). `gagne` doit aussi apprendre qu'un coup peut faire perdre celui qui
    le joue (Allumettes « misère »), ce qui demande de percevoir le trait.
 5. **Autres formes de problèmes.** Jeux à un joueur (Jumper), plus de deux
    joueurs, état qui n'est pas un tableau.
