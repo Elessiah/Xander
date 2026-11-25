@@ -5,6 +5,11 @@
 ``python -m xander res/exampleMorpion.py --prof Games.MinmaxMorpion:minmax_morpion_play --son morpion`` :
 la mère élève un fils en le corrigeant à chaque erreur, affiche sa courbe
 d'apprentissage et l'écrit dans ``output/sons/morpion.py``.
+
+``python -m xander res/problemes/entrainement/mots.json [--probleme initiales] [--son NOM]`` :
+un problème « entrée -> sortie » (ou un lot) : le programme que la mère a
+trouvé, ce que répond le fils qu'elle écrit, et le score si le fichier donne
+les réponses attendues.
 """
 
 import argparse
@@ -15,6 +20,7 @@ from xander import concepts
 from xander.lab import LabError
 from xander.mother import OUTPUT_DIR, Mother
 from xander.parser import ExampleSyntaxError
+from xander.problemes import ProblemeMalForme, est_un_probleme as is_problem
 from xander.rebuilder import ReplayError
 
 
@@ -37,11 +43,60 @@ def print_curve(records) -> None:
         print(f"  parties {block[0].number:>3}-{block[-1].number:<3} {'#' * errors:<20} {errors}")
 
 
+def solve_problems(path: str, only: str | None = None, son: str | None = None) -> int:
+    """Un problème « entrée -> sortie » (fichier ``.json``) : ce que la mère comprend, ce que répond le fils."""
+    import json
+    import textwrap
+
+    from xander.fils_repondeur import source
+    from xander.mesure import Bilan, resoudre
+    from xander.problemes import lire_problemes
+
+    problems = lire_problemes(path)
+    if only:
+        problems = [p for p in problems if p.nom == only]
+        if not problems:
+            raise ValueError(f"aucun problème nommé {only!r} dans {path}")
+
+    def show(value) -> str:
+        return value if not isinstance(value, (list, str, int, float, bool)) else json.dumps(value, ensure_ascii=False)
+
+    results = []
+    for problem in problems:
+        result = resoudre(problem)
+        results.append(result)
+        print(f"\nProblème « {problem.nom} » : {len(problem.paires)} paire(s), {len(problem.questions)} question(s)")
+        print(textwrap.indent(result.comprehension.decrire(), "  "))
+        if result.code is None:
+            continue
+        for i, question in enumerate(problem.questions):
+            line = f"  Le fils répond : {show(question)} -> {show(result.reponses[i])}"
+            if result.deuxiemes is not None:
+                line += f" (deuxième essai : {show(result.deuxiemes[i])})"
+            if problem.attendues is not None:
+                line += f" ; attendu {show(problem.attendues[i])}"
+            print(line)
+        if problem.attendues is not None:
+            verdict = ("réussi au premier essai" if result.premier_essai else
+                       "réussi au deuxième essai" if result.deux_essais else "raté")
+            print(f"  Verdict de l'examinateur : {verdict}")
+        if son:
+            name = son if len(problems) == 1 else f"{son}_{problem.nom}"
+            target = OUTPUT_DIR / "sons" / f"{name.replace('-', '_')}.py"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(source(problem.nom, result.comprehension, problem.questions), encoding="utf-8")
+            print(f"  Fils écrit dans {target}")
+    print("\n" + Bilan(results).decrire())
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="replace")
-    parser = argparse.ArgumentParser(prog="xander", description="Apprend un jeu à partir d'un exemple de partie.")
-    parser.add_argument("example", help="fichier d'exemple (voir res/)")
+    parser = argparse.ArgumentParser(prog="xander", description="Apprend un jeu à partir d'un exemple de partie, "
+                                     "ou un problème « entrée -> sortie » (fichier .json).")
+    parser.add_argument("example", help="fichier d'exemple (voir res/) ou problème .json (voir res/problemes/)")
+    parser.add_argument("--probleme", metavar="NOM", help="(problèmes .json) ne traiter que ce problème du lot")
     parser.add_argument("-v", "--verbose", action="store_true", help="affiche le détail de l'analyse")
     parser.add_argument("--keep", action="store_true", help="conserve le script de rejeu dans output/poolTest.py")
     parser.add_argument("--prof", metavar="MODULE:FONCTION",
@@ -51,6 +106,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("-q", "--quiet", action="store_true", help="n'affiche pas le détail de chaque partie")
     args = parser.parse_args(argv)
 
+    if is_problem(args.example):
+        try:
+            return solve_problems(args.example, args.probleme, args.son)
+        except (ProblemeMalForme, OSError, UnicodeDecodeError, ValueError) as error:
+            print(f"Erreur : {error}", file=sys.stderr)
+            return 1
     mother = Mother(verbose=args.verbose)
     try:
         print(mother.learn(args.example, keep_pool_test=args.keep).describe())
