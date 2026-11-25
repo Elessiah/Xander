@@ -39,6 +39,8 @@ def empty_knowledge(model) -> dict:
         "action": model.action.short_name,
         "end_signal": model.end_signal,
         "actions": [],      # actions que le jeu accepte au départ (essayées dans le labo)
+        "largeur": 1,       # arguments d'une action ; à plusieurs, une action est le tuple de ses arguments
+        "ecritures": None,  # sans pions : ce qu'écrit chaque partie de l'action (voir effets.ecritures)
         "reach": {},        # action -> cases qu'on l'a vue remplir, dans l'ordre déduit (labo)
         "written": ("joueur",),  # la valeur que l'action écrit (décrite par la mère, voir effets.ecriture)
         "free": ("toujours",),   # quand une case peut être jouée (décrit par la mère, voir effets.liberte)
@@ -95,13 +97,13 @@ def apres_source(effect: effets.Hypothese, written: tuple = ("joueur",)) -> str:
 def apres(etat, action, joueur):
     global VUES
     VUES += 1
-    return valeur_apres(etat, (action,))
+    return valeur_apres(etat, action if isinstance(action, tuple) else (action,))
 """
     return f"""{effets.source(effect)}
 
 def case_jouee(etat, action):
     \"\"\"La case que remplit l'action : la seule qui change, si elle peut être jouée.\"\"\"
-    cases = changees(etat, (action,))
+    cases = changees(etat, arguments(action))
     if len(cases) != 1:
         return None
     (case,) = cases
@@ -118,9 +120,10 @@ def apres(etat, action, joueur):
 
 
 def est_valeur(knowledge: dict) -> bool:
-    """L'état est-il une valeur (un nombre) plutôt qu'un tableau de cases ?"""
+    """L'état est-il une valeur (un nombre) plutôt qu'un tableau de cases à pions ? (Un tableau sans
+    pions, dont l'action écrit des valeurs, se traite comme une valeur : la position porte le trait.)"""
     effect = knowledge["effect"]
-    return effect is not None and effect.forme == effets.APRES
+    return effect is not None and (effect.forme == effets.APRES or knowledge.get("ecritures") is not None)
 
 
 def permise_source(free: tuple) -> str:
@@ -139,14 +142,61 @@ def permise_source(free: tuple) -> str:
 """
 
 
+def arguments_source(knowledge: dict) -> str:
+    """``arguments(action)`` : ce que le fils passe au jeu pour jouer une action."""
+    largeur = knowledge.get("largeur", 1)
+    return f'''LARGEUR = {largeur}  # arguments d'une action (vu dans l'exemple)
+
+
+def arguments(action):
+    """Les arguments d'une action : à plusieurs, l'action est le tuple de ses arguments."""
+    return tuple(action) if LARGEUR > 1 else (action,)
+
+
+def gele(valeur):
+    """Un état en liste devient un tuple (une position sert de clé)."""
+    return tuple(gele(v) for v in valeur) if isinstance(valeur, list) else valeur
+'''
+
+
+def prevision_source(knowledge: dict) -> str:
+    """``valeur_apres(avant, args)`` pour un tableau dont l'action écrit des valeurs : les briques
+    (recopiées de :data:`effets.AIDES_SOURCE`), les portées vues dans le labo, puis ce que la
+    mère a compris (où l'action écrit, ce qu'elle écrit, quand elle est permise)."""
+    return (effets.AIDES_SOURCE
+            + f"\n\nPORTEES = {pformat(knowledge['reach'], compact=True, width=70)}  # vu dans le labo\n\n\n"
+            + effets.source_prevision(knowledge["effect"], knowledge["ecritures"], knowledge["free"]))
+
+
+def suivant_source(knowledge: dict) -> str:
+    """``suivant(valeur, action)`` : la valeur d'après si l'action est permise, sinon ``None``."""
+    if knowledge.get("ecritures") is not None:
+        return f'''{prevision_source(knowledge)}
+
+def suivant(valeur, action):
+    """L'état après l'action, None si elle n'est pas permise (sa description le dit)."""
+    return valeur_apres(valeur, arguments(action))
+'''
+    return f'''{effets.source(knowledge["effect"])}
+
+{permise_source(knowledge["free"])}
+
+def suivant(valeur, action):
+    """La valeur après l'action, None si elle n'est pas permise."""
+    apres_ = valeur_apres(valeur, arguments(action))
+    return apres_ if permise(apres_) else None
+'''
+
+
 def perception_valeur_source(knowledge: dict) -> str:
-    """Les quatre notions, pour un état qui est une valeur (un nombre) et non un tableau.
+    """Les quatre notions, pour un état qui est une valeur (un nombre) et non un tableau, ou un
+    tableau sans pions (au Nim, les tas : l'action y écrit une valeur qui ne dit pas qui a joué).
 
     Une valeur ne dit pas qui a joué : la position que voient la mère et le fils
-    est ``[valeur, trait]`` (le joueur qui doit jouer). La fin de partie est une
-    valeur, avec le joueur qu'elle fait gagner : celui qui vient de jouer
-    (« dernier ») ou celui qui a le trait (« trait »). Il n'y a ni cases, ni
-    motifs, ni symétries : un souvenir retient l'action.
+    est ``[valeur, trait]`` (le joueur qui doit jouer ; un tableau y devient un
+    tuple). La fin de partie est une valeur, avec le joueur qu'elle fait gagner :
+    celui qui vient de jouer (« dernier ») ou celui qui a le trait (« trait »).
+    Il n'y a ni cases, ni motifs, ni symétries : un souvenir retient l'action.
     """
     return f'''# --- Perception (écrite par la mère) -------------------------------------
 # L'état est une valeur : l'action est décrite par le programme que la mère a
@@ -160,22 +210,21 @@ VUES = 0  # positions regardées pendant le coup en cours
 
 ACTIONS = {knowledge["actions"]!r}  # acceptées par le jeu (essayées dans le labo)
 
+{arguments_source(knowledge)}
 
-{effets.source(knowledge["effect"])}
-
-{permise_source(knowledge["free"])}
+{suivant_source(knowledge)}
 
 def possibles(etat):
     valeur, _ = etat
     if valeur in FINS:
         return []  # la partie est finie
-    return [action for action in ACTIONS if permise(valeur_apres(valeur, (action,)))]
+    return [action for action in ACTIONS if suivant(valeur, action) is not None]
 
 
 def apres(etat, action, joueur):
     global VUES
     VUES += 1
-    return [valeur_apres(etat[0], (action,)), adversaire(joueur)]
+    return [gele(valeur_apres(etat[0], arguments(action))), adversaire(joueur)]
 
 
 def gagne(etat, joueur):
@@ -232,6 +281,7 @@ ACTIONS = {knowledge["actions"]!r}  # acceptées par le jeu au départ (essayée
 PORTEES = {pformat(knowledge["reach"], compact=True, width=70)}  # cases que chaque action remplit, dans l'ordre
 ACTION_DE = {{case: action for action in reversed(ACTIONS) for case in PORTEES.get(action, [])}}
 
+{arguments_source(knowledge)}
 
 {free_source(knowledge["free"], knowledge["start"])}
 
@@ -338,13 +388,13 @@ def play(game):
     """Joue un tour : lit la valeur, choisit, joue. C'est mon tour : j'ai le trait. Jamais de
     retour en arrière, et un seul essai : essayer d'autres actions jusqu'à ce que le jeu en
     accepte une, ce serait tricher."""
-    valeur = getattr(game, GETTER)()
+    valeur = gele(getattr(game, GETTER)())
     moi = JOUEURS[0]  # seul compte qui joue : moi, qui ai le trait
     coup, _ = choisir([valeur, moi], moi)
-    resultat = getattr(game, ACTION)(coup)
+    resultat = getattr(game, ACTION)(*arguments(coup))
     if type(resultat) is type(FIN) and resultat == FIN:
         return resultat
-    if getattr(game, GETTER)() == valeur:  # un coup refusé ne change rien
+    if gele(getattr(game, GETTER)()) == valeur:  # un coup refusé ne change rien
         raise RuntimeError(f"coup impossible : le jeu a refusé {coup!r}")
     return resultat
 '''
@@ -380,7 +430,7 @@ def play(game):
     etat = getattr(game, GETTER)()
     moi = qui_suis_je(etat, MEMOIRE)
     coup, _ = choisir(etat, moi)
-    resultat = getattr(game, ACTION)(coup)
+    resultat = getattr(game, ACTION)(*arguments(coup))
     if type(resultat) is type(FIN) and resultat == FIN:
         return resultat
     suite = getattr(game, GETTER)()
@@ -439,13 +489,20 @@ def solo_source(name: str, knowledge: dict, nb_games: int = 0) -> str:
     sinon joue le coup par défaut. Il ne regarde aucune position à l'avance (``VUES`` reste 0)."""
     effect = knowledge["effect"]
     valeur = effect is not None and effect.forme == effets.APRES
-    if valeur and knowledge["free"][0] != "toujours":
+    if knowledge.get("ecritures") is not None:
+        permises = f"""{prevision_source(knowledge)}
+
+def possibles(etat):
+    \"\"\"Les actions permises : celles dont je prévois l'état d'après (sinon ce n'est pas un coup).\"\"\"
+    return [action for action in ACTIONS if valeur_apres(etat, arguments(action)) is not None]
+"""
+    elif valeur and knowledge["free"][0] != "toujours":
         permises = f"""{effets.source(effect)}
 
 {permise_source(knowledge["free"])}
 
 def possibles(etat):
-    return [action for action in ACTIONS if permise(valeur_apres(etat, (action,)))]
+    return [action for action in ACTIONS if permise(valeur_apres(etat, arguments(action)))]
 """
     else:
         permises = f'''def possibles(etat):
@@ -467,7 +524,9 @@ que ce que la mère lui a appris ; il l'exécute sans jamais revenir en arrière
 
 ACTIONS = {knowledge["actions"]!r}  # acceptées par le jeu (essayées dans le labo)
 VUES = 0  # positions regardées à l'avance pendant le coup en cours (aucune)
+FINS = {knowledge.get("fins", {})!r}  # état de fin compris (contre-épreuve) -> ce qu'il vaut
 
+{arguments_source(knowledge)}
 
 {permises}
 
@@ -498,17 +557,21 @@ HABITUEL = {knowledge.get("usual")!r}  # ce que l'action renvoie quand le coup e
 
 
 def choisir(etat, moi=None):
-    """Mon coup et sa raison : souvenir, sinon petit motif, sinon défaut (la plus petite action)."""
+    """Mon coup et sa raison : souvenir, sinon petit motif, sinon défaut (la plus petite action).
+    Aucun coup possible : (None, "aucun coup")."""
     global VUES
     VUES = 0
+    permis = possibles(etat)
+    if not permis:
+        return None, "aucun coup"
     cle = tuple(etat) if isinstance(etat, list) else etat
-    if cle in SOUVENIRS and SOUVENIRS[cle] in possibles(etat):
+    if cle in SOUVENIRS and SOUVENIRS[cle] in permis:
         return SOUVENIRS[cle], "souvenir"
     if isinstance(etat, list):
         for motif, coup in MOTIFS:
-            if contient(etat, motif) and coup in possibles(etat):
+            if contient(etat, motif) and coup in permis:
                 return coup, "petit motif"
-    return min(possibles(etat)), "défaut"
+    return min(permis), "défaut"
 
 
 def play(game):
@@ -516,7 +579,9 @@ def play(game):
     essai : essayer d'autres actions jusqu'à ce que le jeu en accepte une, ce serait tricher."""
     etat = getattr(game, GETTER)()
     coup, _ = choisir(etat)
-    resultat = getattr(game, ACTION)(coup)
+    if coup is None:
+        return None  # aucun coup possible : la partie est bloquée
+    resultat = getattr(game, ACTION)(*arguments(coup))
     if type(resultat) is type(FIN) and resultat == FIN:
         return resultat
     if type(resultat).__name__ != HABITUEL and getattr(game, GETTER)() == etat:
