@@ -244,7 +244,14 @@ mère voit quel coup il a choisi sans rien savoir de son fonctionnement.
    un entier.
 3. **Parties.** Le fils joue contre le professeur, contre un joueur au
    hasard et contre un adversaire « mixte » (une fois sur deux le coup du
-   professeur), une fois X, une fois O.
+   professeur), une fois X, une fois O. Si le jeu refuse un coup du fils, c'est
+   un **coup impossible** : sa perception se trompe. La mère note le refus
+   comme une observation du labo (rien n'a changé), réapprend quand une case
+   peut être jouée, réécrit le fils, et la partie continue. Si elle ne
+   comprend pas, elle s'arrête. **Règle de toute éducation** : après ses 5
+   premières parties, un fils ne fait plus aucun coup impossible (un test le
+   vérifie). Mieux vaut un fils qui apprend plus lentement qu'un fils qui
+   gagne vite en trichant.
 4. **Revue des décisions.** Pour chaque coup du fils, la mère demande son
    coup au professeur. S'il diffère, elle fait finir la partie au professeur
    des deux côtés, après chacun des deux coups. Si le coup du professeur mène
@@ -510,8 +517,10 @@ chaque correction, qui n'importe rien de Xander :
    plus tard transmettre l'expérience de ses frères.
 
 Le fils exécute son code bêtement : il ne simule que ce que ses règles
-demandent, sans mémoire, et n'appelle jamais `back` ; si le jeu refuse un
-coup, l'état n'a pas changé et il en essaie un autre. **Budget** : la mère
+demandent, sans mémoire, et n'appelle jamais `back`. Il ne joue qu'un coup
+par tour : si le jeu le refuse, il le dit (« coup impossible ») au lieu
+d'essayer d'autres actions jusqu'à ce que le jeu en accepte une, ce qui
+serait tricher. **Budget** : la mère
 refuse un refactor qui ferait regarder au fils plus de 1 000 positions pour
 un coup (un minimax complet en regarde plus de 500 000 au premier coup du
 Morpion) ; un test le vérifie sur toutes les positions.

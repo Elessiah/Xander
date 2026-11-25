@@ -248,21 +248,21 @@ def choisir(etat, moi):
 
 
 def play(game):
-    """Joue un tour : lit l'état, choisit, joue. Jamais de retour en arrière."""
+    """Joue un tour : lit l'état, choisit, joue. Jamais de retour en arrière, et un seul
+    essai : essayer d'autres actions jusqu'à ce que le jeu en accepte une, ce serait tricher."""
     etat = getattr(game, GETTER)()
     moi = qui_suis_je(etat, MEMOIRE)
     coup, _ = choisir(etat, moi)
-    for action in [coup] + [a for a in possibles(etat) if a != coup]:
-        resultat = getattr(game, ACTION)(action)
-        if type(resultat) is type(FIN) and resultat == FIN:
-            return resultat
-        suite = getattr(game, GETTER)()
-        if suite != etat:  # coup accepté (un coup refusé ne change rien)
-            case = case_jouee(etat, action)  # mon pion : ce qui est apparu là où j'ai joué
-            MEMOIRE["moi"] = suite[case] if case is not None and suite[case] in PIONS else moi
-            MEMOIRE["poses"] = sum(v in PIONS for v in suite)
-            return resultat
-    raise RuntimeError("le jeu a refusé toutes mes actions")
+    resultat = getattr(game, ACTION)(coup)
+    if type(resultat) is type(FIN) and resultat == FIN:
+        return resultat
+    suite = getattr(game, GETTER)()
+    if suite == etat:  # un coup refusé ne change rien
+        raise RuntimeError(f"coup impossible : le jeu a refusé {{coup!r}}")
+    case = case_jouee(etat, coup)  # mon pion : ce qui est apparu là où j'ai joué
+    MEMOIRE["moi"] = suite[case] if case is not None and suite[case] in PIONS else moi
+    MEMOIRE["poses"] = sum(v in PIONS for v in suite)
+    return resultat
 '''
 
 

@@ -128,10 +128,15 @@ class GameRecord:
     lessons: list[Lesson] = field(default_factory=list)
     patterns: list[list[int]] = field(default_factory=list)  # motifs découverts pendant la partie
     refactors: list[str] = field(default_factory=list)       # souvenirs remplacés par une règle
+    impossibles: list[str] = field(default_factory=list)     # coups du fils refusés par le jeu
 
     def __str__(self) -> str:
         text = f"partie {self.number:>3} | fils {self.son_side} contre {self.opponent:<10} : {self.result:<8}"
         text += f" | {len(self.lessons)} erreur(s)"
+        if self.impossibles:
+            text += f" | {len(self.impossibles)} coup(s) impossible(s)"
+        for impossible in self.impossibles:
+            text += f"\n      {impossible}"
         for pattern in self.patterns:
             text += f"\n      motif compris : {pattern}"
         for lesson in self.lessons:
@@ -229,6 +234,7 @@ class Education:
         self.knowledge["effect"] = self.trials.survivors[0]
         # Quand une case peut être jouée : déduit des coups joués et des coups refusés.
         self.knowledge["start"] = list(self.lab.states[0])
+        self.lab_cases = lab_cases                   # coups vus (joués et refusés) : la perception en vient
         self.knowledge["free"] = effets.liberte(self.knowledge["effect"], lab_cases,
                                                 self.knowledge["start"], self.knowledge["reach"])
         if self.knowledge["free"] is None:
@@ -236,6 +242,7 @@ class Education:
                            "elle ne peut pas encore éduquer de fils")
         self._son = self._mind = None                # code du fils et espace de pensée, à réécrire
         self.max_views = 0                           # plus grand nombre de positions regardées par le fils
+        self.impossibles: list[str] = []             # coups du fils refusés par le jeu (partie en cours)
         self.marks: dict[int, object] = {}          # parité du coup -> pion posé
         self.outcomes: dict[tuple, int | None] = {}  # position -> parité du gagnant (None : nul)
         self.teacher_moves: dict[tuple, tuple] = {}
@@ -849,21 +856,42 @@ class Education:
     # ------------------------------------------------------------------ #
 
     def play_game(self, opponent, son_side: int) -> tuple[int, list]:
+        """Une partie du fils contre ``opponent``. Si le jeu refuse son coup (un coup
+        impossible), la mère comprend pourquoi (:meth:`impossible`) et le fils rejoue ; les
+        coups impossibles de la partie sont dans ``self.impossibles``."""
         lab = self.lab
         lab.goto([])
-        decisions = []
+        decisions, self.impossibles = [], []
         while not lab.ended:
             if len(lab.moves) % 2 == son_side:
-                state = lab.states[-1]
+                moves, state = list(lab.moves), list(lab.states[-1])
                 action, reason = self.son.choisir(list(state), self.marks[son_side])
                 self.max_views = max(self.max_views, self.son.VUES)
-                decisions.append((list(lab.moves), list(state), action, reason))
                 if lab.play(action) == "refused":
-                    raise LabError(f"le jeu refuse l'action {action}, que le fils croyait possible")
+                    self.impossibles.append(self.impossible(state, action))
+                    continue
+                decisions.append((moves, state, action, reason))
             else:
                 lab.ask(opponent)
         winner = self.winner()
         return (0 if winner is None else 1 if winner == son_side else -1), decisions
+
+    def impossible(self, state: list, action) -> str:
+        """Le jeu a refusé le coup du fils. « Pourquoi ? » C'est sa perception qui se trompe :
+        la mère note le refus comme une observation du labo (rien n'a changé), réapprend quand
+        une case peut être jouée (:func:`effets.liberte`) et réécrit le fils. Si elle ne
+        comprend pas, ou si le fils croirait encore ce coup possible, elle s'arrête : un fils
+        qui essaie des coups jusqu'à ce que le jeu en accepte un tricherait."""
+        self.lab_cases.append(effets.Cas(list(state), (action,), list(state)))
+        free = effets.liberte(self.knowledge["effect"], self.lab_cases,
+                              self.knowledge["start"], self.knowledge["reach"])
+        if free is not None:
+            self.knowledge["free"] = free
+            self.rethink()
+        if free is None or action in self.mind.possibles(list(state)):
+            raise LabError(f"le jeu refuse l'action {action}, que le fils croyait possible, "
+                           "et la mère ne comprend pas pourquoi")
+        return f"coup impossible : {action} refusé ; une case peut être jouée : {free}"
 
     def variations(self, decisions: list, son_side: int) -> list:
         """« Et s'il avait joué ailleurs ? » La mère revient (``back``) sur chaque coup de
@@ -1351,6 +1379,7 @@ class Education:
             symmetry = None if self._symmetries_known else self.discover_symmetries()
             result, decisions = self.play_game(opponent, side)
             record = GameRecord(len(self.records), name, str(self.marks[side]), RESULTS[result])
+            record.impossibles = self.impossibles
             record.refactors += shifted
             if symmetry:
                 record.refactors.append(symmetry)

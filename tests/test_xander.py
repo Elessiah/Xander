@@ -395,6 +395,16 @@ class MotherTest(unittest.TestCase):
             self.assertEqual(game.board[0], "X")  # sans règle : première case libre
 
 
+class RefusingMorpion(Morpion):
+    """Un Morpion qui refuse tous les coups, et compte combien on en essaie."""
+
+    calls = 0
+
+    def play(self, *arguments):
+        self.calls += 1
+        return False
+
+
 class NoBackMorpion(Morpion):
     """Un Morpion qui interdit ``back`` : le fils ne doit jamais s'en servir."""
 
@@ -688,6 +698,33 @@ class EducationTest(unittest.TestCase):
         records = education(60).records[1:]
         first, last = records[:20], records[-20:]
         self.assertGreater(sum(len(r.lessons) for r in first), sum(len(r.lessons) for r in last))
+
+    def test_impossible_move_is_understood(self):
+        """Un coup refusé par le jeu est une erreur : la mère comprend pourquoi (sa perception
+        se trompait), réécrit le fils, et il ne recommence pas."""
+        teaching = education()
+        teaching.knowledge["free"] = ("toujours",)  # perception fausse : toute case se joue
+        teaching.rethink()
+        teaching.play_game(minmax_morpion_play, 0)
+        self.assertEqual(len(teaching.impossibles), 1)  # une case déjà prise
+        self.assertEqual(teaching.knowledge["free"], ("depart",))  # compris grâce au refus
+        teaching.play_game(minmax_morpion_play, 1)
+        self.assertEqual(teaching.impossibles, [])
+
+    def test_no_impossible_move_after_five_games(self):
+        """Après ses 5 premières parties, un fils ne fait plus aucun coup impossible."""
+        teaching = education(200)
+        self.assertEqual([r.number for r in teaching.records if r.number > 5 and r.impossibles], [])
+
+    def test_son_never_tries_another_action(self):
+        """Si le jeu refuse son coup, le fils le dit : essayer d'autres actions jusqu'à ce
+        que le jeu en accepte une, ce serait tricher."""
+        son = son_writer.load(render_son("fils", education()))
+        game = RefusingMorpion()
+        game.init("X")
+        with self.assertRaisesRegex(RuntimeError, "coup impossible"):
+            son.play(game)
+        self.assertEqual(game.calls, 1)
 
     def test_saved_son_plays_against_minmax_without_back(self):
         son = son_writer.load(render_son("fils", education(200)))  # le fichier écrit par la mère
