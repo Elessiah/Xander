@@ -295,8 +295,9 @@ de plus petit n'explique les cas), ce qui rejoint le jalon 2.
    faiblesses vues aux Allumettes : une règle « aucun de ses coups… » est
    vraie sans rien dire quand la partie est finie (il n'a plus de coup), et
    la période 4 demande de regarder plus loin que deux `AuMoins`.
-6. **Autres formes de problèmes.** Plus de deux joueurs, état qui n'est ni
-   un tableau ni un nombre (un nombre : fait, les Allumettes).
+6. **Autres formes de problèmes.** Plus de deux joueurs (fait : le Morpion
+   à trois, ci-dessous), état qui n'est ni un tableau ni un nombre (un
+   nombre : fait, les Allumettes).
    **Un joueur seul : fait** (`xander/un_joueur.py`, `docs/architecture.md`
    § 3 et § 6). Trois généralisations, chacune justifiée par un autre problème :
    - *l'état qui défile* : `suite = decale(avant, d)` sauf ce qui entre par
@@ -425,11 +426,31 @@ de plus petit n'explique les cas), ce qui rejoint le jalon 2.
      secret dans le labo) reste à comprendre (voir `docs/jeux.md`).
    - **Morpion à trois joueurs** (`Games/Morpion3.py`, 4 × 4, trois alignés ;
      professeur max^n `Games/MaxnMorpion3.py` ; exemple
-     `res/exampleMorpion3.py`) : trois joueurs, deux adversaires différents,
-     des tours à trois, un plateau plus grand. La mère y voit trois joueurs
-     et décrit l'action (`case(arg0)`) ; l'éducation s'arrête avant la
-     première partie (elle ne sait éduquer que deux joueurs qui alternent) ;
-     détail dans `docs/jeux.md`.
+     `res/exampleMorpion3.py`). **Plus de deux joueurs : fait** (sans rien
+     de propre au jeu dans `xander/`). La mère lit dans l'exemple l'ordre
+     des joueurs (un cycle, la parité en est le cas à deux), voit chaque
+     position de son côté (`M` moi, `A` le suivant, `B` celui d'après), et
+     ses concepts parlent de `suivant(joueur)` au lieu d'`adversaire` (à
+     deux, la même chose : Morpion, Allumettes et Nim identiques coup pour
+     coup). Une fin vaut victoire pour le gagnant, défaite pour les autres,
+     nul pour tous. En 200 parties : 24 alignements, 8 symétries, quatre
+     règles construites (gagner, parer le suivant, parer le 2e après moi par
+     composition, se créer une menace), 0 coup impossible, au plus 784
+     positions par coup, et 60 situations sur 60 tenues face au professeur à
+     sa place (détail dans `docs/jeux.md`).
+     **Reste à faire** (pour l'agent qui reprend) :
+     - refaire la mesure complète de 200 parties **après** la fusion des
+       actions à plusieurs arguments (interrompue à 80 parties, même rythme ;
+       script : l'éducation avec `Mother().raise_son`, puis
+       `examen.situations` / `examen.jouer` place par place) ;
+     - vérifier le Puissance 4 avant / après sur quelques parties (non
+       mesuré : trop lent dans le temps imparti ; la suite de tests passe) ;
+     - le temps : 200 parties prennent environ 29 minutes, à la limite d'un
+       examen blanc ; les refactors (`views`, `check`) rejouent tous les cas,
+       et 304 souvenirs s'accumulent (surtout des ouvertures) ;
+     - des règles pour ces souvenirs (une fourchette à trois, des petits
+       motifs d'ouverture) ; des variantes sur le coup de l'avant-dernier
+       joueur ; une fin à classement ou une victoire partagée.
 8. **Plus tard : l'expérience.** Partir des apprentissages réussis (motifs,
    règles) d'un fils pour en élever un autre plus vite.
 

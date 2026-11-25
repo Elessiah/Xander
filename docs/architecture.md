@@ -619,6 +619,31 @@ l'adversaire mixte ; graines 0 à 2, moins de 2 s chacune) :
   199 ou 200 victoires sur 200 contre le hasard, 17 ou 18 positions
   gagnables ratées sur 101.
 
+### Plus de deux joueurs : le Morpion à trois
+
+Rien n'y est propre au jeu : la mère lit dans l'exemple l'**ordre des
+joueurs** (un cycle ; la parité était le cas à deux), et tout ce qui comptait
+les coups `% 2` dépend de la place du joueur dans ce cycle
+(`Education.seat`) : le pion posé, qui a joué, la place du fils, les
+positions imaginées (`extra`, `grow`), la contre-épreuve (pions rangés par
+place, échange avec le pion d'un autre joueur), les motifs décalés, la revue
+et les variantes. Une position se lit de son côté : `M` moi, `A` le suivant,
+`B` celui d'après (à deux, les mêmes clés, les mêmes souvenirs). Une fin vaut
+pour chacun (`issue`) : victoire pour le gagnant, défaite pour tous les
+autres, nul pour tous ; quand le professeur finit une partie pour juger un
+coup, la mère compare les issues **pour le fils**. Les concepts disent
+`suivant(joueur)` au lieu d'`adversaire(joueur)` et désignent un joueur par
+sa place après moi (§ 8).
+
+Au Morpion à trois (4 × 4, trois alignés), en 200 parties : les 24
+alignements et les 8 symétries, quatre règles qu'elle construit (gagner,
+parer le suivant, `concept_1(lui)` : la parade vue du côté du suivant, donc
+parer le 2e après moi, et se créer une menace), 0 coup impossible, au plus
+784 positions regardées par coup, et le fils fait au moins aussi bien que le
+professeur à sa place dans les 60 situations de mesure. Restent 304
+souvenirs (surtout des ouvertures) et environ 29 minutes d'éducation.
+Détail et chiffres : `docs/jeux.md`.
+
 ### Un seul joueur : juger un coup par ce qui arrive — `xander/un_joueur.py`
 
 Quand l'exemple ne montre qu'un joueur (Jumper, Partition), il n'y a ni

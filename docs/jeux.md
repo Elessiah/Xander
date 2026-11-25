@@ -729,32 +729,65 @@ suivant peut parer ou non) ; un tour qui revient tous les trois coups ; un
 plateau plus grand que les fenêtres gagnantes (un même motif apparaît à
 plusieurs endroits).
 
-**Ce que la mère en comprend déjà** (`python -m xander
-res/exampleMorpion3.py`, sans rien changer à `xander/`) : la même chose
-qu'au Morpion. Elle voit `Joueurs (3) : X, O, Z`, un tour de deux appels
-(`get_game_state -> play`), l'annulation, le gagnant (`Z`), et décrit
-l'action seule : `changees = case(arg0)` (la case jouée), `valant(arg0)`.
-Elle ne dit pas dans quel ordre les joueurs se succèdent, ni qui est
-l'adversaire de qui.
+**Ce que la mère en comprend** (`python -m xander res/exampleMorpion3.py`) :
+`Joueurs (3) : X, O, Z`, un tour de deux appels (`get_game_state -> play`),
+l'annulation, le gagnant (`Z`), et l'action : `changees = case(arg0)` (la
+case jouée), `valant(arg0)`. À l'éducation, elle lit dans l'exemple
+**l'ordre des joueurs** (le cycle X, O, Z) : le joueur d'un coup est sa place
+dans le cycle (voir `docs/architecture.md`, § 6 et § 8). Rien n'est propre à
+ce jeu dans `xander/`.
 
-**Où l'éducation bloque** (`--prof Games.MaxnMorpion3:maxn_morpion3_play
---son morpion3 --parties 30`) : avant la première partie, dans
-`Education.__init__` (`xander/education.py`, test `alternate()`, qui veut
-exactement deux joueurs) :
+**Éducation** (`--prof Games.MaxnMorpion3:maxn_morpion3_play --son morpion3
+--parties 200`, graine 0, mesurée avant la fusion des actions à plusieurs
+arguments ; après la fusion, les 80 premières parties suivent le même
+rythme, la mesure complète n'a pas été refaite) :
 
-> Erreur : dans l'exemple, deux joueurs ne jouent pas chacun leur tour :
-> la mère ne sait encore éduquer un fils que pour ces jeux-là
+- Leçon de l'exemple : pions `X`, `O`, `Z` et le motif `[6, 9, 12]` par
+  contre-épreuve. Dans les toutes premières parties (moins de 10), motifs
+  décalés puis symétries : les
+  **24 alignements** et les **8 symétries du carré**.
+- Règles qu'elle construit seule (dès les 30 premières parties, inchangées
+  ensuite), dans l'ordre de priorité :
+  `gagne(moi)` (gagner) >
+  `Non(AuMoins(1, lui, gagne(lui)))` (parer le suivant) >
+  `concept_1(lui)` (la même brique vue du côté du suivant : parer **le 2e
+  après moi**) >
+  `AuMoins(1, moi, gagne(moi))` (se créer une menace). La parade du
+  troisième vient d'une composition : personne ne lui a dit qu'il existait.
+- 337 erreurs en 200 parties (par tranche de 10 : 53, 36, 9, 7, 24, 11, 16,
+  24, 19, 11, 12, 15, 26, 14, 10, 20, 5, 17, 6, 2). Contre le professeur, 29
+  en tout (7 en X, 11 en O, 11 en Z) ; les autres contre le hasard et
+  l'adversaire mixte, qui montrent sans cesse des positions nouvelles.
+- **304 souvenirs** restants, dont 2 petits motifs seulement : surtout des
+  ouvertures (« X a joué là, jouer ici ») et des positions tactiques que les
+  quatre règles n'expliquent pas. La courbe ne descend plus vraiment après 30
+  parties : il lui manque une règle plus fine (une fourchette à trois, où
+  chacun des deux autres peut boucher).
+- 0 coup impossible (ni avant, ni après la 5e partie).
+- Au plus **784 positions** regardées pour un coup (budget : 1 000).
+- Durée : **1 717 s** (environ 29 minutes) pour 200 parties, dont deux tiers
+  dans les refactors (`refactor_once` : `views` et `check` rejouent tous les
+  cas, qui grossissent avec les souvenirs). C'est à la limite de temps d'un
+  examen blanc (environ 30 minutes, mesure comprise).
 
-(Le message est trompeur : les joueurs jouent bien chacun leur tour, mais
-ils sont trois.)
+**Mesure** (protocole de `xander/examen.py` : 10 graines par place et par
+sorte d'adversaires, chaque situation jouée par le fils puis par le
+professeur ; V victoire, N nul, D défaite) :
 
-**Ce qui lui manquerait** : lire dans l'exemple l'**ordre des joueurs**
-(un cycle de longueur 3) au lieu de la parité ; tout ce qui compte les
-coups `% 2` dans l'éducation (le pion posé, qui a joué, le fils qui joue
-un coup sur deux, les positions imaginées) ; des positions qui ne se lisent
-plus en `M` / `A` / `.` mais distinguent **les deux adversaires** (le
-suivant et le troisième) ; et, dans les règles, plus d'`adversaire(joueur)`
-unique : `suivant(joueur)` et « les autres », pour qu'une parade dise
-**qui** elle pare. Enfin, juger un coup du fils en faisant finir la partie
-par le professeur suppose de savoir qui gagne et ce que vaut un nul pour
-chacun des trois.
+| Place | Contre 2 professeurs : fils / professeur | Contre 2 joueurs au hasard : fils / professeur |
+|---|---|---|
+| X (premier) | N10 / N10 | V10 / V9 N1 |
+| O (deuxième) | N10 / N10 | V10 / V9 D1 |
+| Z (troisième) | N10 / N10 | V9 N1 / V9 N1 |
+
+Le fils tient les **60 situations sur 60** (score relatif 1,00), au plus 784
+positions regardées par coup pendant la mesure. Après 30 parties seulement,
+59 sur 60 (en Z contre le hasard, une défaite là où le professeur fait nul).
+Ce n'est pas un examen blanc : la partie, le professeur et l'exemple ont
+servi au développement.
+
+**Ce qui manque encore** : des règles qui remplacent les souvenirs
+d'ouverture (petits motifs qui tiennent rarement sur 16 cases) et une
+tactique propre à trois (fourchette qui résiste aux deux autres) ; des
+variantes qui revoient aussi le coup de l'avant-dernier joueur ; et le temps
+(les refactors coûtent cher quand les souvenirs s'accumulent).
