@@ -104,9 +104,9 @@ Elle retrouve ainsi seule les anciennes hypothèses :
 
 Elle trouve aussi des combinaisons qu'aucune étiquette ne décrivait
 (`apres = moins(avant, plus(arg0, arg1))`). Au Morpion, `case(arg0)` et
-`valant(arg0)` coexistent (la case *n* contient le texte `"n"`) : rien ne les
-départage encore. Les appels dont aucun cas n'est expliqué sont listés dans
-`AnalysisReport.unknown_calls`.
+`valant(arg0)` coexistent (la case *n* contient le texte `"n"`) : l'exemple
+ne les départage pas, le labo s'en charge (§ 6). Les appels dont aucun cas
+n'est expliqué sont listés dans `AnalysisReport.unknown_calls`.
 
 Ce qui est encore fourni à la main : les deux formes (`apres`, `changees`), les
 feuilles, les cinq opérations, la taille maximale des programmes (5 nœuds) et
@@ -137,6 +137,22 @@ mère voit quel coup il a choisi sans rien savoir de son fonctionnement.
 
 ## 6. L'éducation du fils — `xander/education.py`
 
+0. **Mettre à l'épreuve la description de l'action.** Avant tout, la mère
+   joue dans son labo des coups que l'exemple ne montrait pas : depuis les
+   positions de l'exemple et de 8 parties au hasard, avec les valeurs vues
+   dans les arguments de l'exemple. Elle joue d'abord les expériences
+   **décisives** (les programmes restants n'annoncent pas tous la même
+   chose), puis d'autres en partant des positions les plus proches du début,
+   pour tenter de réfuter ce qui reste (40 coups en tout). Chaque coup accepté
+   est un nouveau cas ; un programme qu'il contredit est abandonné.
+   - Morpion : `case(arg0)` et `valant(arg0)` résistent à tout, ils sont
+     **indiscernables** et la mère prend le premier.
+   - Morpion à pions chiffrés (jeu d'essai des tests) : dès qu'un pion `"2"`
+     est posé, jouer la case libre 2 ne change qu'une case, ce qui réfute
+     `valant(arg0)`.
+   - Puissance 4 joué sur la rangée du bas : l'indice de la case vaut la
+     colonne, et l'Analyzer trouve `case(arg0)`. En jouant deux fois dans la
+     même colonne, la mère le réfute et sait qu'elle n'a pas compris l'action.
 1. **Leçon de l'exemple.** La mère rejoue l'exemple, vérifie que l'action
    change bien les cases que prédit son programme, apprend quel pion pose
    chaque joueur, puis comprend pourquoi la partie finit (ci-dessous).
@@ -302,9 +318,10 @@ fils dans `output/sons/<nom>.py`.
 - Le langage des effets (deux formes, deux feuilles, cinq opérations) est
   fourni. Il n'a pas de constantes ni d'ordre : un jeu dont l'état défile
   (Jumper) ou dont le jeton tombe (Puissance 4) n'est pas encore décrit.
-- Deux programmes de même taille vrais sur tous les cas coexistent (au
-  Morpion, `case(arg0)` et `valant(arg0)`) : la mère ne cherche pas encore
-  d'expérience qui les départage.
+- Les expériences n'essaient que les valeurs vues dans les arguments de
+  l'exemple ; un coup qui ne change rien de visible est pris pour un coup
+  refusé et n'apprend rien. Deux programmes qui résistent aux 40 expériences
+  sont déclarés indiscernables, pas prouvés équivalents.
 - Découpage des tours : un getter de confirmation appelé juste après le coup
   (`get, play, get`) est rattaché au tour suivant.
 - Éducation : seulement pour deux joueurs qui alternent, un état en tableau et

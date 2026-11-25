@@ -5,7 +5,9 @@ from pathlib import Path
 
 from Games.MinmaxMorpion import minmax_morpion_play
 from Games.Morpion import LINES, Morpion, is_free, winner_of
+from xander.analyzer import analyse
 from xander.education import Education
+from xander.game_model import GameModel
 from xander.lab import Lab, LabError
 from xander.model import Function, Variable
 from xander.mother import Mother, render_son
@@ -154,6 +156,53 @@ class EffectSourceTest(unittest.TestCase):
         self.assertNotIn("suite[action] = joueur", source)  # plus de gabarit
         son = son_writer.load(source)
         self.assertEqual(son.apres(["0", "1", "2"], 1, "X"), ["0", "X", "2"])
+
+
+def example(module: str, game: str, size: int, players: str, moves: list[int]) -> str:
+    """Un exemple de partie : chaque joueur lit le plateau puis joue."""
+    turns = "".join(f"# player {p}\nboard = game.get_game_state()  # array {size}\n"
+                    f"board = game.play({n})  # array {size}\n\n" for p, n in zip(players, moves))
+    return (f"# include\nfrom {module} import {game}\n\n# init\ngame = {game}()  # game\n"
+            f"board = game.init({players[0]!r})  # array {size}\n\n# back\nboard = game.back()  # array {size}\n\n"
+            + turns + f"# end player {players[0]}\n")
+
+
+def understood(text: str):
+    parsed = ExampleParser().parse_text(text)
+    return parsed, GameModel.from_analysis(parsed, analyse(parsed, replay(parsed)))
+
+
+class EffectExperimentTest(unittest.TestCase):
+    """La mère met à l'épreuve, dans son labo, ce qu'elle a compris de l'action."""
+
+    def test_decisive_experiment(self):
+        both = [CASE_INDICE, CASE_VALANT]
+        self.assertFalse(effets.decisive(both, ["0", "1", "X"], (1,)))
+        self.assertTrue(effets.decisive(both, ["0", "1", "X"], (2,)))  # la case 2 ne vaut plus 2
+        self.assertEqual(effets.departager(both, effets.Cas(["0", "1", "2"], (1,), ["0", "1", "2"])), both)
+
+    def test_morpion_hypotheses_are_indistinguishable(self):
+        """Au Morpion, aucune expérience ne sépare « la case d'indice n » et « la case qui vaut n »."""
+        trials = education().trials
+        self.assertEqual(trials.survivors, [CASE_INDICE, CASE_VALANT])
+        self.assertEqual(trials.refutations, {})
+        self.assertGreater(trials.played, 10)
+
+    def test_experiment_separates_hypotheses(self):
+        """Pions « 1 » et « 2 » : jouer la case 2 quand un « 2 » est posé ne change qu'une case."""
+        parsed, model = understood(example("tests.jeu_chiffres", "MorpionChiffres", 9, "12121", [2, 0, 4, 3, 6]))
+        self.assertEqual([op.programme for op in model.report.operations["game.play"]], [CASE_INDICE, CASE_VALANT])
+        trials = Education(parsed, model, None).trials
+        self.assertEqual(trials.survivors, [CASE_INDICE])
+        self.assertEqual(list(trials.refutations), [CASE_VALANT])
+
+    def test_experiment_refutes_a_coincidence(self):
+        """Puissance 4 joué sur la rangée du bas : l'indice de la case vaut la colonne… jusqu'à ce
+        que la mère joue deux fois dans la même colonne."""
+        parsed, model = understood(example("Games.Puissance4", "Puissance4", 42, "XOXOXOX", [0, 4, 1, 5, 2, 6, 3]))
+        self.assertEqual([op.programme for op in model.report.operations["game.play"]], [CASE_INDICE])
+        with self.assertRaisesRegex(LabError, r"réfuté \[changees = case\(arg0\)\]"):
+            Education(parsed, model, None)
 
 
 class MotherTest(unittest.TestCase):

@@ -27,8 +27,11 @@
      (aujourd'hui le pion du joueur, supposé) et à ne plus supposer ailleurs
      que l'argument d'un coup est la case jouée (`possibles`, contre-épreuve,
      symétries) ;
-   - quand plusieurs programmes survivent, chercher dans le labo une
-     expérience qui les départage ;
+   - fait (étape 3) : la mère met ses programmes à l'épreuve dans le labo,
+     d'abord par des expériences qui les départagent, puis pour réfuter ce
+     qui reste (une coïncidence de l'exemple ne survit plus). Piste : un coup
+     refusé est aussi une observation (`valant(arg0)` annonce qu'une case
+     occupée ne change rien), qui pourrait apprendre `possibles` ;
    - décrire l'action du Puissance 4 (« le jeton tombe dans la colonne *p* »)
      sans brique de gravité : les cases liées à un argument, puis la première
      libre dans un ordre.

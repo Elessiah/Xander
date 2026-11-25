@@ -336,3 +336,29 @@ def source(hypothese: Hypothese) -> str:
     return (f"def {nom}(avant, args):\n"
             f'    """{quoi.capitalize()} : {hypothese!r} (trouvé par la mère)."""\n'
             f"    return {traduire(hypothese.terme)}\n")
+
+
+# ---------------------------------------------------------------------- #
+# Mettre les hypothèses à l'épreuve (expériences dans le labo)
+# ---------------------------------------------------------------------- #
+
+def predictions(hypotheses: list[Hypothese], valeur_avant, arguments: tuple) -> list:
+    """Ce que chaque hypothèse annonce si l'on joue ``arguments`` sur ``valeur_avant``."""
+    cas = Cas(valeur_avant, tuple(arguments), None)
+    return [_cle(evaluer(h.terme, cas)) for h in hypotheses]
+
+
+def decisive(hypotheses: list[Hypothese], valeur_avant, arguments: tuple) -> bool:
+    """L'expérience départage-t-elle des hypothèses (elles n'annoncent pas toutes la même chose) ?"""
+    return len(set(predictions(hypotheses, valeur_avant, arguments))) > 1
+
+
+def departager(hypotheses: list[Hypothese], cas: Cas) -> list[Hypothese]:
+    """Les hypothèses que le résultat de l'expérience ne contredit pas.
+
+    Un cas où il n'y a rien à expliquer (coup refusé, fin de partie) ne
+    contredit personne.
+    """
+    if cas.forme is None:
+        return list(hypotheses)
+    return [h for h in hypotheses if explique(h, cas)]

@@ -46,6 +46,7 @@ est le programme trouvé ; les cases changées reçoivent le pion du joueur.
 
 from __future__ import annotations
 
+import itertools
 import random
 from dataclasses import dataclass, field
 
@@ -66,6 +67,11 @@ CASE_DESIGNEE = effets.Hypothese(effets.CHANGEES, effets.case(effets.arg(0)))
 #: Le fils pense comme un joueur humain : il reconnaît, il ne calcule pas tout.
 #: La mère refuse une règle qui lui ferait regarder plus de positions pour un coup.
 BUDGET = 1000
+
+#: Coups que la mère joue dans son labo pour mettre à l'épreuve la description de l'action.
+EXPERIENCES = 40
+#: Parties au hasard qui fournissent des positions où faire ces expériences.
+PARTIES_D_ESSAI = 8
 
 
 @dataclass
@@ -148,6 +154,23 @@ def mixed_player(teacher, rng: random.Random):
     return play
 
 
+@dataclass
+class Trials:
+    """Les expériences de la mère sur l'action : ce qui a résisté, ce qui a été réfuté et par quoi."""
+
+    survivors: list
+    played: int = 0
+    refutations: dict = field(default_factory=dict)  # hypothèse -> cas qui la contredit
+
+    def describe(self) -> str:
+        text = f"{self.survivors[0]!r}" if self.survivors else "rien"
+        if len(self.survivors) > 1:
+            others = ", ".join(map(repr, self.survivors[1:]))
+            text += f" (indiscernable de {others})"
+        refuted = f", {len(self.refutations)} réfutée(s)" if self.refutations else ""
+        return f"{text} : {self.played} expérience(s) dans le labo{refuted}"
+
+
 class Education:
     def __init__(self, parsed: ParsedExample, model: GameModel, teacher, seed: int = 0):
         operations = model.report.operations.get(model.action.name, []) if model.report and model.action else []
@@ -157,18 +180,21 @@ class Education:
         if not effects:
             raise LabError("l'Analyzer n'a pas trouvé quelles cases change l'action : "
                            "la mère ne peut pas encore éduquer de fils")
-        if CASE_DESIGNEE not in effects:
-            raise LabError(f"la mère raisonne encore sur la case jouée et il lui faut {CASE_DESIGNEE!r}, "
-                           f"elle a trouvé {effects} : elle ne peut pas encore éduquer de fils")
         self.parsed = parsed
         self.model = model
         self.lab = Lab(parsed, model)
         self.teacher = teacher
+        self.seed = seed
         self.rng = random.Random(seed)
         self.knowledge = son_writer.empty_knowledge(model)
-        # Plusieurs programmes de même taille expliquent tous les cas : faute d'expérience
-        # qui les départage, la mère prend le premier trouvé.
-        self.knowledge["effect"] = effects[0]
+        self.trials = self.test_effects(effects)
+        survivors = self.trials.survivors
+        if CASE_DESIGNEE not in survivors:
+            raise LabError(f"la mère raisonne encore sur la case jouée et il lui faut {CASE_DESIGNEE!r}, "
+                           f"elle a gardé {survivors} : elle ne peut pas encore éduquer de fils")
+        # Les programmes qui restent ont résisté à toutes les expériences : quand il en reste
+        # plusieurs, aucune ne les a départagés, et la mère prend le premier trouvé.
+        self.knowledge["effect"] = survivors[0]
         self._son = self._mind = None                # code du fils et espace de pensée, à réécrire
         self.max_views = 0                           # plus grand nombre de positions regardées par le fils
         self.marks: dict[int, object] = {}          # parité du coup -> pion posé
@@ -186,6 +212,85 @@ class Education:
         self.max_size, self.max_depth = 6, 2         # bornes de la recherche de concepts
         self.counts = (1,)                           # valeurs de k dans AuMoins(k, …) : « il existe »
         self.budget = BUDGET                         # positions que le fils peut regarder pour un coup
+
+    # ------------------------------------------------------------------ #
+    # Mettre à l'épreuve la description de l'action
+    # ------------------------------------------------------------------ #
+
+    def test_effects(self, effects: list) -> Trials:
+        """Joue dans le labo des coups que l'exemple ne montrait pas, pour réfuter ou départager.
+
+        Les positions viennent de l'exemple et de parties jouées au hasard ; les
+        arguments essayés sont les valeurs vues dans les arguments de l'exemple.
+        La mère joue d'abord les expériences qui départagent les hypothèses
+        restantes (elles n'annoncent pas toutes la même chose), puis d'autres,
+        au hasard en partant des positions les plus proches du début, pour
+        tenter de réfuter ce qui reste. Si plus rien ne
+        résiste, elle sait qu'elle n'a pas compris l'action.
+        """
+        rng, lab, trials = random.Random(f"effets-{self.seed}"), self.lab, Trials(list(effects))
+        calls = [f for f in self.parsed.player_functions() if f.name == self.model.action.name]
+        values = list(dict.fromkeys(a for f in calls for a in f.arguments))
+        width = len(self.model.action.parameters)
+        candidates = list(itertools.product(values, repeat=width))[:200]
+        example = [tuple(f.arguments) for f in calls]
+        seen = {(tuple(example[:k]), example[k]) for k in range(len(example))}
+
+        positions = []  # (coups, état)
+        if lab.goto([]):
+            positions.append(([], lab.states[-1]))
+        for k in range(1, len(example)):
+            if lab.goto(example[:k]) and not lab.ended:
+                positions.append((example[:k], lab.states[-1]))
+        for _ in range(PARTIES_D_ESSAI):
+            moves: list[tuple] = []
+            lab.goto([])
+            while len(moves) < 4 * max(len(example), 1):
+                for arguments in rng.sample(candidates, len(candidates)):
+                    outcome = lab.play(*arguments)
+                    if outcome == "moved":
+                        moves.append(arguments)
+                        positions.append((list(moves), lab.states[-1]))
+                        break
+                    if outcome == "end":
+                        lab.undo()
+                else:
+                    break  # aucun coup ne fait avancer la partie sans la finir
+        experiences = [(m, state, a) for m, state in positions for a in candidates
+                       if (tuple(m), a) not in seen]
+        rng.shuffle(experiences)
+        experiences.sort(key=lambda e: len(e[0]))  # d'abord près du début : le contre-exemple le plus simple
+
+        survivors = trials.survivors
+        while trials.played < EXPERIENCES and survivors and experiences:
+            index = next((i for i, (_, state, a) in enumerate(experiences)
+                          if effets.decisive(survivors, state, a)), 0)
+            moves, _, arguments = experiences.pop(index)
+            if not lab.goto(moves) or lab.ended:
+                continue
+            before = lab.states[-1]
+            trials.played += 1
+            try:
+                outcome = lab.play(*arguments)
+            except Exception:  # le jeu ne supporte pas cette expérience : on repart d'une partie neuve
+                lab.new_game()
+                continue
+            if outcome == "moved":
+                case = effets.Cas(before, arguments, lab.states[-1])
+                kept = effets.departager(survivors, case)
+                for hypothesis in survivors:
+                    if hypothesis not in kept:
+                        trials.refutations[hypothesis] = case
+                survivors = trials.survivors = kept
+            if outcome != "refused":
+                lab.undo()
+        lab.goto([])
+        if not survivors:
+            case = next(iter(trials.refutations.values()))
+            call = f"{self.model.action.short_name}({', '.join(map(repr, case.arguments))})"
+            raise LabError(f"le labo a réfuté {effects} : sur {case.valeur_avant}, {call} a changé "
+                           f"les cases {sorted(case.cible())} ; l'Analyzer doit d'abord mieux comprendre l'action")
+        return trials
 
     # ------------------------------------------------------------------ #
     # Perception
