@@ -3,10 +3,10 @@
 Un examen blanc mesure la mère sur des problèmes **inédits**, écrits à
 l'avance et gardés sous scellé hors du dépôt (jalon 6 de la feuille de
 route). Le lanceur ne connaît aucun problème en particulier : il ne fait que
-de la plomberie (trouver l'exemple et le professeur, rendre le dossier du
-problème importable), puis il fait éduquer un fils par la mère avec l'API
-habituelle (:meth:`Mother.raise_son`), mesure ce fils et écrit un rapport.
-Il ne change rien à la mère.
+de la plomberie (trouver l'exemple, le professeur et l'arbitre, rendre le
+dossier du problème importable), puis il fait éduquer un fils par la mère
+avec l'API habituelle (:meth:`Mother.raise_son`), mesure ce fils et écrit un
+rapport. Il ne change rien à la mère.
 
 **Convention.** Chaque sous-dossier direct de ``<dossier>`` est un problème,
 pris dans l'ordre alphabétique et numéroté à partir de 1. Il contient :
@@ -14,41 +14,69 @@ pris dans l'ordre alphabétique et numéroté à partir de 1. Il contient :
 * ``exemple.py`` : une vraie partie, au format de ``docs/format-exemple.md`` ;
   sa section ``# include`` importe le jeu par son nom de module (le dossier
   du problème est mis dans le chemin d'import, y compris pour le rejeu) ;
-* ``professeur.py`` : une fonction ``professeur(game)`` qui joue un coup.
+* ``professeur.py`` : une fonction ``professeur(game)`` qui joue un coup ;
+* ``arbitre.py`` : ce que sait l'auteur du problème, et pas la mère : comment
+  une partie commence et se termine, ce qui compte comme un bon résultat, et
+  quels coups sont permis. Obligatoire. Interface (noms au niveau du module) :
 
-Le jeu suit l'interface des jeux à deux joueurs de ``docs/jeux.md`` : le
-verdict de chaque partie de mesure est lu dans le jeu lui-même (``win`` :
-``"X"``, ``"O"`` ou ``"D"`` ; ``get_turn()`` pour savoir qui est qui), pas
-dans ce que la mère en comprend. Sans ``win``, on garde le verdict de la mère.
+  - ``joueurs`` : le nombre de joueurs (1, 2, 3…) ;
+  - ``plafond`` : le nombre maximal de coups d'une partie de mesure (au-delà,
+    la partie s'arrête et on lit le résultat tel quel : indispensable quand
+    on survit plus ou moins longtemps) ;
+  - ``nouvelle_partie(graine)`` : une partie neuve et initialisée, commencée
+    comme celle de l'exemple ; la graine sert aux jeux qui en ont une ;
+  - ``a_qui(game)`` : la place (``0`` à ``joueurs - 1``) du joueur au trait ;
+  - ``finie(game)`` : la partie est-elle finie ?
+  - ``resultat(game, place)`` : un nombre, plus grand est meilleur (victoire
+    1, nul 0, défaite -1 ; ou la durée de survie ; ou moins le nombre
+    d'essais). Appelé sur une partie finie, ou arrêtée au plafond ;
+  - ``coups_permis(game)`` : la liste de **tous** les coups que le jeu accepte
+    maintenant, chacun sous la forme ``(nom_de_methode, argument, …)``, par
+    exemple ``[("play", 0), ("play", 3)]``. Le joueur au hasard de la mesure
+    tire parmi eux, et un coup du fils qui n'y est pas est un coup impossible.
 
-**Budget et barème, fixés avant tout examen** (:data:`BUDGET`) :
+**Barème : au moins aussi bien que le professeur à sa place.** Une
+*situation* de mesure est une graine, une place à la table et des adversaires
+(tous les autres joueurs sont le professeur, ou tous jouent au hasard ; seul,
+il n'y en a pas). Chaque situation se joue deux fois, avec les mêmes graines
+et les mêmes autres joueurs : une fois le fils à cette place, une fois le
+professeur. Le fils la *tient* si son ``resultat`` à cette place est au
+moins celui du professeur, sans coup impossible. Score relatif d'un
+problème : la part des situations tenues. Problème **réussi** : toutes les
+situations tenues, et aucun coup impossible après les :attr:`Budget.rodage`
+premières parties d'éducation. Si la mère dit qu'elle ne sait pas éduquer ce
+problème, si elle plante ou si le temps est dépassé : raté, score relatif 0.
 
-* la mère éduque le fils pendant :attr:`Budget.parties` parties, graine
-  :attr:`Budget.graine` ;
-* chaque problème a :attr:`Budget.limite` secondes en tout (compréhension,
-  éducation et mesure) ; au-delà, il est raté ;
-* mesure, sans correction : :attr:`Budget.professeur` parties contre le
-  professeur et :attr:`Budget.hasard` contre un joueur au hasard, le fils
-  jouant chaque côté une fois sur deux ; on compte aussi les coups
-  impossibles du fils après ses :attr:`Budget.rodage` premières parties ;
-* un problème est **réussi** si le fils ne perd aucune partie de mesure et
-  ne fait aucun coup impossible après son rodage. Si la mère dit qu'elle ne
-  sait pas éduquer ce problème, ou si elle plante, il est raté ;
-* score = problèmes réussis / total.
+Le fils mesuré est son code tel que la mère l'a écrit, chargé à part et joué
+**sans correction** : rien de la mesure ne revient vers la mère. Le lanceur
+ne lit jamais la fin d'une partie de mesure dans la mère : c'est l'arbitre
+qui décide.
+
+**Budget, fixé avant tout examen** (:data:`BUDGET`). Le nombre de parties
+d'éducation, de situations et le plafond de coups bornent le travail ; une
+limite de temps par problème reste comme garde-fou. Elle est exprimée en
+multiples d'une tâche de référence fixe (:func:`tache_de_reference`), mesurée
+au début de l'examen, pour dépendre moins de la machine.
 
 Chaque problème passe dans un sous-processus à part (modules du jeu isolés,
-limite de temps tenue en l'arrêtant). Le rapport donne le commit, la date, le
-budget, puis pour chaque problème son numéro, réussi ou raté, et la durée :
-rien d'autre sur leur contenu. Il est écrit sur la sortie et dans un fichier
-hors du dépôt (par défaut dans ``<dossier>``).
+limite de temps tenue en l'arrêtant). Le rapport donne le commit, la date, la
+machine et sa mesure de référence, le budget, puis pour chaque problème son
+numéro, réussi ou raté, son score relatif, son nombre de joueurs et la
+durée : rien d'autre sur leur contenu. Il est écrit sur la sortie et dans un
+fichier hors du dépôt (par défaut dans ``<dossier>``).
 """
 
 from __future__ import annotations
 
 import argparse
+import contextlib
+import copy
 import datetime
+import io
 import json
+import numbers
 import os
+import platform
 import random
 import subprocess
 import sys
@@ -60,23 +88,26 @@ from xander.rebuilder import PROJECT_ROOT
 
 EXEMPLE = "exemple.py"
 PROFESSEUR = "professeur.py"
+ARBITRE = "arbitre.py"
 FONCTION_PROFESSEUR = "professeur"
+INTERFACE_ARBITRE = ("joueurs", "plafond", "nouvelle_partie", "a_qui", "finie", "resultat", "coups_permis")
 MARQUEUR = "@@examen"
 
 
 @dataclass(frozen=True)
 class Budget:
     parties: int = 200        # parties d'éducation
-    limite: float = 30 * 60   # secondes par problème, tout compris
-    graine: int = 0
-    professeur: int = 2       # parties de mesure contre le professeur (fils et professeur déterministes)
-    hasard: int = 100         # parties de mesure contre le hasard
+    graine: int = 0           # graine maîtresse : éducation, graines des parties de mesure, hasard
+    graines: int = 10         # graines de mesure (pour chaque place et chaque sorte d'adversaires)
     rodage: int = 5           # coups impossibles tolérés pendant les premières parties d'éducation
+    facteur: float = 20_000   # limite de temps par problème, en multiples de la tâche de référence
 
     def describe(self) -> str:
-        return (f"{self.parties} parties d'éducation, {self.limite:g} s par problème, graine {self.graine} ; "
-                f"mesure : {self.professeur} parties contre le professeur et {self.hasard} contre le hasard "
-                f"(chaque côté une fois sur deux), aucun coup impossible après la partie {self.rodage}")
+        return (f"{self.parties} parties d'éducation, graine maîtresse {self.graine} ; mesure : "
+                f"{self.graines} graines pour chaque place et chaque sorte d'adversaires (professeur, "
+                f"hasard ; aucun pour un joueur seul), chaque situation jouée par le fils puis par le "
+                f"professeur ; aucun coup impossible après la partie {self.rodage} ; limite de temps : "
+                f"{self.facteur:g} fois la tâche de référence par problème")
 
 
 #: Le budget de l'examen, fixé avant tout examen. Ne pas le changer pour un examen en cours.
@@ -87,11 +118,62 @@ class BranchementError(Exception):
     """Le lanceur n'arrive pas à brancher un problème (plomberie, pas la mère)."""
 
 
+class FauteDuFils(Exception):
+    """Pendant la mesure, le fils fait un coup impossible ou plante."""
+
+
 @dataclass
 class Resultat:
     numero: int
     reussi: bool
+    relatif: float
+    joueurs: int
     duree: float
+
+
+@dataclass(frozen=True)
+class Situation:
+    graine: int        # graine de la partie (``nouvelle_partie``)
+    place: int         # place mesurée (``0`` à ``joueurs - 1``)
+    adversaires: str   # "professeur", "hasard" ou "seul"
+
+    def tirage(self) -> str:
+        """Graine du hasard de cette situation (la même pour le fils et pour le professeur)."""
+        return f"{self.graine}/{self.place}/{self.adversaires}"
+
+
+# --------------------------------------------------------------------------- #
+# La machine
+# --------------------------------------------------------------------------- #
+
+def tache_de_reference() -> int:
+    """Une petite tâche fixe en Python pur (tirer, trier, compter), qui ne dépend d'aucun
+    problème : sa durée sert d'unité à la limite de temps."""
+    rng = random.Random(20261125)
+    total = 0
+    for _ in range(200):
+        valeurs = sorted(rng.randrange(1000) for _ in range(1000))
+        comptes: dict = {}
+        for v in valeurs:
+            comptes[v] = comptes.get(v, 0) + 1
+        total += len(comptes) + sum(i * v for i, v in enumerate(valeurs[:50]))
+    return total
+
+
+def mesure_de_reference(essais: int = 5) -> float:
+    """Durée de la tâche de référence sur cette machine (la plus courte de ``essais``)."""
+    durees = []
+    for _ in range(essais):
+        debut = time.perf_counter()
+        tache_de_reference()
+        durees.append(time.perf_counter() - debut)
+    return min(durees)
+
+
+def machine() -> str:
+    processeur = platform.processor() or platform.machine() or "processeur inconnu"
+    return (f"{platform.platform()}, {processeur}, {os.cpu_count()} cœurs, "
+            f"Python {platform.python_version()}")
 
 
 # --------------------------------------------------------------------------- #
@@ -115,26 +197,80 @@ def environnement(probleme: Path, graine: int) -> dict:
     return env
 
 
-def verifier_branchement(probleme: Path, env: dict) -> None:
+def controler_arbitre(arbitre) -> int:
+    """Vérifie l'interface d'un arbitre sur une partie neuve ; renvoie son nombre de joueurs.
+    Lève :class:`BranchementError` si quelque chose manque ou ne va pas."""
+    manque = [nom for nom in INTERFACE_ARBITRE if not hasattr(arbitre, nom)]
+    if manque:
+        raise BranchementError(f"{ARBITRE} : il manque {', '.join(manque)}")
+    joueurs, plafond = arbitre.joueurs, arbitre.plafond
+    for nom, valeur in (("joueurs", joueurs), ("plafond", plafond)):
+        if type(valeur) is not int or valeur < 1:
+            raise BranchementError(f"{ARBITRE} : {nom} doit être un entier positif")
+    for nom in INTERFACE_ARBITRE[2:]:
+        if not callable(getattr(arbitre, nom)):
+            raise BranchementError(f"{ARBITRE} : {nom} doit être une fonction")
+    with contextlib.redirect_stdout(io.StringIO()):
+        game = arbitre.nouvelle_partie(0)
+        if arbitre.finie(game):
+            raise BranchementError(f"{ARBITRE} : une partie neuve est déjà finie")
+        if arbitre.a_qui(game) not in range(joueurs):
+            raise BranchementError(f"{ARBITRE} : a_qui doit donner une place entre 0 et {joueurs - 1}")
+        coups = arbitre.coups_permis(game)
+        if not isinstance(coups, list) or not coups or not all(
+                isinstance(c, tuple) and c and isinstance(c[0], str) for c in coups):
+            raise BranchementError(f"{ARBITRE} : coups_permis doit donner une liste non vide de "
+                                   "tuples (nom_de_methode, argument, …)")
+        valeur = arbitre.resultat(game, 0)
+        if isinstance(valeur, bool) or not isinstance(valeur, numbers.Real):
+            raise BranchementError(f"{ARBITRE} : resultat doit être un nombre")
+    return joueurs
+
+
+def _controle_arbitre() -> None:
+    """Contrôle lancé dans un sous-processus (le dossier du problème est dans le chemin)."""
+    import arbitre  # noqa: PLC0415 — le module du problème, trouvé par PYTHONPATH
+    try:
+        joueurs = controler_arbitre(arbitre)
+    except BranchementError as erreur:
+        print(erreur, file=sys.stderr)
+        sys.exit(1)
+    print(MARQUEUR, json.dumps({"joueurs": joueurs}), flush=True)
+
+
+def _sous_processus(commande: list, env: dict, timeout: float | None):
+    return subprocess.run(commande, cwd=PROJECT_ROOT, env=env, stdin=subprocess.DEVNULL,
+                          capture_output=True, text=True, encoding="utf-8", errors="replace",
+                          timeout=timeout)
+
+
+def _reponse(sortie: str) -> dict | None:
+    """La dernière ligne ``@@examen {…}`` d'une sortie."""
+    lignes = [l for l in sortie.splitlines() if l.startswith(MARQUEUR + " ")]
+    return json.loads(lignes[-1][len(MARQUEUR) + 1:]) if lignes else None
+
+
+def verifier_branchement(probleme: Path, env: dict) -> int:
     """Avant que la mère voie quoi que ce soit : les fichiers existent, l'exemple s'exécute
     tel quel depuis la racine du dépôt (comme le rejeu, qui part d'un dossier temporaire : les
-    imports ne passent que par ``PYTHONPATH``) et le professeur s'importe."""
-    for nom in (EXEMPLE, PROFESSEUR):
+    imports ne passent que par ``PYTHONPATH``), le professeur s'importe et l'arbitre a son
+    interface. Renvoie le nombre de joueurs donné par l'arbitre."""
+    for nom in (EXEMPLE, PROFESSEUR, ARBITRE):
         if not (probleme / nom).is_file():
             raise BranchementError(f"{probleme.name} : {nom} manquant")
     controles = (
         [sys.executable, "-c", f"import runpy; runpy.run_path({str(probleme / EXEMPLE)!r})"],
         [sys.executable, "-c", f"import {Path(PROFESSEUR).stem} as p; assert callable(p.{FONCTION_PROFESSEUR})"],
+        [sys.executable, "-c", "from xander.examen import _controle_arbitre; _controle_arbitre()"],
     )
     for commande in controles:
         try:
-            fini = subprocess.run(commande, cwd=PROJECT_ROOT, env=env, stdin=subprocess.DEVNULL,
-                                  capture_output=True, text=True, encoding="utf-8", errors="replace",
-                                  timeout=120)
+            fini = _sous_processus(commande, env, 120)
         except subprocess.TimeoutExpired:
             raise BranchementError(f"{probleme.name} : le contrôle {commande[1:]} ne se termine pas") from None
         if fini.returncode != 0:
             raise BranchementError(f"{probleme.name} : le contrôle {commande[1:]} échoue :\n{fini.stderr}")
+    return _reponse(fini.stdout)["joueurs"]
 
 
 def commit() -> str:
@@ -154,42 +290,144 @@ def dans_le_depot(chemin: Path) -> bool:
 
 
 # --------------------------------------------------------------------------- #
-# Un problème (dans son sous-processus)
+# La mesure (dans le sous-processus d'un problème)
 # --------------------------------------------------------------------------- #
 
-def mesurer(education, budget: Budget) -> bool:
-    """Le fils joue sans correction ; ``True`` s'il ne perd aucune partie et ne fait aucun
-    coup impossible. Le verdict est celui du jeu (``win``) quand il le donne."""
-    adversaires = [(education.teacher, budget.professeur),
-                   (education.random_player(random.Random(budget.graine + 1)), budget.hasard)]
-    for adversaire, nombre in adversaires:
-        for numero in range(nombre):
-            symboles = set()
-
-            def joue(game, adversaire=adversaire, symboles=symboles):
-                if hasattr(game, "get_turn"):
-                    symboles.add(game.get_turn())
-                adversaire(game)
-
-            resultat, _ = education.play_game(joue, numero % 2)
-            if education.impossibles:
-                return False
-            if verdict(education.lab.game, symboles, resultat) < 0:
-                return False
-    return True
+def situations(joueurs: int, budget: Budget) -> list[Situation]:
+    """Toutes les situations de mesure : graines (tirées de la graine maîtresse) × places ×
+    adversaires."""
+    rng = random.Random(budget.graine)
+    graines = [rng.randrange(2 ** 31) for _ in range(budget.graines)]
+    adversaires = ("seul",) if joueurs == 1 else ("professeur", "hasard")
+    return [Situation(g, place, a) for g in graines for place in range(joueurs) for a in adversaires]
 
 
-def verdict(game, symboles_adversaire: set, resultat_mere: int) -> int:
-    """1 : le fils gagne, 0 : nul, -1 : il perd. Lu dans le jeu s'il dit qui a gagné."""
-    gagnant = getattr(game, "win", None)
-    if not isinstance(gagnant, str) or not gagnant or len(symboles_adversaire) != 1:
-        return resultat_mere
-    if gagnant == "D":
-        return 0
-    return -1 if gagnant in symboles_adversaire else 1
+class VueDuFils:
+    """Le jeu tel que le fils le voit pendant un de ses tours de mesure.
+
+    Les appels passent au vrai jeu, sauf les coups : un appel dont le nom est celui d'un coup
+    permis (``coups_permis`` de l'arbitre) est un coup. Le premier, s'il est permis, est joué ;
+    tout autre (un coup que l'arbitre ne permet pas, un deuxième essai) n'est pas transmis et
+    sera compté impossible. Une fois la partie finie (selon l'arbitre), le fils ne lit plus
+    qu'une copie du jeu : certains jeux recommencent une partie quand on lit un état terminé."""
+
+    def __init__(self, game, arbitre):
+        permis = arbitre.coups_permis(game)
+        object.__setattr__(self, "_etat", {"jeu": game, "arbitre": arbitre, "permis": permis,
+                                           "noms": {c[0] for c in permis}, "coups": [],
+                                           "copie": None})
+
+    def coup_joue(self) -> bool:
+        """Le fils a-t-il joué exactement un coup, et un coup permis ?"""
+        etat = self._etat
+        return len(etat["coups"]) == 1 and etat["coups"][0] in etat["permis"]
+
+    def __getattr__(self, nom):
+        etat = self._etat
+        jeu = etat["jeu"]
+        valeur = getattr(jeu, nom)
+        if not callable(valeur):
+            return valeur
+
+        def appel(*args, **kwargs):
+            if nom in etat["noms"]:
+                coup = (nom, *args)
+                etat["coups"].append(coup)
+                if len(etat["coups"]) > 1 or kwargs or coup not in etat["permis"]:
+                    return None   # pas transmis : un coup impossible
+                return valeur(*args)
+            if etat["copie"] is None and etat["coups"] and etat["arbitre"].finie(jeu):
+                etat["copie"] = copy.deepcopy(jeu)
+            if etat["copie"] is not None:
+                return getattr(etat["copie"], nom)(*args, **kwargs)
+            return valeur(*args, **kwargs)
+        return appel
+
+    def __setattr__(self, nom, valeur):
+        raise FauteDuFils("le fils modifie le jeu")
 
 
-def passer_probleme(probleme: Path, budget: Budget) -> bool:
+def joueur_fils(fils):
+    """Le fils à sa place : il joue son tour avec son propre code (``play``), sur une vue du jeu.
+    Un coup impossible ou un plantage est une :class:`FauteDuFils`."""
+    def joue(game, arbitre):
+        vue = VueDuFils(game, arbitre)
+        try:
+            fils.play(vue)
+        except Exception as erreur:  # noqa: BLE001 — le fils plante : c'est sa faute, sans regarder pourquoi
+            raise FauteDuFils(type(erreur).__name__) from None
+        if not vue.coup_joue():
+            raise FauteDuFils("coup impossible")
+    return joue
+
+
+def joueur_professeur(professeur):
+    def joue(game, arbitre):
+        professeur(game)
+    joue.__name__ = "professeur"
+    return joue
+
+
+def coup_au_hasard(game, arbitre, rng: random.Random) -> None:
+    """Un vrai coup au hasard parmi les coups que le jeu permet (selon l'arbitre, pas la mère)."""
+    nom, *arguments = rng.choice(arbitre.coups_permis(game))
+    getattr(game, nom)(*arguments)
+
+
+def jouer(arbitre, situation: Situation, a_sa_place, professeur):
+    """Une partie de mesure : ``a_sa_place`` tient la place mesurée, les autres places sont
+    tenues par le professeur ou par le hasard. Les graines ne dépendent que de la situation :
+    le hasard global (un professeur ou un jeu non déterministe) et chaque coup au hasard sont
+    les mêmes pour le fils et pour le professeur tant que leurs parties le permettent. Renvoie
+    ``resultat`` pour la place mesurée."""
+    tirage = situation.tirage()
+    random.seed(tirage)
+
+    def arbitrer(fonction, *args):
+        try:
+            return fonction(*args)
+        except FauteDuFils:
+            raise
+        except Exception as erreur:  # noqa: BLE001
+            raise BranchementError(f"pendant la mesure, {getattr(fonction, '__name__', fonction)} "
+                                   f"échoue : {type(erreur).__name__}: {erreur}") from None
+
+    game = arbitrer(arbitre.nouvelle_partie, situation.graine)
+    coups = 0
+    while coups < arbitre.plafond and not arbitrer(arbitre.finie, game):
+        place = arbitrer(arbitre.a_qui, game)
+        if place == situation.place:
+            arbitrer(a_sa_place, game, arbitre)   # une faute du fils passe telle quelle
+        elif situation.adversaires == "professeur":
+            arbitrer(professeur, game)
+        else:
+            arbitrer(coup_au_hasard, game, arbitre, random.Random(f"{tirage}/{coups}"))
+        coups += 1
+    return arbitrer(arbitre.resultat, game, situation.place)
+
+
+def mesurer(education, arbitre, professeur, budget: Budget) -> float:
+    """Le score relatif : la part des situations où le fils, à sa place, fait au moins aussi
+    bien que le professeur à la même place. Le fils est son code tel que la mère l'a écrit,
+    chargé à part : il joue sans correction, et rien ne revient vers la mère."""
+    from xander import son_writer
+
+    source = education.source()
+    liste = situations(arbitre.joueurs, budget)
+    tenues = 0
+    with contextlib.redirect_stdout(io.StringIO()):  # les professeurs commentent leurs coups
+        for situation in liste:
+            fils = son_writer.load(source)  # un fils neuf pour chaque partie : aucune mémoire d'une autre
+            try:
+                du_fils = jouer(arbitre, situation, joueur_fils(fils), professeur)
+            except FauteDuFils:
+                continue
+            du_professeur = jouer(arbitre, situation, joueur_professeur(professeur), professeur)
+            tenues += du_fils >= du_professeur
+    return tenues / len(liste)
+
+
+def passer_probleme(probleme: Path, budget: Budget) -> dict:
     """Fait éduquer un fils par la mère sur ``probleme``, puis le mesure. Toute erreur de la
     mère (elle ne sait pas éduquer ce problème, ou elle plante) rend le problème raté."""
     import importlib
@@ -197,21 +435,28 @@ def passer_probleme(probleme: Path, budget: Budget) -> bool:
     from xander.mother import Mother
 
     teacher = getattr(importlib.import_module(Path(PROFESSEUR).stem), FONCTION_PROFESSEUR)
+    arbitre = importlib.import_module(Path(ARBITRE).stem)
+    rate = {"reussi": False, "relatif": 0.0}
     random.seed(budget.graine)
     try:
         education = Mother().raise_son(probleme / EXEMPLE, teacher, budget.parties, seed=budget.graine)
-        if any(record.impossibles for record in education.records if record.number > budget.rodage):
-            return False
-        return mesurer(education, budget)
+        triche = any(record.impossibles for record in education.records if record.number > budget.rodage)
+        relatif = mesurer(education, arbitre, teacher, budget)
+    except BranchementError:
+        raise
     except Exception:  # noqa: BLE001 — la mère ne sait pas, ou plante : raté, sans regarder pourquoi
-        return False
+        return rate
+    return {"reussi": relatif == 1 and not triche, "relatif": relatif}
 
 
 def _enfant(probleme: str, budget_json: str) -> int:
-    """Point d'entrée du sous-processus : une ligne ``@@examen {"reussi": …}`` sur la sortie."""
+    """Point d'entrée du sous-processus : une ligne ``@@examen {…}`` sur la sortie."""
     budget = Budget(**json.loads(budget_json))
-    reussi = passer_probleme(Path(probleme), budget)
-    print(MARQUEUR, json.dumps({"reussi": reussi}), flush=True)
+    try:
+        reponse = passer_probleme(Path(probleme), budget)
+    except BranchementError as erreur:
+        reponse = {"branchement": str(erreur)}
+    print(MARQUEUR, json.dumps(reponse), flush=True)
     return 0
 
 
@@ -219,23 +464,23 @@ def _enfant(probleme: str, budget_json: str) -> int:
 # L'examen
 # --------------------------------------------------------------------------- #
 
-def lancer(probleme: Path, numero: int, budget: Budget) -> Resultat:
+def lancer(probleme: Path, numero: int, budget: Budget, limite: float) -> Resultat:
     env = environnement(probleme, budget.graine)
-    verifier_branchement(probleme, env)
+    joueurs = verifier_branchement(probleme, env)
     commande = [sys.executable, "-m", "xander.examen", "--un-probleme", str(probleme),
                 "--budget", json.dumps(asdict(budget))]
     debut = time.monotonic()
     try:
-        fini = subprocess.run(commande, cwd=PROJECT_ROOT, env=env, stdin=subprocess.DEVNULL,
-                              capture_output=True, text=True, encoding="utf-8", errors="replace",
-                              timeout=budget.limite)
+        fini = _sous_processus(commande, env, limite)
     except subprocess.TimeoutExpired:
-        return Resultat(numero, False, time.monotonic() - debut)
+        return Resultat(numero, False, 0.0, joueurs, time.monotonic() - debut)
     duree = time.monotonic() - debut
-    lignes = [l for l in fini.stdout.splitlines() if l.startswith(MARQUEUR + " ")]
-    if not lignes:  # le sous-processus est mort sans répondre (mémoire, plantage de Python…)
-        return Resultat(numero, False, duree)
-    return Resultat(numero, bool(json.loads(lignes[-1][len(MARQUEUR) + 1:])["reussi"]), duree)
+    reponse = _reponse(fini.stdout)
+    if reponse is None:  # le sous-processus est mort sans répondre (mémoire, plantage de Python…)
+        return Resultat(numero, False, 0.0, joueurs, duree)
+    if "branchement" in reponse:
+        raise BranchementError(f"{probleme.name} : {reponse['branchement']}")
+    return Resultat(numero, bool(reponse["reussi"]), float(reponse["relatif"]), joueurs, duree)
 
 
 def passer_examen(dossier: str | Path, budget: Budget = BUDGET, rapport: str | Path | None = None,
@@ -253,9 +498,14 @@ def passer_examen(dossier: str | Path, budget: Budget = BUDGET, rapport: str | P
     rapport = Path(rapport) if rapport else dossier / f"rapport-{debut:%Y-%m-%d-%H%M%S}.txt"
     if dans_le_depot(rapport):
         raise BranchementError("le rapport s'écrit hors du dépôt")
+    reference = mesure_de_reference()
+    limite = budget.facteur * reference
     lignes = [f"Examen blanc : {dossier.name}",
               f"Commit : {commit()}",
               f"Date : {debut:%Y-%m-%d %H:%M}",
+              f"Machine : {machine()}",
+              f"Tâche de référence : {reference:.3f} s ; limite par problème : {limite:.0f} s "
+              f"({budget.facteur:g} fois la référence)",
               f"Budget : {budget.describe()}"
               + ("" if budget == BUDGET else " (budget réduit, ce n'est pas un examen)"),
               f"Problèmes : {len(liste)}", ""]
@@ -263,13 +513,16 @@ def passer_examen(dossier: str | Path, budget: Budget = BUDGET, rapport: str | P
         sortie(ligne)
     resultats = []
     for numero, probleme in enumerate(liste, 1):
-        resultat = lancer(probleme, numero, budget)
+        resultat = lancer(probleme, numero, budget, limite)
         resultats.append(resultat)
-        ligne = f"Problème {numero} : {'réussi' if resultat.reussi else 'raté'} ({resultat.duree:.0f} s)"
+        ligne = (f"Problème {numero} : {'réussi' if resultat.reussi else 'raté'}, score relatif "
+                 f"{resultat.relatif:.2f} ({resultat.joueurs} joueur{'s' if resultat.joueurs > 1 else ''}, "
+                 f"{resultat.duree:.0f} s)")
         lignes.append(ligne)
         sortie(ligne)
     score = sum(r.reussi for r in resultats)
-    lignes += ["", f"Score : {score}/{len(resultats)}"]
+    relatif = sum(r.relatif for r in resultats) / len(resultats)
+    lignes += ["", f"Score : {score}/{len(resultats)} ; score relatif moyen : {relatif:.2f}"]
     sortie(lignes[-2])
     sortie(lignes[-1])
     rapport.parent.mkdir(parents=True, exist_ok=True)

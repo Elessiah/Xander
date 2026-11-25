@@ -943,44 +943,167 @@ python -m xander.examen C:\chemin\hors\du\depot\examen-blanc-N
 ```
 
 **Convention.** Chaque sous-dossier du dossier d'examen est un problème
-(ordre alphabétique, numérotés à partir de 1) qui contient `exemple.py` (une
-vraie partie, au format de `docs/format-exemple.md`, dont le `# include`
-importe le jeu par son nom de module) et `professeur.py` (une fonction
-`professeur(game)` qui joue un coup). Le jeu suit l'interface des jeux à deux
-joueurs (`docs/jeux.md`).
+(ordre alphabétique, numérotés à partir de 1). Il contient trois fichiers,
+tous obligatoires :
+
+- `exemple.py` : une vraie partie, au format de `docs/format-exemple.md`, dont
+  le `# include` importe le jeu par son nom de module ;
+- `professeur.py` : une fonction `professeur(game)` qui joue un coup (pour un
+  jeu à un joueur aussi : c'est la référence de la mesure) ;
+- `arbitre.py` : ce que sait l'auteur du problème, et pas la mère (voir
+  ci-dessous).
+
+Seuls l'exemple et le professeur vont à la mère, comme pour tout jeu.
+L'arbitre ne sert qu'à la mesure.
+
+**L'arbitre.** C'est l'auteur du problème qui sait comment son jeu se
+termine et ce qui compte comme un bon résultat. Le lanceur ne lit jamais la
+fin d'une partie de mesure dans la mère, ni dans une interface supposée du
+jeu (`win`, `get_turn`) : c'est l'arbitre qui décide. Interface, au niveau
+du module :
+
+| Nom | Rôle |
+|---|---|
+| `joueurs` | le nombre de joueurs (1, 2, 3…) |
+| `plafond` | le nombre maximal de coups d'une partie de mesure ; au-delà, la partie s'arrête et on lit le résultat tel quel (indispensable quand on survit plus ou moins longtemps) |
+| `nouvelle_partie(graine)` | une partie neuve et initialisée, **commencée comme celle de l'exemple** (même premier joueur, mêmes réglages) ; la graine sert aux jeux qui en ont une |
+| `a_qui(game)` | la place du joueur au trait, de `0` à `joueurs - 1` (toujours `0` pour un joueur seul) |
+| `finie(game)` | la partie est-elle finie ? |
+| `resultat(game, place)` | un nombre, plus grand est meilleur : victoire 1, nul 0, défaite −1 ; ou la durée de survie ; ou moins le nombre d'essais. Appelé sur une partie finie, ou arrêtée au plafond |
+| `coups_permis(game)` | la liste de **tous** les coups que le jeu accepte maintenant, chacun sous la forme `(nom_de_methode, argument, …)`, par exemple `[("play", 0), ("play", 3)]` |
+
+`coups_permis` sert deux fois, sans passer par la mère : le joueur au hasard
+de la mesure tire parmi ces coups (un vrai hasard, même si la mère n'a pas
+trouvé toutes les actions), et un coup du fils qui n'y est pas est un coup
+impossible.
+
+Un exemple d'arbitre (le Morpion de `Games/`, deux joueurs) :
+
+```python
+from jeu import Morpion
+
+joueurs = 2
+plafond = 9
+
+
+def nouvelle_partie(graine):
+    game = Morpion()
+    game.init("X")          # comme l'exemple : X commence
+    return game
+
+
+def a_qui(game):
+    return "XO".index(game.get_turn())
+
+
+def finie(game):
+    return bool(game.win)
+
+
+def resultat(game, place):
+    if game.win in ("", "D"):
+        return 0
+    return 1 if game.win == "XO"[place] else -1
+
+
+def coups_permis(game):
+    return [("play", case) for case in game.get_moves()]
+```
+
+Pour un jeu où l'on survit (Partition) : `joueurs = 1`, `a_qui` renvoie 0,
+`resultat` renvoie le nombre de temps joués et `plafond` borne la partie.
+Pour un casse-tête réussi en plus ou moins de coups : `resultat` renvoie
+moins le nombre de coups, et une valeur plus basse que tout si le plafond
+est atteint sans réussir. Les tests (`tests/test_examen.py`) en donnent
+quatre : Morpion, Partition, Allumettes et Jumper.
 
 **Plomberie.** Le dossier du problème est ajouté à `PYTHONPATH`, que le rejeu
 (`xander/rebuilder.py`) conserve : l'exemple s'importe aussi dans le
 sous-processus du rejeu et dans le labo. Avant que la mère voie quoi que ce
-soit, le lanceur vérifie que l'exemple s'exécute tel quel depuis la racine du
-dépôt et que le professeur s'importe ; sinon l'examen s'arrête sur une
-« erreur de branchement » (ce n'est pas un échec de la mère). Chaque problème
+soit, le lanceur vérifie que les trois fichiers existent, que l'exemple
+s'exécute tel quel depuis la racine du dépôt, que le professeur s'importe et
+que l'arbitre a son interface (une partie neuve n'est pas finie, `a_qui`
+donne une place, `coups_permis` une liste non vide, `resultat` un nombre).
+Sinon l'examen s'arrête sur une « erreur de branchement » : ce n'est pas un
+échec de la mère, et aucun score n'est écrit. Un professeur ou un arbitre qui
+plante pendant la mesure est aussi une erreur de branchement. Chaque problème
 passe dans son propre sous-processus (modules isolés, limite de temps tenue
 en l'arrêtant, `PYTHONHASHSEED` fixé). Les problèmes et le rapport doivent
 être hors du dépôt.
 
-**Budget et barème, fixés avant tout examen** (`BUDGET`, vérifié par un test) :
+**Barème : au moins aussi bien que le professeur à sa place.** Une
+*situation* de mesure est une graine de partie, une place à la table et des
+adversaires : tous les autres joueurs sont le professeur, ou tous jouent au
+hasard (un joueur seul n'a pas d'adversaire). Chaque situation se joue deux
+fois : une fois le fils à cette place, une fois le professeur, avec les mêmes
+graines et les mêmes autres joueurs. Le hasard global (`random`, pour un
+professeur ou un jeu non déterministe) est réinitialisé par la situation
+avant chaque partie, et chaque coup au hasard a sa graine (situation et
+numéro du coup) : tant que les deux parties restent les mêmes, le hasard y
+fait les mêmes choix. Le fils *tient* la situation si son `resultat` à cette
+place est au moins celui du professeur, sans coup impossible.
+
+Ce barème vaut pour un, deux ou trois joueurs, avec ou sans nul, avec ou sans
+vraie défaite : perdre une partie que le professeur perd aussi (aux
+Allumettes, partir en premier d'une position perdante) n'est pas un échec,
+et survivre aussi longtemps que lui suffit.
 
 | | |
 |---|---|
-| Éducation | 200 parties (le défaut de `raise_son`), graine 0 |
-| Limite de temps | 30 minutes par problème, tout compris (compréhension, éducation, mesure) ; au-delà, raté |
-| Mesure, sans correction | 2 parties contre le professeur (une de chaque côté : fils et professeur sont déterministes), 100 contre le joueur au hasard de la mère (50 de chaque côté) |
-| Réussi | aucune partie de mesure perdue, et aucun coup impossible après les 5 premières parties d'éducation ni pendant la mesure |
-| Raté | sinon, et aussi si la mère dit qu'elle ne sait pas éduquer ce problème, si elle plante ou si le temps est dépassé |
-| Score | problèmes réussis / total |
+| Score relatif d'un problème | la part des situations tenues (de 0 à 1) |
+| Réussi | toutes les situations tenues, et aucun coup impossible après les 5 premières parties d'éducation ni pendant la mesure (« le fils ne triche jamais ») |
+| Raté | sinon ; aussi, avec un score relatif 0, si la mère dit qu'elle ne sait pas éduquer ce problème, si elle plante ou si le temps est dépassé |
+| Score de l'examen | problèmes réussis / total, et la moyenne des scores relatifs |
 
-Le verdict d'une partie de mesure est lu **dans le jeu** (`win`, et
-`get_turn()` pour savoir quel joueur est l'adversaire), pas dans ce que la
-mère en comprend ; sans `win`, on garde celui de la mère. Le joueur au
-hasard, lui, est celui de la mère : il tire parmi les actions qu'elle a
-trouvées.
+**La mesure ne nourrit jamais la mère.** Le fils mesuré est son code tel que
+la mère l'a écrit (`education.source()`), chargé à part, neuf pour chaque
+partie. Il joue avec sa propre fonction `play`, sur une vue du jeu : les
+appels passent au vrai jeu, sauf les coups. Le premier coup, s'il est permis,
+est joué ; un coup que l'arbitre ne permet pas, ou un deuxième essai, n'est
+pas transmis et compte comme un coup impossible (la situation est perdue).
+Une fois la partie finie, le fils ne lit plus qu'une copie du jeu (certains
+jeux recommencent une partie quand on lit un état terminé). Rien de ce qui
+se passe pendant la mesure ne revient vers la mère : elle ne corrige pas, ne
+réécrit pas, et son labo n'est pas utilisé (un test le vérifie).
+
+**Budget, fixé avant tout examen** (`BUDGET`, vérifié par un test) :
+
+| | |
+|---|---|
+| Éducation | 200 parties (le défaut de `raise_son`) |
+| Graine maîtresse | 0 : éducation, graines des parties de mesure, hasard |
+| Mesure | 10 graines pour chaque place et chaque sorte d'adversaires : 10 situations pour un joueur seul, 40 à deux joueurs, 60 à trois ; deux parties par situation, chacune d'au plus `plafond` coups |
+| Rodage | aucun coup impossible après la partie 5 de l'éducation |
+| Limite de temps | 20 000 fois la tâche de référence par problème (environ 30 minutes sur la machine de développement), tout compris |
+
+Le travail est borné par les nombres de parties et le plafond de coups. La
+limite de temps n'est qu'un garde-fou ; pour qu'elle dépende moins de la
+machine, le lanceur mesure au début une **tâche de référence** fixe en Python
+pur (`tache_de_reference` : tirer, trier et compter 200 000 nombres, la plus
+courte de 5 mesures, environ 0,09 s sur la machine de développement) et la
+limite est un multiple de cette mesure. Le rapport donne la machine, la
+mesure et la limite qui en découle.
 
 **Rapport.** Sur la sortie et dans un fichier hors du dépôt (par défaut
 `<dossier>/rapport-<date>.txt`) : le commit (signalé s'il y a des
-modifications non commitées), la date, le budget, puis pour chaque problème
-son numéro, réussi ou raté, et la durée. Rien d'autre sur le contenu des
-problèmes, ni sur la raison d'un échec.
+modifications non commitées), la date, la machine et sa mesure de référence,
+le budget, puis pour chaque problème son numéro, réussi ou raté, son score
+relatif, son nombre de joueurs et la durée ; enfin les deux scores. Rien
+d'autre sur le contenu des problèmes, ni sur la raison d'un échec.
+
+**Écrire un problème.**
+
+1. Écrire le jeu (un module dans le dossier du problème), une vraie partie
+   en exemple, un professeur qui joue bien et l'arbitre. `nouvelle_partie`
+   commence comme l'exemple : la mère n'a vu que ce début-là.
+2. `coups_permis` liste tous les coups que le jeu accepte, sous la forme
+   exacte où on les passe au jeu ; un coup accepté par le jeu mais absent de
+   la liste serait compté impossible pour le fils.
+3. `resultat` dit ce qui compte, pour chaque place, sur une partie finie ou
+   arrêtée au plafond ; le `plafond` laisse au professeur le temps de faire
+   ce qu'il sait faire.
+4. Vérifier que tout est bien formé sans lancer la mère, par exemple avec
+   `controler_arbitre` et une partie professeur contre professeur.
 
 **Passer un examen.**
 
@@ -990,10 +1113,30 @@ problèmes, ni sur la raison d'un échec.
 2. Commiter : le commit de l'examen est celui qu'affiche le rapport.
 3. Lancer `python -m xander.examen <dossier>` une seule fois, sans rien
    toucher pendant l'examen. Si le lanceur s'arrête sur une erreur de
-   branchement, on ne corrige que le lanceur et on relance tout.
-4. Noter la date, l'examen, le jeu de problèmes, le commit et le score dans
-   le « Journal des examens » de `docs/feuille-de-route.md`. Ne pas regarder
-   pourquoi un problème a raté : ce jeu de problèmes ne sert plus.
+   branchement, on ne corrige que le lanceur ou la plomberie du problème
+   (jamais la mère) et on relance tout.
+4. Noter la date, l'examen, le jeu de problèmes, le commit et les deux scores
+   dans le « Journal des examens » de `docs/feuille-de-route.md`. Ne pas
+   regarder pourquoi un problème a raté : ce jeu de problèmes ne sert plus.
+
+**Ce qui reste fragile.** Contre le hasard, dès que le fils et le professeur
+jouent autrement, leurs parties divergent et le hasard n'y fait plus les
+mêmes choix : la comparaison mêle alors habileté et chance. Le score binaire
+demande de tenir toutes les situations ; une seule partie malchanceuse le
+fait tomber (le score relatif, lui, le montre à peine). L'arbitre est écrit à
+la main par l'auteur du problème : une erreur de sa part (un coup permis
+oublié, un résultat mal lu) fausse la mesure sans erreur de branchement. La
+tâche de référence ne mesure que la vitesse du Python pur sur un cœur : la
+limite reste approximative d'une machine à l'autre.
+
+**Historique.** L'examen blanc n° 1 a été passé avec l'ancien barème (pas
+d'arbitre ; verdict lu dans `win` et `get_turn` du jeu, sinon dans la mère ;
+réussi si le fils ne perd aucune des 2 parties contre le professeur ni des 100
+contre le joueur au hasard de la mère ; 30 minutes par problème). Ce barème a
+été changé à cause des fragilités du protocole qu'il a montrées (hasard
+emprunté à la mère, fin lue dans la mère, « ne jamais perdre » sans sens pour
+un jeu sans nul ou à un joueur, deux parties seulement contre le professeur,
+limite dépendant de la machine), pas à cause du score.
 
 ## Limites connues
 
