@@ -6,7 +6,7 @@
 |---|---|
 | Lire un exemple de partie | fait |
 | Rejouer l'exemple et observer chaque valeur | fait |
-| Déduire l'effet des fonctions (opérations) | fait, hypothèses codées en dur |
+| Déduire l'effet des fonctions (opérations) | fait : programmes construits par la mère, langage fourni |
 | Associer getters et setters aux variables | fait |
 | Comprendre le déroulé d'un tour | fait |
 | Déduire les conditions de victoire | fait : motifs trouvés par contre-épreuve |
@@ -19,9 +19,16 @@
 ## Prochaines étapes proposées
 
 1. **Analyzer plus général.** C'est lui qui donne à la mère le vocabulaire
-   pour percevoir un jeu. Il doit décrire l'action du Puissance 4 (« le jeton
-   tombe dans la colonne *p* »), celle des Allumettes (quantité), et laisser
-   coexister plusieurs hypothèses vraies.
+   pour percevoir un jeu. La mère construit déjà la description de l'action
+   avec un petit langage (étape 1, faite : elle retrouve seule les anciennes
+   hypothèses, et celles de même taille coexistent). Suite :
+   - faire du programme trouvé le `apres` que la mère écrit dans le fils, à la
+     place du gabarit `suite[action] = joueur` ;
+   - quand plusieurs programmes survivent, chercher dans le labo une
+     expérience qui les départage ;
+   - décrire l'action du Puissance 4 (« le jeton tombe dans la colonne *p* »)
+     sans brique de gravité : les cases liées à un argument, puis la première
+     libre dans un ordre.
 2. **Configurations n'importe où.** Les motifs de fin se décalent déjà
    (vérifiés dans le labo). Il reste à faire de même pour ce qu'elle apprend :
    un souvenir ou une règle qui porte sur quelques cases, reconnu partout où

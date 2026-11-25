@@ -8,7 +8,8 @@
       │  rebuilder.py       réécriture en script + exécution dans un sous-processus
       ▼
  observations   ── {time: valeur renvoyée}
-      │  analyzer.py        comparaison avant / après chaque coup
+      │  analyzer.py        comparaison avant / après chaque coup (des cas)
+      │  effets.py          la mère construit le programme qui explique les cas
       ▼
  AnalysisReport ── opérations par fonction, getters / setters par variable
       │  game_model.py      synthèse : joueurs, déroulé d'un tour, annulation
@@ -70,20 +71,46 @@ Pour chaque appel qui agit (`INPUT` / `INOUT`) on cherche des couples
   puis celles des getters appelés juste après lui ;
 - **avant** : la dernière valeur observée de la même variable avant l'appel.
 
-On teste ensuite des hypothèses codées en dur, dans l'ordre, et on garde la
-première qui colle (`FunctionOperation`) :
+Chaque couple est un **cas** (`xander/effets.py`). Un couple où il n'y a rien
+à comparer n'est pas un cas : le dernier coup renvoie un booléen au lieu du
+plateau, ou rien n'a changé.
 
-| Avant / après | Paramètres | Hypothèses |
-|---|---|---|
-| tableaux | 1 | `SINGLE_TARGET_INDEX` (seule la case d'indice *p* change), puis `SINGLE_TARGET_NAME` (seules les cases valant *p* changent) |
-| tableaux | 2 | `SRC_DEST_TARGET_INDEX`, puis `SRC_DEST_TARGET_NAME` (deux cases changent : un déplacement) |
-| nombres | 1 | `QUANTITY_RM` (−*p*), `QUANTITY_ADD` (+*p*), `QUANTITY_SET` (= *p*) |
+**La mère construit la description de l'action.** Il n'y a plus d'hypothèses
+nommées à la main. Comme pour les concepts (§ 7), elle énumère par taille
+croissante de petits programmes qui prédisent, à partir de la valeur d'avant
+et des arguments :
 
-**Lissage.** Un coup particulier peut tromper une hypothèse (la fin de partie,
-une coïncidence de valeurs…). Pour chaque fonction, on ne garde que les
-opérations observées sur au moins la moitié de ses appels (`MAJORITY`), et on
-les applique à tous ses appels. Les appels pour lesquels rien n'a été trouvé
-sont listés dans `AnalysisReport.unknown_calls`.
+- pour un nombre, la nouvelle valeur : `apres = …` ;
+- pour un tableau, l'ensemble des cases qui ont changé : `changees = …`.
+
+Les programmes s'écrivent avec deux feuilles (`arg0`, `arg1`… et `avant`) et
+cinq opérations : `plus`, `moins`, `case(x)` (la case d'indice *x*),
+`valant(x)` (les cases dont la valeur est *x*) et `union`. Pour chaque
+fonction et chaque variable, elle garde les plus petits programmes qui
+expliquent **tous** les cas, avec au moins deux cas distincts (un seul cas peut
+être une coïncidence). Deux programmes qui donnent les mêmes valeurs sur tous
+les cas sont confondus et on garde le plus petit ; à taille égale, ils
+coexistent.
+
+Elle retrouve ainsi seule les anciennes hypothèses :
+
+| Ce qu'elle trouve | Ancienne étiquette |
+|---|---|
+| `changees = case(arg0)` | `SINGLE_TARGET_INDEX` |
+| `changees = valant(arg0)` | `SINGLE_TARGET_NAME` |
+| `changees = union(case(arg0), case(arg1))` | `SRC_DEST_TARGET_INDEX` |
+| `changees = union(valant(arg0), valant(arg1))` | `SRC_DEST_TARGET_NAME` |
+| `apres = moins(avant, arg0)` / `plus(arg0, avant)` / `arg0` | `QUANTITY_RM` / `_ADD` / `_SET` |
+
+Elle trouve aussi des combinaisons qu'aucune étiquette ne décrivait
+(`apres = moins(avant, plus(arg0, arg1))`). Au Morpion, `case(arg0)` et
+`valant(arg0)` coexistent (la case *n* contient le texte `"n"`) : rien ne les
+départage encore. Les appels dont aucun cas n'est expliqué sont listés dans
+`AnalysisReport.unknown_calls`.
+
+Ce qui est encore fourni à la main : les deux formes (`apres`, `changees`), les
+feuilles, les cinq opérations, la taille maximale des programmes (5 nœuds) et
+le minimum de deux cas.
 
 **Getters / setters.** Enfin, chaque variable (identifiée par son nom) reçoit
 la liste des fonctions qui la renvoient (getters) et de celles dont une
@@ -245,7 +272,9 @@ chaque correction, qui n'importe rien de Xander :
 
 1. **Perception** : `possibles`, `apres`, `gagne`, `adversaire`, écrites à
    partir de ce qu'elle a compris (pions observés, motifs, action
-   `SINGLE_TARGET_INDEX`), plus `VUES`, le compteur des positions regardées.
+   `changees = case(arg0)`), plus `VUES`, le compteur des positions regardées.
+   Ce gabarit est encore écrit à la main : la mère vérifie seulement que
+   `changees = case(arg0)` fait partie des programmes qu'elle a trouvés.
 2. **Règles** : les concepts qu'elle a construits et appris au fils, **et
    seulement ceux-là** (avec les briques dont ils dépendent), traduits en
    Python, `REGLES` dans l'ordre appris, `SOUVENIRS` et `SYMETRIES`.
@@ -266,19 +295,16 @@ fils dans `output/sons/<nom>.py`.
 
 ## Limites connues
 
-- Les hypothèses sont codées en dur : un jeu dont l'état défile (Jumper)
-  n'est compris par aucune d'elles, et c'est attendu à ce stade.
-- La première hypothèse compatible l'emporte : au Morpion, où la case *n*
-  contient le texte `"n"`, `SINGLE_TARGET_INDEX` et `SINGLE_TARGET_NAME` sont
-  toutes deux vraies, seule la première est retenue.
-- Le lissage majoritaire peut généraliser une coïncidence : au Puissance 4,
-  tant qu'on joue sur la rangée du bas, l'indice de la case vaut le numéro de
-  colonne, et `SINGLE_TARGET_INDEX` est retenu à tort. Des exemples variés
-  limitent ce risque.
+- Le langage des effets (deux formes, deux feuilles, cinq opérations) est
+  fourni. Il n'a pas de constantes ni d'ordre : un jeu dont l'état défile
+  (Jumper) ou dont le jeton tombe (Puissance 4) n'est pas encore décrit.
+- Deux programmes de même taille vrais sur tous les cas coexistent (au
+  Morpion, `case(arg0)` et `valant(arg0)`) : la mère ne cherche pas encore
+  d'expérience qui les départage.
 - Découpage des tours : un getter de confirmation appelé juste après le coup
   (`get, play, get`) est rattaché au tour suivant.
 - Éducation : seulement pour deux joueurs qui alternent, un état en tableau et
-  une action qui désigne directement une case (`SINGLE_TARGET_INDEX`). Le
+  une action qui désigne directement une case (`changees = case(arg0)`). Le
   Puissance 4 (gravité) et les Allumettes (quantité) attendent que l'Analyzer
   sache décrire leur action.
 - Les concepts sont construits par la mère, mais leur langage (les quatre

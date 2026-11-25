@@ -39,7 +39,8 @@ du refactor) et qu'au moins deux souvenirs deviennent inutiles, elle les
 remplace par la règle. Le concept devient une brique pour les suivants.
 
 Limites : jeux à deux joueurs qui jouent chacun leur tour, état en tableau, et
-action qui désigne directement une case (``SINGLE_TARGET_INDEX``).
+action qui désigne directement une case (la mère a trouvé
+``changees = case(arg0)``, voir :data:`CASE_DESIGNEE`).
 """
 
 from __future__ import annotations
@@ -49,12 +50,17 @@ from dataclasses import dataclass, field
 
 from xander.game_model import GameModel
 from xander.lab import Lab, LabError
-from xander.model import FunctionOperation
 from xander.parser import ParsedExample
-from xander import concepts, son_writer, symmetries
+from xander import concepts, effets, son_writer, symmetries
 from xander.concepts import MOI
 
 RESULTS = {1: "victoire", 0: "nul", -1: "défaite"}
+
+#: Pont provisoire : le gabarit de perception du fils (:mod:`xander.son_writer`)
+#: est encore écrit à la main pour une action qui désigne la case d'indice
+#: ``arg0``. La mère vérifie que c'est l'une des hypothèses qu'elle a trouvées
+#: elle-même ; à terme, c'est le programme trouvé qui deviendra ``apres``.
+CASE_DESIGNEE = effets.Hypothese(effets.CHANGEES, effets.case(effets.arg(0)))
 
 #: Le fils pense comme un joueur humain : il reconnaît, il ne calcule pas tout.
 #: La mère refuse une règle qui lui ferait regarder plus de positions pour un coup.
@@ -144,9 +150,9 @@ def mixed_player(teacher, rng: random.Random):
 class Education:
     def __init__(self, parsed: ParsedExample, model: GameModel, teacher, seed: int = 0):
         operations = model.report.operations.get(model.action.name, []) if model.report and model.action else []
-        if not any(op.kind is FunctionOperation.SINGLE_TARGET_INDEX for op in operations):
+        if not any(op.programme == CASE_DESIGNEE for op in operations):
             raise LabError("l'Analyzer ne sait pas encore relier un argument de l'action à une case "
-                           "(il faut SINGLE_TARGET_INDEX) : la mère ne peut pas encore éduquer de fils")
+                           f"(il faut {CASE_DESIGNEE!r}) : la mère ne peut pas encore éduquer de fils")
         self.parsed = parsed
         self.model = model
         self.lab = Lab(parsed, model)
@@ -177,7 +183,7 @@ class Education:
 
     @staticmethod
     def cell(arguments: tuple) -> int:
-        return arguments[0]  # SINGLE_TARGET_INDEX : l'argument est l'indice de la case
+        return arguments[0]  # CASE_DESIGNEE : l'argument est l'indice de la case
 
     def learn_marks(self) -> None:
         """Quel pion pose chaque joueur : la valeur qui apparaît dans la case jouée."""

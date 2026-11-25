@@ -47,7 +47,7 @@ def symmetries_literal(knowledge: dict) -> str:
 def perception_source(knowledge: dict) -> str:
     """Les quatre notions, pour un état en tableau dont l'action désigne une case."""
     return f'''# --- Perception (écrite par la mère) -------------------------------------
-# L'Analyzer a compris que l'action désigne une case (SINGLE_TARGET_INDEX) ;
+# La mère a compris que l'action désigne une case (changees = case(arg0)) ;
 # la mère a vu quel pion pose chaque joueur et quels motifs finissent la partie.
 
 PIONS = {knowledge["marks"]!r}
