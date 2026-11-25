@@ -1037,7 +1037,9 @@ class Education:
         du motif, la position le confirme. S'il joue ailleurs, elle vérifie que le coup du
         motif est aussi bon (en lui faisant finir la partie) : sinon le motif est démenti.
         Elle ne le vérifie ainsi que pour les deux premiers désaccords (chacun coûte deux fins
-        de partie) ; les suivants comptent seulement comme des positions qui ne confirment pas.
+        de partie), et seulement une fois les comptes passés (confirmations et témoin) : un
+        motif que les comptes refusent ne coûte aucune fin de partie. Les désaccords suivants
+        comptent seulement comme des positions qui ne confirment pas.
         Une position où le motif ne s'applique pas (sa case n'y est pas atteignable) ne dit
         rien.
 
@@ -1055,7 +1057,8 @@ class Education:
             return False
         mind, rng = self.mind, random.Random(chunk + "témoin")
         action = mind.action_pour(move)
-        imagined = applied = confirmed = witnesses = still = judged = 0
+        imagined = applied = confirmed = witnesses = still = 0
+        disagreements = []
         for moves in self.imagine(chunk, number):
             imagined += 1
             state = list(self.lab.states[-1])
@@ -1064,10 +1067,8 @@ class Education:
             applied += 1
             if self.action(self.teacher_move(moves)) == action:
                 confirmed += 1
-            elif judged < 2:  # un désaccord jugé à fond coûte deux fins de partie
-                judged += 1
-                if not self.judge(moves, state, action):
-                    return False
+            elif len(disagreements) < 2:  # jugés plus loin, si le motif passe les comptes
+                disagreements.append((list(moves), state))
             witness = self.witness(chunk, kept, move, len(moves), rng)
             if witness is not None:
                 witnesses += 1
@@ -1078,6 +1079,9 @@ class Education:
             return False
         if 2 * confirmed * witnesses < applied * (witnesses + still):  # r+ < (1 + r-) / 2
             return False
+        for moves, state in disagreements:  # un jugement coûte deux fins de partie
+            if not self.judge(moves, state, action):
+                return False
         trial = {chunk: move}
         for case in self.cases.values():
             _, cell = mind.rappel(list(case.state), case.me, trial)

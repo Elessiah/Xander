@@ -303,8 +303,10 @@ exprime la fourchette autrement (« il ne peut pas me menacer sans danger »).
 Lui donner plus (k jusqu'à 3) est pire : plus de concepts possibles, donc plus
 de coïncidences validées sur peu de cas.
 
-Avec les petits motifs, le fils fait environ 16 erreurs avant d'être parfait,
-contre 24 à 44 sans eux. L'éducation est aussi deux à trois fois plus rapide,
+Avec les petits motifs, le fils fait environ 16 à 30 erreurs avant d'être
+parfait, contre 24 à 44 sans eux. L'écart vient de l'ordre dans lequel la mère
+apprend : en faisant finir des parties au professeur pour juger un motif, elle
+découvre parfois un motif de fin, et ses règles changent plus tôt ou plus tard. L'éducation est aussi deux à trois fois plus rapide,
 car il y a moins de cas à revoir.
 
 ## 7. Motifs décalés et symétries — `xander/symmetries.py`
@@ -411,7 +413,9 @@ juger qu'un coup est aussi bon que le sien coûte deux fins de partie. La mère
 - elle retient l'issue et le coup du professeur pour **chaque position** par
   laquelle passe une fin de partie, pas seulement la première : une autre
   question sur l'une d'elles ne coûte plus rien ;
-- elle ne juge à fond que deux désaccords par motif ; les suivants comptent
+- elle ne juge à fond que deux désaccords par motif, et seulement une fois
+  les comptes passés (confirmations et témoin) : un motif que les comptes
+  refusent ne coûte aucune fin de partie. Les désaccords suivants comptent
   seulement comme des positions qui ne confirment pas ;
 - dans une fin de partie imaginée, elle ne fait pas la contre-épreuve d'un
   plateau qui n'est pas plein (elle ne la fait que pour comprendre une vraie

@@ -82,19 +82,19 @@ pour un jeu à la plus structurelle :
    - la réduction regarde la **zone** du coup (les cases qui partagent un
      motif de fin avec lui), avec un tamis de 5 positions avant chaque
      vérification complète.
-   Au Morpion, rien ne se dégrade : 16 erreurs, chaque fils parfait à 200
-   parties, aucun petit motif démenti sur 10 graines. Au Puissance 4, des
-   motifs de 2 à 15 cases sur 42 apparaissent, aucun démenti sur 3 parties.
-   Reste le coût, qui a augmenté : maintenant que les positions sont
-   réalistes, chaque vérification les examine vraiment. 3 parties prennent
-   environ 35 minutes, dont 30 pour réduire les souvenirs, surtout en fins
-   de partie jouées par le professeur pour juger les désaccords (environ
-   2 200). Il reste à faire une vraie éducation (50 à 100 parties) et son
-   bilan contre le hasard et contre le professeur. Pistes : juger moins de
-   désaccords (ou plus tard, une fois le tamis passé), arrêter plus tôt une
-   vérification perdue d'avance, et des concepts qui
-   regardent plus loin (les pièges du Puissance 4 sont plus profonds que deux
-   coups). La mère n'y trouve pas encore le miroir gauche-droite en 3 parties.
+   Au Morpion, chaque fils est parfait à 200 parties, après 16 à 30 erreurs,
+   sans aucun petit motif démenti sur 10 graines. Au Puissance 4, des motifs
+   de 5 à 15 cases sur 42 apparaissent, aucun démenti sur 3 parties.
+   Le coût a d'abord augmenté : maintenant que les positions sont réalistes,
+   chaque vérification les examine vraiment (35 minutes pour 3 parties). En
+   ne jugeant les désaccords qu'une fois les comptes passés, 3 parties
+   prennent environ 15 minutes, dont 10 pour réduire les souvenirs (425 fins
+   de partie jouées par le professeur au lieu de 2 200). Il reste à faire une
+   vraie éducation (50 à 100 parties) et son bilan contre le hasard et contre
+   le professeur. Pistes : arrêter plus tôt une vérification perdue d'avance,
+   et des concepts qui regardent plus loin (les pièges du Puissance 4 sont
+   plus profonds que deux coups). La mère n'y trouve pas encore le miroir
+   gauche-droite en 3 parties.
 3. **Petits motifs dans les règles.** Les motifs de fin et les souvenirs se
    décalent déjà : un souvenir est réduit aux cases qui comptaient, puis
    reconnu partout (vérifié dans le labo). Il reste à en faire des briques
