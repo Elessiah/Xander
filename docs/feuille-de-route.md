@@ -368,6 +368,12 @@ de plus petit n'explique les cas), ce qui rejoint le jalon 2.
      mère voit quelles places change un coup, pas ce qu'il calcule ;
      l'éducation bloque parce qu'elle ne cherche que des actions à un
      argument (voir `docs/jeux.md`).
+   - **Mot mystère** (`Games/MotMystere.py`) : un joueur, un mot secret de
+     5 lettres caché, 6 essais ; le professeur, qui ne lit pas le secret,
+     trouve les 405 secrets en 2,99 essais. La mère voit le joueur seul,
+     `back` et la fin, mais pas l'effet de `play` (un bloc de 10 cases) :
+     l'éducation bloque dans `Solo.__init__`, et l'état caché (un seul
+     secret dans le labo) reste à comprendre (voir `docs/jeux.md`).
 8. **Plus tard : l'expérience.** Partir des apprentissages réussis (motifs,
    règles) d'un fils pour en élever un autre plus vite.
 
