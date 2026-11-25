@@ -250,13 +250,22 @@ mère sait gagner depuis les 15) ; au Nim, la moitié des positions nouvelles
 sont ratées (la somme de Nim manque) ; le Morpion à trois tient 82 % des
 positions nouvelles mais sa taille est faite de 302 souvenirs entiers. Deux
 découvertes : au Morpion à trois, 4 des 3 143 cas enregistrés ne sont plus
-bien joués par le fils final (cause pas encore cherchée : un refactor ou
-un petit motif ? les refactors vérifient pourtant tous les cas) ; et au Compte est bon, la généralisation ne veut
+bien joués par le fils final. Cause trouvée : chacun est décidé par le
+souvenir d'une position **symétrique**, enregistré plus tard, et à trois les
+positions symétriques n'ont pas la même valeur quand le professeur finit la
+partie (max^n départage dans un ordre fixe de cases, qui n'est pas
+symétrique : dans l'une, un coup gagne ; dans l'autre, aucun). Une correction
+ajoute un souvenir sans revérifier les cas qu'il couvre par symétrie (seuls
+les refactors revérifient tout) ; et au Compte est bon, la généralisation ne veut
 rien dire tant que le labo rejoue un seul tirage.
 
 **Reste à faire** : l'écrire dans le rapport du lanceur d'examen ; la
-stabilité en ligne de commande ; comprendre les 4 cas cassés du Morpion à
-trois.
+stabilité en ligne de commande ; **décider** pour les 4 cas cassés du Morpion
+à trois (à l'utilisateur) : revérifier, après chaque correction, les cas que
+couvre le nouveau souvenir (« les souvenirs sont les tests »), et s'ils se
+contredisent, ne pas étendre ce souvenir par symétrie ; ou ne garder une
+symétrie que si le professeur la respecte aussi (à deux, le minimax la
+respecte ; à trois, max^n non).
 
 Conception d'origine :
 
