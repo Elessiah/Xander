@@ -641,7 +641,8 @@ parer le suivant, `concept_1(lui)` : la parade vue du côté du suivant, donc
 parer le 2e après moi, et se créer une menace), 0 coup impossible, au plus
 784 positions regardées par coup, et le fils fait au moins aussi bien que le
 professeur à sa place dans les 60 situations de mesure. Restent 304
-souvenirs (surtout des ouvertures) et environ 29 minutes d'éducation.
+souvenirs (surtout des ouvertures) ; l'éducation prend moins de 6 minutes
+(340 s, mesurée seule après la fusion des PR #20 et #22).
 Détail et chiffres : `docs/jeux.md`.
 
 ### Un seul joueur : juger un coup par ce qui arrive — `xander/un_joueur.py`
