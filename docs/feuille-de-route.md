@@ -329,6 +329,18 @@ de plus petit n'explique les cas), ce qui rejoint le jalon 2.
      mini-échecs (5×5 ou 6×6), et seulement ensuite la partie complète.
      Si les déplacements d'une case à une autre posent problème, les dames
      sur petit plateau peuvent servir d'étape intermédiaire.
+   - **Nim à plusieurs tas** (`Games/Nim.py`, variante misère
+     `Games/NimMisere.py`, professeur exact `Games/MinmaxNim.py`, exemples
+     `res/exampleNim.py` et `res/exampleNimMisere.py`) : un état fait de
+     plusieurs nombres, une action à deux arguments (quel tas, combien), une
+     stratégie qui n'est pas une période (la somme de Nim). La mère y voit
+     déjà quel tas change (`case(arg0)`), pas la valeur écrite.
+   - **Mastermind** (`Games/Mastermind.py`, 3 chiffres de 1 à 6, 8 essais ;
+     professeur `Games/MinmaxMastermind.py`, 5 essais au plus ; exemple
+     `res/exampleMastermind.py`) : un jeu à un joueur qui se gagne, une
+     information cachée, déduire à partir d'indices, compter, une action à
+     trois arguments qui sont des valeurs. La mère n'y comprend encore
+     aucun coup. Détails dans `docs/jeux.md`.
    - **Mot mystère** (`Games/MotMystere.py`) : un joueur, un mot secret de
      5 lettres caché, 6 essais ; le professeur, qui ne lit pas le secret,
      trouve les 405 secrets en 2,99 essais. La mère voit le joueur seul,
