@@ -1,4 +1,8 @@
-"""Le vocabulaire de la mère : les concepts avec lesquels elle explique un coup.
+"""Un vocabulaire écrit à la main, qui ne sert plus que de **référence** aux tests.
+
+La mère ne s'en sert pas : elle construit ses propres concepts avec les briques
+de :mod:`xander.concepts`. Les tests comparent ce qu'elle a trouvé à ces
+concepts (``gagner``, ``parer``, ``fourchette``…).
 
 Chaque concept s'écrit **uniquement** avec quatre notions que la mère apprend
 pour chaque jeu, et qu'elle écrit elle-même dans le code du fils :
@@ -13,10 +17,8 @@ pour le Morpion, le Puissance 4 ou les Allumettes, dès que la mère sait écrir
 ces quatre notions pour le jeu.
 
 Ces fonctions ne s'exécutent pas dans ce module (les quatre notions n'y
-existent pas) : la mère recopie leur **texte** dans le code du fils quand elle
-lui apprend la règle, et l'exécute dans son propre espace pour expliquer un
-coup. Le vocabulaire est fourni à la main pour l'instant ; l'objectif est que
-la mère finisse par le découvrir seule.
+existent pas) : les tests exécutent leur **texte** avec les quatre notions d'un
+jeu.
 
 Penser comme un joueur humain (voir CLAUDE.md) : un concept regarde au plus un
 coup d'avance sur toutes les réponses ; plus loin, seulement ce qui est forcé.

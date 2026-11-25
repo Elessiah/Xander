@@ -5,13 +5,14 @@ Déroulé ::
     exemple ──► 1re leçon : rejouer l'exemple et comprendre pourquoi il finit
        │
        ▼
-    partie du fils (contre le professeur ou un joueur au hasard)
+    partie du fils (contre le professeur, le hasard ou un adversaire mixte)
        │  fin de partie : la mère comprend qui a gagné et pourquoi (motifs)
        ▼
     revue de chaque décision du fils, avec back
        │  le professeur aurait-il joué autre chose ? était-ce vraiment mieux ?
+       │  et s'il avait joué ailleurs ? (variantes de l'adversaire)
        ▼
-    explication : gagner ? parer ? fourchette ? …  ──► règle (ou souvenir)
+    chaque erreur ──► souvenir ; puis refactor : souvenirs ──► règle (concept construit)
        │
        └──► le fils corrigé joue la partie suivante
 
@@ -25,13 +26,17 @@ Une fin sans motif est un match nul.
 **Comprendre une erreur.** Pour chaque décision du fils, la mère revient à la
 position, demande son coup au professeur, puis fait finir la partie au
 professeur des deux côtés, après le coup du fils et après celui du professeur.
-Si le coup du professeur mène à un meilleur résultat, c'est une erreur. Elle
-cherche alors dans son vocabulaire (voir :mod:`xander.vocabulary`) un concept vrai pour
-le coup du professeur et faux pour celui du fils :
+Si le coup du professeur mène à un meilleur résultat, c'est une erreur.
 
-* le concept devient une **règle** du fils, placée juste avant la règle qui
-  l'a trompé : une seule erreur corrige toutes les positions semblables ;
-* sans explication, la mère garde la position comme **souvenir**.
+**Corriger cas par cas, puis refactoriser.** La mère part sans aucun concept.
+Chaque erreur devient d'abord un **souvenir** (dans cette position, jouer le
+coup du professeur) et un **cas** enregistré. Après chaque partie, elle cherche
+le plus petit concept (voir :mod:`xander.concepts`) vrai après le coup du
+professeur et faux après celui du fils dans au moins deux souvenirs. Elle
+l'essaie comme règle, à chaque rang de priorité en partant du plus bas : si le
+fils joue encore bien dans **tous** les cas enregistrés (les cas sont les tests
+du refactor) et qu'au moins deux souvenirs deviennent inutiles, elle les
+remplace par la règle. Le concept devient une brique pour les suivants.
 
 Limites : jeux à deux joueurs qui jouent chacun leur tour, état en tableau, et
 action qui désigne directement une case (``SINGLE_TARGET_INDEX``).
@@ -46,9 +51,14 @@ from xander.game_model import GameModel
 from xander.lab import Lab, LabError
 from xander.model import FunctionOperation
 from xander.parser import ParsedExample
-from xander import son_writer, vocabulary
+from xander import concepts, son_writer
+from xander.concepts import MOI
 
 RESULTS = {1: "victoire", 0: "nul", -1: "défaite"}
+
+#: Le fils pense comme un joueur humain : il reconnaît, il ne calcule pas tout.
+#: La mère refuse une règle qui lui ferait regarder plus de positions pour un coup.
+BUDGET = 1000
 
 
 @dataclass
@@ -59,13 +69,29 @@ class Lesson:
     son_cell: int
     son_reason: str
     teacher_cell: int
-    explanation: str   # nom du concept, ou "souvenir"
+    explanation: str   # "souvenir" : la mère corrige d'abord le cas
     change: str        # ce qui a changé chez le fils
 
     def __str__(self) -> str:
         board = self.position
         return (f"{board} : le fils a joué {self.son_cell} ({self.son_reason}), "
                 f"le professeur {self.teacher_cell} -> {self.explanation} ; {self.change}")
+
+
+@dataclass
+class Case:
+    """Une position revue par la mère, qui sert ensuite de test aux refactors.
+
+    Une erreur du fils y laisse un souvenir ; une position bien jouée reste un
+    test de non-régression (un refactor ne doit pas la faire mal jouer).
+    """
+
+    moves: list[tuple]   # la partie jusqu'à la position (pour y revenir dans le labo)
+    state: list
+    me: object
+    key: str
+    son_cell: int
+    teacher_cell: int
 
 
 @dataclass
@@ -76,6 +102,7 @@ class GameRecord:
     result: str
     lessons: list[Lesson] = field(default_factory=list)
     patterns: list[list[int]] = field(default_factory=list)  # motifs découverts pendant la partie
+    refactors: list[str] = field(default_factory=list)       # souvenirs remplacés par une règle
 
     def __str__(self) -> str:
         text = f"partie {self.number:>3} | fils {self.son_side} contre {self.opponent:<10} : {self.result:<8}"
@@ -84,6 +111,8 @@ class GameRecord:
             text += f"\n      motif compris : {pattern}"
         for lesson in self.lessons:
             text += f"\n      {lesson}"
+        for refactor in self.refactors:
+            text += f"\n      refactor : {refactor}"
         return text
 
 
@@ -95,6 +124,20 @@ def random_player(rng: random.Random):
             if game.play(argument) is not False:
                 return
     play.__name__ = "hasard"
+    return play
+
+
+def mixed_player(teacher, rng: random.Random):
+    """Adversaire imprévisible : une fois sur deux le coup du professeur, sinon un coup au hasard.
+
+    Il crée des menaces comme le professeur, mais pas toujours les mêmes : le
+    fils rencontre ainsi des positions variées et difficiles.
+    """
+    randomly = random_player(rng)
+
+    def play(game):
+        (teacher if rng.random() < 0.5 else randomly)(game)
+    play.__name__ = "mixte"
     return play
 
 
@@ -117,6 +160,12 @@ class Education:
         self.teacher_moves: dict[tuple, tuple] = {}
         self.discovered: list[list[int]] = []
         self.records: list[GameRecord] = []
+        self.cases: dict[str, Case] = {}            # cle de la position -> cas enregistré
+        self._pensee = None                          # évalue les concepts (à refaire si le jeu est mieux compris)
+        self._bank = None                            # concepts énumérés par taille (à refaire si une brique s'ajoute)
+        self._judged: dict = {}                      # (cas, coup) -> aussi bon que le professeur ?
+        self.max_size, self.max_depth = 6, 2         # bornes de la recherche de concepts
+        self.budget = BUDGET                         # positions que le fils peut regarder pour un coup
 
     # ------------------------------------------------------------------ #
     # Perception
@@ -136,7 +185,7 @@ class Education:
                     self.marks[k % 2] = states[k + 1][changed[0]]
         if len(self.marks) == 2 and self.knowledge["marks"] != [self.marks[0], self.marks[1]]:
             self.knowledge["marks"] = [self.marks[0], self.marks[1]]
-            self.rewrite()
+            self.rethink()
 
     def final_state(self) -> list:
         lab = self.lab
@@ -167,7 +216,7 @@ class Education:
             return mover  # la contre-épreuve a retrouvé un motif connu
         self.knowledge["patterns"].append(pattern)
         self.discovered.append(pattern)
-        self.rewrite()
+        self.rethink()
         return mover
 
     def counter_test(self, final: list, mover: int) -> list[int] | None:
@@ -286,7 +335,12 @@ class Education:
 
     def rewrite(self) -> None:
         """Ce que sait la mère a changé : le code du fils sera réécrit."""
-        self._son = self._mind = None
+        self._son = None
+
+    def rethink(self) -> None:
+        """La mère comprend mieux le jeu (pions, motifs) : sa perception est à refaire."""
+        self._son = self._mind = self._pensee = self._bank = None
+        self._judged = {}
 
     def source(self, name: str = "fils") -> str:
         return son_writer.son_source(name, self.knowledge, len(self.records) - 1)
@@ -300,7 +354,7 @@ class Education:
 
     @property
     def mind(self):
-        """La perception du jeu par la mère, avec tout son vocabulaire."""
+        """La perception du jeu par la mère (les quatre notions)."""
         if self._mind is None:
             self._mind = son_writer.mind(self.knowledge)
         return self._mind
@@ -324,64 +378,209 @@ class Education:
         winner = self.winner()
         return (0 if winner is None else 1 if winner == son_side else -1), decisions
 
+    def variations(self, decisions: list, son_side: int) -> list:
+        """« Et s'il avait joué ailleurs ? » La mère revient (``back``) sur chaque coup de
+        l'adversaire, essaie les autres, et note ce que le fils aurait répondu."""
+        lab, me, imagined = self.lab, self.marks[son_side], []
+        for moves, _, _, _ in decisions:
+            if not moves:
+                continue
+            before = moves[:-1]
+            lab.goto(before)
+            for cell in self.mind.possibles(list(lab.states[-1])):
+                if (cell,) == moves[-1] or not lab.goto(before + [(cell,)]) or lab.ended:
+                    continue
+                state = list(lab.states[-1])
+                son_cell, reason = self.son.choisir(list(state), me)
+                self.max_views = max(self.max_views, self.son.VUES)
+                imagined.append((list(lab.moves), state, son_cell, reason))
+        return imagined
+
     def review(self, decisions: list, son_side: int) -> list[Lesson]:
         lessons = []
         me = self.marks[son_side]
         for moves, state, son_cell, reason in decisions:
             teacher = self.teacher_move(moves)
             teacher_cell = self.cell(teacher)
-            if teacher_cell == son_cell:
+            if (teacher_cell == son_cell
+                    or self.value(moves + [teacher], son_side) <= self.value(moves + [(son_cell,)], son_side)):
+                key = self.mind.cle(list(state), me)
+                if key not in self.cases:  # bien joué : la position reste un test pour les refactors
+                    self.cases[key] = Case(list(moves), list(state), me, key, son_cell, teacher_cell)
                 continue
-            if self.value(moves + [teacher], son_side) <= self.value(moves + [(son_cell,)], son_side):
-                continue  # autre coup, mais pas meilleur
-            lessons.append(self.correct(state, me, son_cell, reason, teacher_cell))
+            lessons.append(self.correct(state, me, son_cell, reason, teacher_cell, moves))
         return lessons
 
-    def explain(self, state: list, me, son_cell, teacher_cell) -> str | None:
-        """Le premier concept vrai pour le coup du professeur et faux pour celui du fils."""
-        for name in vocabulary.concept_names():
-            actions = getattr(self.mind, name)(list(state), me)
-            if teacher_cell in actions and son_cell not in actions:
-                return name
-        return None
-
-    def correct(self, state, me, son_cell, reason, teacher_cell) -> Lesson:
-        """Explique l'erreur et réécrit le code du fils en conséquence."""
+    def correct(self, state, me, son_cell, reason, teacher_cell, moves=None) -> Lesson:
+        """Corrige le cas : la position devient un souvenir et un cas enregistré."""
         self.rewrite()
-        rules, memories = self.knowledge["rules"], self.knowledge["memories"]
+        memories = self.knowledge["memories"]
         key = self.mind.cle(list(state), me)
         changes = []
         if reason == "souvenir":
             del memories[key]
             changes.append("souvenir faux oublié")
-        explanation = self.explain(state, me, son_cell, teacher_cell)
-        if explanation is None:
-            memories[key] = teacher_cell
-            changes.append("nouveau souvenir")
-            return Lesson(key, son_cell, reason, teacher_cell, "souvenir", ", ".join(changes))
-        if explanation in rules and reason in rules and rules.index(explanation) > rules.index(reason):
-            rules.remove(explanation)
-        if explanation not in rules:
-            position = rules.index(reason) if reason in rules else len(rules)
-            rules.insert(position, explanation)
-            changes.append(f"règles : {' > '.join(rules)}")
-        return Lesson(key, son_cell, reason, teacher_cell, explanation, ", ".join(changes) or "déjà su")
+        memories[key] = teacher_cell
+        changes.append("nouveau souvenir")
+        self.cases[key] = Case(list(moves or []), list(state), me, key, son_cell, teacher_cell)
+        return Lesson(key, son_cell, reason, teacher_cell, "souvenir", ", ".join(changes))
+
+    # ------------------------------------------------------------------ #
+    # Refactor : remplacer des souvenirs par une règle
+    # ------------------------------------------------------------------ #
+
+    @property
+    def pensee(self) -> concepts.Pensee:
+        if self._pensee is None:
+            self._pensee = concepts.Pensee(self.mind, self.knowledge["concepts"])
+        return self._pensee
+
+    @property
+    def bank(self) -> list:
+        """Les concepts que la mère sait former, du plus petit au plus grand."""
+        if self._bank is None:
+            positions = concepts.echantillon(self.mind, self.lab.states[0], self.knowledge["marks"])
+            self._bank = concepts.enumerer(self.pensee, positions, self.max_size, self.max_depth)
+        return self._bank
+
+    def rule(self, name: str) -> concepts.Concept:
+        return self.knowledge["concepts"][name]  # l'arbre lui-même : un nom essayé peut être abandonné
+
+    def decide(self, state, me, rules: list[str]) -> int:
+        """Le coup que jouerait le fils avec ces règles, sans souvenir (comme son squelette)."""
+        for name in rules:
+            cells = self.pensee.choix(self.rule(name), state, me)
+            if cells:
+                return min(cells)
+        return min(self.mind.possibles(list(state)))
+
+    def good(self, case: Case, cell: int) -> bool:
+        """Le coup est-il aussi bon que celui du professeur ? (vérifié dans le labo)"""
+        if cell == case.teacher_cell:
+            return True
+        key = (case.key, cell)
+        if key not in self._judged:
+            side = len(case.moves) % 2
+            self._judged[key] = (self.value(case.moves + [(cell,)], side)
+                                 >= self.value(case.moves + [(case.teacher_cell,)], side))
+        return self._judged[key]
+
+    def check(self, rules: list[str]) -> list[Case] | None:
+        """Rejoue tous les cas avec ces règles : ``None`` si un cas sans souvenir est raté,
+        sinon les cas à souvenir qui n'en ont plus besoin."""
+        memories, freed = self.knowledge["memories"], []
+        for case in self.cases.values():
+            ok = self.good(case, self.decide(case.state, case.me, rules))
+            if case.key in memories:
+                if ok:
+                    freed.append(case)
+            elif not ok:
+                return None
+        return freed
+
+    def views(self, rules: list[str], freed: list[Case]) -> int:
+        """Positions regardées au plus par le fils écrit avec ces règles, sur les cas enregistrés."""
+        knowledge = dict(self.knowledge, rules=rules,
+                         memories={k: v for k, v in self.knowledge["memories"].items()
+                                   if k not in {case.key for case in freed}})
+        son = son_writer.load(son_writer.son_source("essai", knowledge))
+        most = 0
+        for case in self.cases.values():
+            son.choisir(list(case.state), case.me)
+            most = max(most, son.VUES)
+            if most > self.budget:
+                break
+        return most
+
+    def refactor(self) -> list[str]:
+        """Remplace des souvenirs par des règles, tant que c'est possible, puis retire
+        les règles devenues inutiles."""
+        done = []
+        while True:
+            message = self.refactor_once()
+            if message is None:
+                break
+            done.append(message)
+        if done:
+            done += self.prune()
+        return done
+
+    def prune(self) -> list[str]:
+        """Retire chaque règle sans laquelle tous les cas restent bien joués (du code mort)."""
+        done = []
+        for name in list(reversed(self.knowledge["rules"])):
+            rules = [r for r in self.knowledge["rules"] if r != name]
+            if self.check(rules) is not None:
+                self.knowledge["rules"] = rules
+                self.rewrite()
+                done.append(f"{name} retirée (inutile) ; règles : {' > '.join(rules) or 'aucune'}")
+        return done
+
+    def refactor_once(self) -> str | None:
+        memories, definitions = self.knowledge["memories"], self.knowledge["concepts"]
+        pending = [case for case in self.cases.values() if case.key in memories]
+        if len(pending) < 2:
+            return None
+        pensee = self.pensee
+        candidates = []
+        for rank, concept in enumerate(self.bank):
+            explained = 0
+            for case in pending:
+                cells = pensee.choix(concept, case.state, case.me)
+                explained += case.teacher_cell in cells and case.son_cell not in cells
+            if explained >= 2:
+                candidates.append((concept.size, -explained, rank, concept))
+        names = {c.id: name for name, c in definitions.items()}
+        for _, _, _, concept in sorted(candidates):
+            if concept.kind == "brique" and concept.args[1] == MOI and concept.args[0] in definitions:
+                concept = definitions[concept.args[0]]  # une brique connue : la règle existe déjà
+            known = concept.id in names
+            name = names[concept.id] if known else f"concept_{len(definitions) + 1}"
+            if not known:
+                definitions[name] = concept
+            others = [r for r in self.knowledge["rules"] if r != name]
+            for rank in range(len(others), -1, -1):  # du moins prioritaire au plus prioritaire
+                rules = others[:rank] + [name] + others[rank:]
+                freed = self.check(rules)
+                if freed is not None and len(freed) >= 2 and self.views(rules, freed) <= self.budget:
+                    return self.adopt(name, concept, rules, freed, known)
+            if not known:
+                del definitions[name]
+        return None
+
+    def adopt(self, name, concept, rules, freed, known) -> str:
+        self.knowledge["rules"] = rules
+        for case in freed:
+            del self.knowledge["memories"][case.key]
+        if not known:
+            self._bank = None  # une nouvelle brique : la mère sait former de nouveaux concepts
+        self.rewrite()
+        what = "règle remontée" if known else f"nouvelle règle « {concepts.decrire_regle(concept)} »"
+        return (f"{len(freed)} souvenirs -> {name} ({what}) ; "
+                f"règles : {' > '.join(rules)} ; souvenirs : {len(self.knowledge['memories'])}")
 
     def train(self, nb_games: int, on_game=None) -> list[GameRecord]:
-        """Fait jouer et corrige le fils ``nb_games`` fois (professeur et hasard, des deux côtés)."""
+        """Fait jouer et corrige le fils ``nb_games`` fois (professeur, hasard et mixte, des deux côtés).
+
+        Après chaque partie, la mère revoit les coups du fils et ses réponses aux
+        variantes, corrige chaque erreur par un souvenir, puis refactorise.
+        """
         if not self.records:
             record = self.first_lesson()
             if on_game:
                 on_game(record)
         if len(self.marks) < 2:
             raise LabError("la mère n'a pas compris quel pion pose chaque joueur")
-        opponents = [("professeur", self.teacher), ("hasard", random_player(self.rng))]
+        opponents = [("professeur", self.teacher), ("hasard", random_player(self.rng)),
+                     ("mixte", mixed_player(self.teacher, self.rng))]
         for number in range(1, nb_games + 1):
-            name, opponent = opponents[(number - 1) // 2 % 2]
+            name, opponent = opponents[(number - 1) // 2 % len(opponents)]
             side = (number - 1) % 2
             result, decisions = self.play_game(opponent, side)
             record = GameRecord(len(self.records), name, str(self.marks[side]), RESULTS[result])
-            record.lessons = self.review(decisions, side)
+            record.lessons = self.review(decisions + self.variations(decisions, side), side)
+            if record.lessons:
+                record.refactors = self.refactor()
             record.patterns, self.discovered = self.discovered, []
             self.records.append(record)
             if on_game:

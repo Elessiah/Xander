@@ -6,9 +6,9 @@ mère écrit, puis réécrit à chaque correction. Il a trois parties :
 1. **Perception** : ``possibles``, ``apres``, ``gagne``, ``adversaire``, écrites
    à partir de ce que la mère a compris du jeu (action décrite par l'Analyzer,
    pions observés, motifs trouvés par contre-épreuve).
-2. **Règles** : le texte des concepts que la mère lui a appris, et seulement
-   ceux-là (voir :mod:`xander.vocabulary`), dans l'ordre de priorité appris,
-   plus ses souvenirs.
+2. **Règles** : les concepts que la mère a construits et appris au fils, et
+   seulement ceux-là (voir :mod:`xander.concepts`), traduits en Python, dans
+   l'ordre de priorité appris, plus ses souvenirs.
 3. **Squelette** : l'ordre de décision (souvenir, règles, défaut) et la
    fonction ``play(game)``. Écrit à la naissance ; c'est là qu'on pourra plus
    tard transmettre l'expérience de ses frères.
@@ -22,7 +22,7 @@ from __future__ import annotations
 import types
 from pprint import pformat
 
-from xander import vocabulary
+from xander import concepts
 
 
 def empty_knowledge(model) -> dict:
@@ -33,7 +33,8 @@ def empty_knowledge(model) -> dict:
         "end_signal": model.end_signal,
         "marks": [],        # pions posés par chaque joueur (« X », « O »)
         "patterns": [],     # motifs qui finissent la partie, compris par contre-épreuve
-        "rules": [],        # concepts appris, du plus prioritaire au moins prioritaire
+        "concepts": {},     # nom -> arbre de concept construit par la mère (une brique)
+        "rules": [],        # concepts appris comme règles, du plus prioritaire au moins prioritaire
         "memories": {},     # cle(etat, moi) -> action
     }
 
@@ -91,11 +92,13 @@ def qui_suis_je(etat, memoire):
 
 
 def rules_source(knowledge: dict) -> str:
-    rules = knowledge["rules"]
-    parts = ["# --- Règles apprises (recopiées du vocabulaire de la mère) ---------------"]
+    rules, definitions = knowledge["rules"], knowledge["concepts"]
+    parts = ["# --- Règles apprises (concepts construits par la mère) --------------------\n"
+             "# Une règle : jouer une action après laquelle le concept est vrai."]
     if rules:
-        parts.append(vocabulary.tools_source())
-        parts += [vocabulary.concept_source(name) for name in rules]
+        parts.append(concepts.AU_MOINS_SOURCE)
+        parts += [concepts.source(name, definitions[name])
+                  for name in concepts.dependances(rules, definitions)]
     parts.append(f"REGLES = [{', '.join(rules)}]  # ordre de priorité appris")
     parts.append(f"SOUVENIRS = {pformat(knowledge['memories'], width=70)}")
     return "\n\n".join(parts) + "\n"
@@ -116,8 +119,8 @@ def choisir(etat, moi):
     if coup is not None and coup in possibles(etat):
         return coup, "souvenir"
     for regle in REGLES:
-        coups = regle(etat, moi)
-        if coups:
+        coups = [a for a in possibles(etat) if regle(apres(etat, a, moi), moi)]
+        if coups and len(coups) < len(possibles(etat)):  # une règle qui accepte tout ne choisit rien
             return min(coups), regle.__name__
     return min(possibles(etat)), "défaut"
 
@@ -158,7 +161,5 @@ def load(source: str, name: str = "fils") -> types.ModuleType:
 
 
 def mind(knowledge: dict) -> types.ModuleType:
-    """L'espace où la mère pense : sa perception du jeu et tout son vocabulaire."""
-    source = "\n\n".join([perception_source(knowledge), vocabulary.tools_source()]
-                         + [vocabulary.source(concept) for concept in vocabulary.CONCEPTS])
-    return load(source, "mere")
+    """L'espace où la mère pense : sa perception du jeu (les quatre notions)."""
+    return load(perception_source(knowledge), "mere")

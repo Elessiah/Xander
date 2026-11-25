@@ -11,7 +11,9 @@
 | Comprendre le déroulé d'un tour | fait |
 | Déduire les conditions de victoire | fait : motifs trouvés par contre-épreuve |
 | Créer un fils qui part de zéro | fait |
-| Corriger le fils en expliquant ses erreurs | fait, Morpion : fils imbattable |
+| Corriger le fils cas par cas (souvenirs) | fait |
+| Refactoriser : des souvenirs aux règles, concepts construits par la mère | fait, Morpion : fils imbattable |
+| Découvrir les symétries (positions équivalentes) | **à faire** |
 | Réutiliser l'expérience d'un fils pour un autre | **plus tard** |
 
 ## Prochaines étapes proposées
@@ -23,15 +25,21 @@
 2. **Motifs généraux.** Passer de « les cases 0, 4, 8 » à « trois cases
    alignées », par translation et symétrie, pour qu'un motif appris serve
    partout (indispensable au Puissance 4).
-3. **Vocabulaire découvert.** Aujourd'hui `gagner`, `parer`, `fourchette`…
-   sont fournis. La mère pourrait les construire elle-même (« motif à moi à
-   *n* coups de la fin », « motif à lui à *n* coups »). Ils ne s'écrivent
-   déjà qu'avec quatre notions (`possibles`, `apres`, `gagne`, `adversaire`) ;
-   `gagne` doit encore apprendre qu'un coup peut faire perdre celui qui le
-   joue (Allumettes « misère »), ce qui demande de percevoir le trait.
-4. **Autres formes de problèmes.** Jeux à un joueur (Jumper), plus de deux
+3. **Symétries.** Au Morpion, une position tournée de 90° est la même
+   situation. La mère doit les découvrir : les renumérotations des cases qui
+   préservent les motifs de fin et les actions permises, vérifiées dans le
+   labo. Un souvenir vaudrait alors pour 8 positions, et il faut une
+   recherche plus maline que d'essayer les 9! renumérotations.
+4. **Concepts plus lisibles.** La mère construit ses concepts, mais certains
+   sont des combinaisons difficiles à lire, ou des coïncidences validées sur
+   peu de cas. Pistes : préférer le concept qui explique le plus de cas,
+   relire les concepts quand une nouvelle brique apparaît, et dire ce que le
+   langage fournit encore à la main (les nœuds `Non`, `Et`, `AuMoins`, k = 1
+   ou 2). `gagne` doit aussi apprendre qu'un coup peut faire perdre celui qui
+   le joue (Allumettes « misère »), ce qui demande de percevoir le trait.
+5. **Autres formes de problèmes.** Jeux à un joueur (Jumper), plus de deux
    joueurs, état qui n'est pas un tableau.
-5. **Plus tard : l'expérience.** Partir des apprentissages réussis (motifs,
+6. **Plus tard : l'expérience.** Partir des apprentissages réussis (motifs,
    règles) d'un fils pour en élever un autre plus vite.
 
 ## Nettoyage et corrections de cette révision

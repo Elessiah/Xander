@@ -11,6 +11,7 @@ import argparse
 import importlib
 import sys
 
+from xander import concepts
 from xander.lab import LabError
 from xander.mother import OUTPUT_DIR, Mother
 from xander.parser import ExampleSyntaxError
@@ -63,6 +64,12 @@ def main(argv: list[str] | None = None) -> int:
         knowledge = education.knowledge
         print(f"\nMotifs compris : {knowledge['patterns']}")
         print(f"Règles : {' > '.join(knowledge['rules']) or 'aucune'} ; souvenirs : {len(knowledge['memories'])}")
+        print("Concepts construits par la mère (une règle : jouer un coup après lequel…) :")
+        needed = concepts.dependances(knowledge["rules"], knowledge["concepts"])
+        for name in needed:
+            mark = "règle" if name in knowledge["rules"] else "brique"
+            print(f"  {name:<11} [{mark}] {concepts.decrire(knowledge['concepts'][name])}")
+            print(f"  {'':<11}         {knowledge['concepts'][name]!r}")
         print(f"Réflexion : au plus {education.max_views} position(s) regardée(s) pour un coup")
         if teacher is not None:
             print("Bilan sans correction :")

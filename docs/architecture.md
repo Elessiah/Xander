@@ -14,10 +14,10 @@
       │  game_model.py      synthèse : joueurs, déroulé d'un tour, annulation
       ▼
  GameModel
-      │  education.py       la mère élève le fils : parties, erreurs, explications
+      │  education.py       la mère élève le fils : parties, souvenirs, refactors
       │  lab.py             (une vraie partie qu'elle rejoue et défait avec back)
       ▼
-      │  vocabulary.py      concepts généraux (gagner, parer…) pour expliquer
+      │  concepts.py        les briques : arbres de concepts que la mère construit
       │  son_writer.py      la mère écrit (et réécrit) le code du fils
       ▼
  output/sons/<nom>.py ── fichier autonome : perception, règles apprises, squelette
@@ -121,46 +121,73 @@ mère voit quel coup il a choisi sans rien savoir de son fonctionnement.
    pour les tests suivants, et un pion déplacé est retesté à sa nouvelle
    place : si le dernier coup complétait deux alignements, la mère en garde
    un entier.
-3. **Parties.** Le fils joue contre le professeur et contre un joueur au
-   hasard, une fois X, une fois O.
+3. **Parties.** Le fils joue contre le professeur, contre un joueur au
+   hasard et contre un adversaire « mixte » (une fois sur deux le coup du
+   professeur), une fois X, une fois O.
 4. **Revue des décisions.** Pour chaque coup du fils, la mère demande son
    coup au professeur. S'il diffère, elle fait finir la partie au professeur
    des deux côtés, après chacun des deux coups. Si le coup du professeur mène
-   à un meilleur résultat, c'est une **erreur**.
-5. **Explication.** La mère cherche dans son vocabulaire un concept vrai pour
-   le coup du professeur et faux pour celui du fils. Le concept devient une
-   **règle**, insérée juste avant la règle qui a trompé le fils : la mère
-   apprend ainsi l'ordre des priorités. Sans explication, la position devient
-   un **souvenir**. Puis elle **réécrit le code du fils**.
+   à un meilleur résultat, c'est une **erreur**. Elle revoit aussi les
+   **variantes** : avec `back`, elle essaie chaque autre coup de l'adversaire
+   (« et s'il avait joué là ? ») et revoit la réponse du fils.
+5. **Corriger le cas.** Chaque erreur devient un **souvenir** (dans cette
+   position, jouer le coup du professeur). Chaque position revue devient un
+   **cas** : les cas sont les tests des refactors (une position bien jouée est
+   un test de non-régression).
+6. **Refactoriser.** Après chaque partie, la mère cherche le plus petit concept
+   (section 7) vrai après le coup du professeur et faux après celui du fils
+   dans **au moins deux** souvenirs. Elle l'essaie comme règle à chaque rang
+   de priorité, du plus bas au plus haut. Le refactor est gardé si le fils
+   joue encore bien dans **tous** les cas (vérifié dans le labo), si au moins
+   deux souvenirs deviennent inutiles (ils sont oubliés) et si le fils reste
+   dans son budget de réflexion. Le concept devient une **brique** pour les
+   suivants. Enfin, elle retire les règles devenues inutiles (sans elles,
+   tous les cas restent bien joués). Puis elle **réécrit le code du fils**.
 
-Au Morpion, en partant de zéro (200 parties, environ une seconde) : les 8
-alignements sont découverts, les règles finissent dans l'ordre
-`gagner > parer > fourchette > attaque > contre_fourchette`, avec une dizaine
-de souvenirs (surtout des ouvertures). Un test explore toutes les suites de
-coups adverses possibles : le fils ne peut plus perdre. Sur 20 graines
-aléatoires, 17 donnent un fils parfait dès 200 parties et toutes à 400 : les
-autres n'ont pas encore rencontré la position qui corrige l'ordre des règles.
+La mère part **sans aucun concept**. Au Morpion, en 200 parties (une
+vingtaine de secondes) : les 8 alignements sont découverts, et elle construit
+seule ses règles. Selon les parties rencontrées, le chemin diffère. Avec une
+graine, elle retrouve exactement `gagner > parer > fourchette >
+contre_fourchette` :
 
-## 7. Le vocabulaire — `xander/vocabulary.py`
+```text
+gagne(moi)                                   je gagne
+Non(AuMoins(1, lui, gagne(lui)))             aucun de ses coups ne le fait gagner
+AuMoins(2, moi, gagne(moi))                  au moins 2 de mes coups me font gagner
+Non(AuMoins(1, lui, concept_2(lui)))         aucun de ses coups ne lui donne une fourchette
+```
 
-Les concepts s'écrivent **uniquement** avec quatre notions que la mère
-apprend pour chaque jeu : `possibles(etat)`, `apres(etat, action, joueur)`
-(vient de l'Analyzer), `gagne(etat, joueur)` (la fin de partie comprise par
-contre-épreuve) et `adversaire(joueur)`. Aucun concept ne parle de cases ou
-de lignes : un test exécute le même texte sur un mini Puissance 4 (gravité)
-et sur le Nim (quantité).
+Avec une autre, elle fond « gagner ou parer » en un seul concept, ou trouve
+des combinaisons que personne n'a écrites. Un test explore toutes les suites
+de coups adverses possibles : le fils ne peut plus perdre. Sur 10 graines, 5 donnent un fils parfait dès 200 parties, 6 à 400 et 8 à 800 ; les 2 autres perdent encore sur une seule suite de coups, qu'elles n'ont pas rencontrée. C'est plus lent qu'avec le vocabulaire écrit à la main (17 sur 20 à 200 parties), mais c'est la mère qui apprend.
 
-| Concept | Idée | Ce qui est calculé |
-| --- | --- | --- |
-| `gagner` | je gagne tout de suite | un coup |
-| `parer` | il gagnerait au prochain coup : je l'en empêche | mon coup, puis ses victoires |
-| `fourchette` | je crée deux menaces à la fois | mon coup, puis mes victoires |
-| `attaque` | je menace, il doit parer, et au bout j'ai deux menaces | seulement la suite forcée |
-| `contre_fourchette` | je l'empêche de créer deux menaces (en occupant ou en menaçant) | ses fourchettes, après les coups forcés |
+## 7. Les briques — `xander/concepts.py`
 
-Ils respectent les trois règles du joueur humain (voir `CLAUDE.md`) : les
-règles proposent les coups, on regarde un coup d'avance sur tout, et plus
-loin seulement les coups forcés (une seule parade possible).
+Un concept est un **arbre** (une structure Python, pas du texte, pas de
+modèle de langage) qui décrit une position du point de vue de « moi ». Il
+s'écrit uniquement avec les quatre notions que la mère apprend pour chaque
+jeu : `possibles(etat)`, `apres(etat, action, joueur)` (vient de l'Analyzer),
+`gagne(etat, joueur)` (la fin de partie comprise par contre-épreuve) et
+`adversaire(joueur)`.
+
+| Nœud | Sens |
+| --- | --- |
+| `Brique(nom, J)` | une brique connue, vue du côté de J (moi ou lui) ; au départ, seulement `gagne` |
+| `Non(x)`, `Et(x, y)` | négation, conjonction |
+| `AuMoins(k, J, x)` | au moins k actions de J (k = 1 ou 2) mènent à une position où x est vrai |
+
+Une règle se lit « jouer une action après laquelle le concept est vrai » ;
+une règle qui accepte toutes les actions ne choisit rien et est ignorée. La
+mère énumère les arbres par taille croissante (jusqu'à 6 nœuds, 2 niveaux de
+`AuMoins`), et confond deux arbres qui disent la même chose sur un
+échantillon de positions imaginées : on garde le plus petit. Chaque concept
+adopté devient une brique, d'où des concepts plus grands à taille égale
+(composition, comme les configurations de Chase et Simon).
+
+**Fourni à la main** : ces quatre sortes de nœuds, les valeurs 1 et 2 de k,
+les bornes de la recherche et le budget du fils. Le vocabulaire écrit à la
+main (`xander/vocabulary.py` : `gagner`, `parer`, `fourchette`,
+`contre_fourchette`, `attaque`) ne sert plus qu'aux tests, pour comparer.
 
 ## 8. Le fils — `xander/son_writer.py`
 
@@ -170,21 +197,23 @@ chaque correction, qui n'importe rien de Xander :
 1. **Perception** : `possibles`, `apres`, `gagne`, `adversaire`, écrites à
    partir de ce qu'elle a compris (pions observés, motifs, action
    `SINGLE_TARGET_INDEX`), plus `VUES`, le compteur des positions regardées.
-2. **Règles** : le texte des concepts appris, **et seulement ceux-là**,
-   recopié du vocabulaire, `REGLES` dans l'ordre appris et `SOUVENIRS`.
-3. **Squelette** : `choisir` (souvenir, sinon première règle qui s'applique,
+2. **Règles** : les concepts qu'elle a construits et appris au fils, **et
+   seulement ceux-là** (avec les briques dont ils dépendent), traduits en
+   Python, `REGLES` dans l'ordre appris et `SOUVENIRS`.
+3. **Squelette** : `choisir` (souvenir, sinon première règle qui choisit,
    sinon première action possible) et `play(game)`. C'est ici qu'on pourra
    plus tard transmettre l'expérience de ses frères.
 
 Le fils exécute son code bêtement : il ne simule que ce que ses règles
-demandent et n'appelle jamais `back` ; si le jeu refuse un coup, l'état n'a
-pas changé et il en essaie un autre. **Budget** : au Morpion, il regarde au
-plus 964 positions pour un coup (un minimax complet en regarde plus de
-500 000 au premier coup) ; un test vérifie qu'il reste sous 1 000.
+demandent, sans mémoire, et n'appelle jamais `back` ; si le jeu refuse un
+coup, l'état n'a pas changé et il en essaie un autre. **Budget** : la mère
+refuse un refactor qui ferait regarder au fils plus de 1 000 positions pour
+un coup (un minimax complet en regarde plus de 500 000 au premier coup du
+Morpion) ; un test le vérifie sur toutes les positions.
 
 `Mother.raise_son(exemple, professeur)` renvoie l'éducation (fils, parties,
-leçons) ; `Mother.create_son(nom, exemple, professeur=…)` écrit le fils dans
-`output/sons/<nom>.py`.
+leçons, refactors) ; `Mother.create_son(nom, exemple, professeur=…)` écrit le
+fils dans `output/sons/<nom>.py`.
 
 ## Limites connues
 
@@ -203,8 +232,13 @@ leçons) ; `Mother.create_son(nom, exemple, professeur=…)` écrit le fils dans
   une action qui désigne directement une case (`SINGLE_TARGET_INDEX`). Le
   Puissance 4 (gravité) et les Allumettes (quantité) attendent que l'Analyzer
   sache décrire leur action.
-- Le vocabulaire d'explications est fourni à la main. Il est général (il ne
-  parle que des quatre notions), mais la mère devra un jour le découvrir seule.
+- Les concepts sont construits par la mère, mais leur langage (les quatre
+  sortes de nœuds, k = 1 ou 2) est fourni. Ses concepts sont parfois
+  difficiles à lire : ils sont justes sur tous les cas vus, pas forcément
+  élégants. Un concept validé sur peu de cas peut être une coïncidence ; il
+  est corrigé quand une erreur le contredit.
+- Les symétries (une position tournée de 90°) ne sont pas encore découvertes :
+  chaque souvenir ne vaut que pour sa position exacte.
 - `gagne(etat, joueur)` ne sait pas encore dire qu'un coup fait **perdre**
   celui qui le joue (Allumettes « misère » : prendre la dernière perd). Il
   faudra que la perception sache qui a le trait.

@@ -1,3 +1,4 @@
+import functools
 import textwrap
 import unittest
 from pathlib import Path
@@ -11,7 +12,8 @@ from xander.model import Function, FunctionOperation, Variable
 from xander.mother import Mother, render_son
 from xander.parser import ExampleParser, parse_example
 from xander.rebuilder import ReplayError, build_pool_test, parse_observations, replay
-from xander import son_writer, vocabulary
+from xander import concepts, son_writer, vocabulary
+from xander.concepts import LUI, MOI
 
 RES = Path(__file__).resolve().parent.parent / "res"
 
@@ -138,7 +140,7 @@ class MotherTest(unittest.TestCase):
             path = Mother().create_son("fils", RES / "exampleMorpion.py", directory)  # sans professeur
             source = path.read_text(encoding="utf-8")
             self.assertNotIn("xander", source.split('"""', 2)[2])  # fichier autonome
-            self.assertNotIn("def parer", source)  # né sans règle : rien d'autre que la perception
+            self.assertNotIn("def concept_", source)  # né sans règle : rien d'autre que la perception
             son = son_writer.load(source)
             self.assertEqual(son.MOTIFS, [[1, 4, 7]])  # leçon de l'exemple
             self.assertEqual(son.REGLES, [])
@@ -156,7 +158,20 @@ class NoBackMorpion(Morpion):
 
 
 def education(nb_games: int = 0) -> Education:
+    if nb_games:
+        return trained(nb_games)
     return Mother().raise_son(RES / "exampleMorpion.py", minmax_morpion_play, nb_games)
+
+
+@functools.lru_cache(maxsize=None)
+def trained(nb_games: int) -> Education:
+    """Une éducation complète, partagée par les tests qui ne font que la regarder."""
+    return Mother().raise_son(RES / "exampleMorpion.py", minmax_morpion_play, nb_games)
+
+
+#: Ce que la mère doit retrouver seule (écrit ici pour comparer, jamais donné à la mère).
+GAGNER = concepts.brique(concepts.GAGNE, MOI)
+PARER = concepts.non(concepts.au_moins(1, LUI, concepts.brique(concepts.GAGNE, LUI)))
 
 
 def possible_defeats(son) -> tuple[list[list[int]], int]:
@@ -225,22 +240,40 @@ class EducationTest(unittest.TestCase):
         teaching.lab.goto(draw)
         self.assertIsNone(teaching.winner())
 
-    def test_error_becomes_a_rule(self):
+    def test_error_becomes_a_memory(self):
         teaching = education()
         teaching.knowledge["patterns"].append([0, 1, 2])
         state = ["X", "X", "2", "3", "O", "5", "6", "7", "8"]  # O doit parer en 2
         lesson = teaching.correct(state, "O", 3, "défaut", 2)
-        self.assertEqual(lesson.explanation, "parer")
-        self.assertEqual(teaching.knowledge["rules"], ["parer"])
+        self.assertEqual(lesson.explanation, "souvenir")  # d'abord le cas, sans généraliser
+        self.assertEqual(teaching.knowledge["memories"], {"AA..M....": 2})
+        self.assertEqual(teaching.knowledge["rules"], [])
+        self.assertIn("AA..M....", teaching.cases)
 
-    def test_priority_is_learned(self):
+    def blocking_lessons(self, teaching, positions):
+        teaching.knowledge["patterns"] = [list(line) for line in LINES]
+        teaching.rethink()
+        for moves, block in positions:
+            teaching.lab.goto(moves)
+            teaching.correct(list(teaching.lab.states[-1]), "O", 0, "défaut", block, moves)
+
+    def test_refactor_finds_parer(self):
+        """Deux souvenirs où il fallait parer deviennent une règle que la mère a construite."""
         teaching = education()
-        teaching.knowledge["patterns"] += [[0, 1, 2], [3, 4, 5]]
-        teaching.knowledge["rules"] = ["parer"]
-        state = ["X", "X", "2", "O", "O", "5", "6", "7", "8"]  # O peut gagner en 5 ou parer en 2
-        lesson = teaching.correct(state, "O", 2, "parer", 5)
-        self.assertEqual(lesson.explanation, "gagner")
-        self.assertEqual(teaching.knowledge["rules"], ["gagner", "parer"])
+        self.blocking_lessons(teaching, [([(7,), (4,), (8,)], 6), ([(2,), (4,), (5,)], 8)])
+        self.assertEqual(len(teaching.knowledge["memories"]), 2)
+        done = teaching.refactor()
+        self.assertEqual(len(done), 1, done)
+        self.assertEqual(teaching.knowledge["memories"], {})  # les deux cas sont couverts
+        rule = teaching.knowledge["concepts"][teaching.knowledge["rules"][0]]
+        self.assertIs(rule, PARER)  # « aucun de ses coups ne le fait gagner »
+
+    def test_one_case_is_not_enough(self):
+        """Un seul cas peut être une coïncidence : pas de refactor."""
+        teaching = education()
+        self.blocking_lessons(teaching, [([(7,), (4,), (8,)], 6)])
+        self.assertEqual(teaching.refactor(), [])
+        self.assertEqual(teaching.knowledge["rules"], [])
 
     def test_unexplained_move_becomes_a_memory(self):
         teaching = education()
@@ -248,6 +281,28 @@ class EducationTest(unittest.TestCase):
         lesson = teaching.correct(["0"] * 9, "X", 0, "défaut", 4)
         self.assertEqual(lesson.explanation, "souvenir")
         self.assertEqual(teaching.knowledge["memories"], {".........": 4})
+
+    def test_mother_rediscovers_gagner_and_parer(self):
+        """Partie de zéro, la mère retrouve seule « gagner », et ses règles savent parer.
+
+        La forme de ses concepts lui appartient (elle a pu fondre « gagner ou
+        parer » en un seul) : on compare leurs coups avec le vocabulaire écrit à
+        la main, qui ne sert ici que de référence.
+        """
+        teaching = education(200)
+        definitions, rules = teaching.knowledge["concepts"], teaching.knowledge["rules"]
+        self.assertIn(GAGNER, [definitions[name] for name in rules])
+        mind = self.think(teaching.mind.possibles, teaching.mind.apres, teaching.mind.gagne,
+                          teaching.mind.adversaire)
+        parried = 0
+        for case in teaching.cases.values():
+            if case.key in teaching.knowledge["memories"]:
+                continue  # ici c'est un souvenir qui décide, pas une règle
+            threat = mind["parer"](case.state, case.me)
+            if threat and not mind["gagner"](case.state, case.me):
+                self.assertIn(teaching.decide(case.state, case.me, rules), threat, case.key)
+                parried += 1
+        self.assertGreater(parried, 10)
 
     def test_son_becomes_unbeatable(self):
         teaching = education(200)
@@ -262,9 +317,25 @@ class EducationTest(unittest.TestCase):
     def test_son_contains_only_what_he_learned(self):
         teaching = education(200)
         source = teaching.source()
-        for name in vocabulary.concept_names():
-            self.assertEqual(f"def {name}(" in source, name in teaching.knowledge["rules"], name)
+        definitions, rules = teaching.knowledge["concepts"], teaching.knowledge["rules"]
+        needed = concepts.dependances(rules, definitions)
+        for name in definitions:
+            self.assertEqual(f"def {name}(" in source, name in needed, name)
+        for name in vocabulary.concept_names():  # rien du vocabulaire écrit à la main
+            self.assertNotIn(f"def {name}(", source)
         self.assertNotIn("import", source.split("# --- Perception")[1])
+
+    def test_son_code_agrees_with_mother(self):
+        """Le code écrit pour le fils dit la même chose que les arbres de la mère."""
+        teaching = education(200)
+        son = teaching.son
+        for name in teaching.knowledge["rules"]:
+            rule = teaching.knowledge["concepts"][name]
+            for case in list(teaching.cases.values())[:40]:
+                expected = teaching.pensee.coups(rule, case.state, case.me)
+                actual = {a for a in son.possibles(case.state)
+                          if getattr(son, name)(son.apres(case.state, a, case.me), case.me)}
+                self.assertEqual(actual, expected, (name, case.key))
 
     def test_learning_curve_drops(self):
         records = education(60).records[1:]
@@ -325,6 +396,19 @@ class EducationTest(unittest.TestCase):
         self.assertEqual(mind["gagner"](3, 0), {3})
         self.assertEqual(mind["gagner"](6, 0), set())
         self.assertEqual(mind["parer"](6, 0), set())  # aucune menace à parer
+
+    def test_concept_trees_are_general(self):
+        """Les arbres de la mère s'évaluent avec les quatre notions de n'importe quel jeu (Nim)."""
+        notions = type("Nim", (), {
+            "possibles": staticmethod(lambda n: list(range(1, min(3, n) + 1))),
+            "apres": staticmethod(lambda n, prises, joueur: n - prises),
+            "gagne": staticmethod(lambda n, joueur: n == 0),
+            "adversaire": staticmethod(lambda joueur: 1 - joueur)})
+        pensee = concepts.Pensee(notions)
+        self.assertEqual(pensee.choix(GAGNER, 3, 0), {3})
+        # « aucun de ses coups ne le fait gagner » : à 5, seule la prise de 1 lui laisse
+        # plus de 3 allumettes.
+        self.assertEqual(pensee.choix(PARER, 5, 0), {1})
 
     def test_unsupported_game(self):
         with self.assertRaisesRegex(LabError, "SINGLE_TARGET_INDEX"):

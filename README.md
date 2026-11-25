@@ -48,20 +48,27 @@ Options : `-v` (détail de l'analyse), `--keep` (garde le script de rejeu dans
 python -m xander res/exampleMorpion.py --prof Games.MinmaxMorpion:minmax_morpion_play --son morpion
 ```
 
-Le fils naît sans rien savoir. La mère lui montre l'exemple, le fait jouer
-contre le professeur (le Minmax) et contre un joueur au hasard, puis revient
-sur chacune de ses erreurs : pourquoi le professeur a-t-il préféré un autre
-coup ? pour gagner ? pour parer ? L'explication devient une règle. Chaque
-partie est affichée avec ses leçons (`-q` pour ne voir que le bilan), suivie
-de la courbe d'apprentissage :
+Le fils naît sans rien savoir, et la mère sans aucun concept. Elle lui montre
+l'exemple, le fait jouer contre le professeur (le Minmax), contre un joueur au
+hasard et contre un adversaire mixte, puis revient sur chacune de ses erreurs.
+Elle corrige d'abord **cas par cas** (un souvenir par erreur), puis
+**refactorise** : le plus petit concept qui explique au moins deux souvenirs,
+construit avec ses briques, devient une règle si tous les cas déjà vus restent
+bien joués. Chaque partie est affichée avec ses leçons et ses refactors (`-q`
+pour ne voir que le bilan), suivie de la courbe d'apprentissage et des
+concepts construits :
 
 ```text
-partie   1 | fils X contre professeur : défaite  | 1 erreur(s)
-      motif compris : [2, 4, 6]
-      MMA.A.... : le fils a joué 3 (défaut), le professeur 6 -> parer ; règles : parer
+partie   3 | fils X contre hasard     : victoire | 1 erreur(s)
+      ...A.MM.A : le fils a joué 0 (défaut), le professeur 3 -> souvenir ; nouveau souvenir
+      refactor : 2 souvenirs -> concept_2 (nouvelle règle « jouer un coup après lequel
+                 j'ai gagné ou aucun de ses coups ne donne « il a gagné » ») ; ...
+      refactor : concept_1 retirée (inutile) ; règles : concept_3 > concept_4
 ...
-Règles : gagner > parer > fourchette > attaque > contre_fourchette ; souvenirs : 10
-Réflexion : au plus 964 position(s) regardée(s) pour un coup
+Concepts construits par la mère (une règle : jouer un coup après lequel…) :
+  concept_6   [règle] j'ai gagné
+                      gagne(moi)
+  ...
 ```
 
 `--parties N` (200 par défaut), `--son NOM` écrit le fils dans
