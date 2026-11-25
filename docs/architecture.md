@@ -83,9 +83,11 @@ et des arguments :
 - pour un nombre, la nouvelle valeur : `apres = …` ;
 - pour un tableau, l'ensemble des cases qui ont changé : `changees = …`.
 
-Les programmes s'écrivent avec deux feuilles (`arg0`, `arg1`… et `avant`) et
-cinq opérations : `plus`, `moins`, `case(x)` (la case d'indice *x*),
-`valant(x)` (les cases dont la valeur est *x*) et `union`. Pour chaque
+Les programmes s'écrivent avec des feuilles (`arg0`, `arg1`…, `avant` et des
+**constantes mesurées** sur les cas) et six opérations : `plus`, `moins`,
+`case(x)` (la case d'indice *x*), `valant(x)` (les cases dont la valeur est
+*x*), `union` et `premiere(x, pas, v)` (la première case qui vaut *v* sur la
+file *x*, *x* + *pas*, *x* + 2 *pas*…). Pour chaque
 fonction et chaque variable, elle garde les plus petits programmes qui
 expliquent **tous** les cas, avec au moins deux cas distincts (un seul cas peut
 être une coïncidence). Deux programmes qui donnent les mêmes valeurs sur tous
@@ -103,14 +105,34 @@ Elle retrouve ainsi seule les anciennes hypothèses :
 | `apres = moins(avant, arg0)` / `plus(arg0, avant)` / `arg0` | `QUANTITY_RM` / `_ADD` / `_SET` |
 
 Elle trouve aussi des combinaisons qu'aucune étiquette ne décrivait
-(`apres = moins(avant, plus(arg0, arg1))`). Au Morpion, `case(arg0)` et
+(`apres = moins(avant, plus(arg0, arg1))`).
+
+**Une file de cases (gravité).** Au Puissance 4, `play(3)` remplit la case 3,
+puis 10, puis 17 : la case changée n'est l'argument que sur la rangée du bas.
+La mère ne connaît ni la gravité ni la forme du plateau. Elle remarque trois
+sortes de constantes dans les cas (`constantes`) :
+
+- les **décalages** « case changée − argument » ;
+- les **pas** : l'écart entre les cases changées par deux appels de mêmes
+  arguments (ici 10 − 3 = 7) ;
+- les **valeurs** qu'avaient les cases changées (ici `' '`, la case vide).
+
+Avec elles, le plus petit programme qui explique tous les coups de l'exemple
+est `changees = premiere(arg0, 7, ' ')` : la première case vide de la file
+qui part de *p* et monte de 7. Le même programme décrit un tube qui se
+remplit case par case (pas 1) ou une pile. Un exemple qui ne joue que sur la
+rangée du bas ne montre aucun pas : la mère y trouve `case(arg0)`, que le
+labo réfute dès qu'elle joue deux fois dans la même colonne (§ 6).
+
+Au Morpion, `case(arg0)` et
 `valant(arg0)` coexistent (la case *n* contient le texte `"n"`) : l'exemple
 ne les départage pas, le labo s'en charge (§ 6). Les appels dont aucun cas
 n'est expliqué sont listés dans `AnalysisReport.unknown_calls`.
 
 Ce qui est encore fourni à la main : les deux formes (`apres`, `changees`), les
-feuilles, les cinq opérations, la taille maximale des programmes (5 nœuds) et
-le minimum de deux cas.
+feuilles et les sortes de constantes, les six opérations (dont `premiere`,
+une brique de parcours), la taille maximale des programmes (5 nœuds) et le
+minimum de deux cas.
 
 **Getters / setters.** Enfin, chaque variable (identifiée par son nom) reçoit
 la liste des fonctions qui la renvoient (getters) et de celles dont une
@@ -190,9 +212,12 @@ mère voit quel coup il a choisi sans rien savoir de son fonctionnement.
    comprend un nouveau motif, la mère l'essaie décalé partout, puis cherche
    les renumérotations des cases qui ne changent rien au jeu. Un souvenir
    vaut alors pour toutes les positions équivalentes.
+8. **Petits motifs** (section 7). Après le refactor, chaque nouveau souvenir
+   est réduit aux cases qui comptaient, puis essayé décalé. Le fils le
+   reconnaît partout où cette petite configuration apparaît.
 
-La mère part **sans aucun concept**. Au Morpion, en 200 parties (une dizaine
-de secondes) : les 8 alignements et les 8 symétries sont découverts, et elle
+La mère part **sans aucun concept**. Au Morpion, en 200 parties (quelques
+secondes) : les 8 alignements et les 8 symétries sont découverts, et elle
 construit seule ses règles. Le chemin dépend des parties rencontrées. Par
 exemple :
 
@@ -213,13 +238,18 @@ possibles : le fils ne peut plus perdre.
 | --- | --- | --- |
 | `AuMoins` avec k = 1 ou 2, sans symétries | 5 (8 à 800) | 10 à 46 |
 | k = 1 ou 2, symétries découvertes | 10 | 4 à 16 |
-| **k = 1 seulement** (« il existe »), symétries (par défaut) | 9 (la 10e perd encore 2 suites à 800) | 9 à 30 |
+| k = 1 seulement (« il existe »), symétries | 9 (la 10e perd encore 2 suites à 800) | 9 à 30 |
 | k = 1, 2 ou 3 | 1 sur 5 | 20 à 24 |
+| **k = 1, symétries, petits motifs (par défaut)** | 10 (8 dès 100 parties) | 5 à 7 |
 
 Lui donner moins (k = 1) marche presque aussi bien, deux fois plus vite : elle
 exprime la fourchette autrement (« il ne peut pas me menacer sans danger »).
 Lui donner plus (k jusqu'à 3) est pire : plus de concepts possibles, donc plus
 de coïncidences validées sur peu de cas.
+
+Avec les petits motifs, le fils fait environ 16 erreurs avant d'être parfait,
+contre 24 à 44 sans eux. L'éducation est aussi deux à trois fois plus rapide,
+car il y a moins de cas à revoir.
 
 ## 7. Motifs décalés et symétries — `xander/symmetries.py`
 
@@ -231,9 +261,21 @@ rien de la forme du plateau (l'état n'est qu'une liste de cases) : c'est le
 jeu qui dit qu'au Morpion la rangée du haut décalée de 3 est une rangée, et
 que décalée de 1 elle déborde sur la rangée suivante (la partie ne finit pas).
 Au Morpion, la colonne de l'exemple donne les deux autres avant la première
-partie. Au Puissance 4, les 69 alignements devraient venir de 4 formes
-décalées ; ce n'est pas encore essayé, car l'Analyzer ne comprend pas encore
-la gravité (l'éducation n'y est pas possible).
+partie. Au Puissance 4, un alignement de la 2e rangée ne s'atteint qu'en
+posant d'abord des jetons dessous : chacun y joue alors, puis le premier
+joueur occupe le motif.
+
+**Cases et actions.** La mère raisonne en cases (motifs, souvenirs, symétries)
+et joue des actions. Sa perception fait le lien : `case_jouee(etat, action)`
+donne la case que l'action remplit, et `action_pour(case)` l'action qui vise
+la file de cette case. Pour mettre le labo dans une position donnée, elle
+cherche une suite de coups qui y mène : avec la gravité, un pion ne se pose
+que sur une case qu'une action remplit à ce moment-là. La contre-épreuve
+raisonne aussi sur les positions. Elle imagine la même position avec le pion
+ailleurs, sans qu'aucun autre ne bouge. Si aucune case libre ne convient (un
+pion qui en soutient d'autres, un plateau plein), elle l'échange avec un pion
+adverse : « et si cette case avait été la sienne ? ». Sans cela, un jeton qui
+en soutient un autre semblerait faire partie de l'alignement.
 
 Au Morpion, une position tournée de 90° est la même situation ; au Puissance
 4, la gravité interdit de retourner le plateau. La mère ne le sait pas
@@ -246,11 +288,75 @@ coups, passer par les mêmes positions et finir au même moment. Quand elle ne
 connaît qu'un motif, 4 320 renumérotations le préservent ; le labo n'en garde
 que 4 (identité, deux miroirs, demi-tour), les seules qui ne changent vraiment
 rien au jeu. Avec les 8 motifs, elle en garde 8 (4 rotations, 4 miroirs).
+Au Puissance 4, les 69 alignements sont préservés par 4 renumérotations
+(miroirs gauche-droite et haut-bas, demi-tour). Le labo ne garde que le miroir
+gauche-droite : renversé, le jeu ne tombe plus au même endroit.
 
 Le fils reçoit la liste `SYMETRIES` : pour retrouver un souvenir, il regarde
 sa position sous chacune des 8 façons de la voir, et renumérote le coup
 retenu. Un refactor compte deux positions équivalentes comme un seul
 souvenir.
+
+### Petits motifs : ce qui comptait, reconnu partout
+
+Un maître d'échecs ne retient pas des positions entières : il reconnaît des
+configurations de quelques pièces (Chase et Simon). La mère fait de même avec
+ses souvenirs, en deux questions, toutes deux vérifiées dans le labo.
+
+**« Qu'est-ce qui comptait ? »** Un souvenir `MM.AA....` → 2 (`M` : mes pions,
+`A` : les siens, `.` : libre) devient un **petit motif** : les cases qui ne
+comptent pas deviennent `?`. Un petit motif tient si son coup est le bon
+partout où il apparaît. La mère le vérifie de deux façons :
+
+- dans tous les cas enregistrés, sous chaque façon de les voir : le coup doit
+  y être aussi bon que celui du professeur ;
+- dans 20 positions qu'elle imagine dans le labo. Les `?` y sont remplis au
+  hasard (pions de l'un, de l'autre, ou cases libres), le fils jouant en
+  premier ou en second. Elle écarte une position où la partie est déjà
+  finie, ou qu'aucune suite de coups n'atteint (avec la gravité, un pion ne
+  flotte pas). Elle demande son coup au professeur. S'il joue le coup du
+  motif, la position le **confirme**. S'il joue ailleurs, elle vérifie que le
+  coup du motif est aussi bon que le sien, en lui faisant finir la partie :
+  sinon le motif est **démenti**, sinon la position ne dit rien. Il faut
+  qu'au moins la moitié des positions le confirment.
+
+Pourquoi ne pas se contenter de « aussi bon » ? Au Morpion, un coup change
+souvent l'issue d'une partie. Au Puissance 4, presque jamais : finie par le
+professeur des deux côtés, une partie se termine de la même façon quel que
+soit le coup joué. « Aussi bon » y laisse donc passer presque tout. Demander
+au professeur ce qu'il jouerait est plus exigeant, et bien moins cher (un
+coup au lieu de deux fins de partie).
+
+**Au Puissance 4, cela ne suffit pas encore.** Après 3 parties, la mère garde
+391 souvenirs, dont environ 400 petits motifs décalés, et des motifs absurdes
+passent encore (« la case 3 est libre : y jouer »). Le professeur joue la
+colonne du centre dans la plupart des positions imaginées au hasard : elles
+« confirment » un motif qui ne dit rien de la position. Il faudra des
+positions imaginées plus proches de vraies parties, ou une autre épreuve.
+
+Elle cherche le **plus petit** motif qui tient : d'abord avec 0 case en plus
+de la case jouée, puis 1, 2 et 3 cases (`chunk_size`). Si aucun ne tient, elle
+oublie les cases une à une et garde chaque oubli qui tient (sur un grand
+plateau, les combinaisons seraient trop nombreuses). Ici, elle trouve
+`MM.??????` → 2 : mes deux pions et la case libre suffisent.
+
+**« Et ailleurs ? »** Comme un motif de fin, le petit motif est essayé décalé
+(chaque case + d) et vérifié de la même façon. `MM.??????` décalé de +3
+(`???MM.???` → 5) tient, comme décalé de +6. Décalé de +1 (`?MM.?????` → 3),
+il déborde sur la rangée suivante, et le labo le rejette. Un décalage
+équivalent par symétrie à un souvenir connu n'est pas ajouté.
+
+Le fils reconnaît un petit motif sous chacune des façons de voir sa position.
+S'il se trompe sur un petit motif, c'est que le labo n'avait pas imaginé
+cette position. La mère oublie alors ce petit motif. Les cas qu'il couvrait
+redeviennent des souvenirs entiers, qu'elle réduira de nouveau, avec ce
+nouveau cas comme test.
+
+Au Morpion, les petits motifs restent assez grands : 6 à 7 cases sur 9. Sur
+un plateau aussi petit, presque toutes les cases comptent pour la tactique.
+Un motif est parfois vrai d'une façon inattendue, par exemple parce que
+toutes les positions qui le contiennent sont perdues de toute façon. Aucun
+petit motif n'a été démenti sur 10 graines et 400 parties.
 
 ## 8. Les briques — `xander/concepts.py`
 
@@ -287,14 +393,17 @@ Le fils est un **fichier Python autonome**, écrit par la mère, réécrit aprè
 chaque correction, qui n'importe rien de Xander :
 
 1. **Perception** : `possibles`, `apres`, `gagne`, `adversaire`, écrites à
-   partir de ce qu'elle a compris, plus `VUES`, le compteur des positions
-   regardées. `apres` recopie le programme qu'elle a construit pour décrire
-   l'action (§ 3), traduit en Python (`changees(avant, args)`, ou
-   `valeur_apres` pour un nombre) : ce qu'elle a vérifié sur les cas est
-   exactement ce que le fils exécute. Les cases changées reçoivent le pion du
-   joueur (encore supposé à la main). La mère pense avec la même perception.
-   Si plusieurs programmes de même taille coexistent, elle prend le premier
-   trouvé.
+   partir de ce qu'elle a compris, plus `case_jouee`, `action_pour` et
+   `VUES`, le compteur des positions regardées. `apres` recopie le programme
+   qu'elle a construit pour décrire l'action (§ 3), traduit en Python
+   (`changees(avant, args)`, ou `valeur_apres` pour un nombre) : ce qu'elle a
+   vérifié sur les cas est exactement ce que le fils exécute. La case jouée est
+   la seule case que le programme annonce, si elle est libre ; elle reçoit le
+   pion du joueur (encore supposé à la main). `possibles` garde les actions
+   que le jeu accepte au départ et qui remplissent une case ; `action_pour`
+   vient des portées mesurées dans le labo (chaque action rejouée depuis le
+   début). La mère pense avec la même perception. Si plusieurs programmes de
+   même taille coexistent, elle prend le premier trouvé.
 2. **Règles** : les concepts qu'elle a construits et appris au fils, **et
    seulement ceux-là** (avec les briques dont ils dépendent), traduits en
    Python, `REGLES` dans l'ordre appris, `SOUVENIRS` et `SYMETRIES`.
@@ -315,9 +424,11 @@ fils dans `output/sons/<nom>.py`.
 
 ## Limites connues
 
-- Le langage des effets (deux formes, deux feuilles, cinq opérations) est
-  fourni. Il n'a pas de constantes ni d'ordre : un jeu dont l'état défile
-  (Jumper) ou dont le jeton tombe (Puissance 4) n'est pas encore décrit.
+- Le langage des effets (deux formes, feuilles, constantes mesurées, six
+  opérations dont `premiere`) est fourni. `premiere` est une brique générale
+  de parcours (pile, tube, gravité), pas une découverte de la mère. Un jeu
+  dont l'état défile (Jumper) n'est pas encore décrit, ni une gravité
+  décalée (« la file part de *p* + 35, pas −7 »), qui dépasse 5 nœuds.
 - Les expériences n'essaient que les valeurs vues dans les arguments de
   l'exemple ; un coup qui ne change rien de visible est pris pour un coup
   refusé et n'apprend rien. Deux programmes qui résistent aux 40 expériences
@@ -325,19 +436,17 @@ fils dans `output/sons/<nom>.py`.
 - Découpage des tours : un getter de confirmation appelé juste après le coup
   (`get, play, get`) est rattaché au tour suivant.
 - Éducation : seulement pour deux joueurs qui alternent, un état en tableau et
-  une action qui désigne directement une case (`changees = case(arg0)`) : le
-  `apres` vient du programme trouvé, mais `possibles`, la contre-épreuve, les
-  symétries et la lecture du coup du professeur supposent encore que
-  l'argument d'un coup est la case jouée. Le
-  Puissance 4 (gravité) et les Allumettes (quantité) attendent que l'Analyzer
-  sache décrire leur action.
+  une action qui remplit une case (le programme trouvé annonce une seule case
+  changée). Les actions sont celles que le jeu accepte au départ, essayées
+  parmi les indices du plateau. Les Allumettes (quantité) attendent que la
+  perception sache décrire une quantité.
 - Les concepts sont construits par la mère, mais leur langage (les quatre
   sortes de nœuds) est fourni. Ses concepts sont parfois
   difficiles à lire : ils sont justes sur tous les cas vus, pas forcément
   élégants. Un concept validé sur peu de cas peut être une coïncidence ; il
   est corrigé quand une erreur le contredit.
 - Les symétries sont des renumérotations de cases : elles supposent qu'une
-  action désigne une case. Leur vérification par 20 parties au hasard est
+  action remplit une case. Leur vérification par 20 parties au hasard est
   une épreuve, pas une preuve.
 - Les concepts regardent au plus deux coups plus loin que la règle (deux
   niveaux de `AuMoins`) : assez pour le Morpion, pas pour un jeu dont les
@@ -346,7 +455,9 @@ fils dans `output/sons/<nom>.py`.
 - `gagne(etat, joueur)` ne sait pas encore dire qu'un coup fait **perdre**
   celui qui le joue (Allumettes « misère » : prendre la dernière perd). Il
   faudra que la perception sache qui a le trait.
-- Les motifs sont généralisés par décalage d'indice et vérifiés dans le labo,
-  mais pas encore les souvenirs : un souvenir reste une position entière (ou
-  équivalente). Reconnaître une petite configuration n'importe où sur le
-  plateau (un « chunk » de Chase et Simon) est la prochaine étape.
+- Les motifs de fin et les souvenirs (petits motifs) sont généralisés par
+  décalage d'indice. Les règles, elles, ne parlent pas encore de petits
+  motifs : un concept ne peut pas dire « je crée cette configuration ».
+- La vérification d'un petit motif par 20 positions imaginées est une
+  épreuve, pas une preuve : il faut que le professeur joue le coup du motif
+  dans au moins la moitié d'entre elles, et que ce coup ne soit pire dans aucune.

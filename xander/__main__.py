@@ -66,7 +66,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Motifs compris : {knowledge['patterns']}")
         print(f"Symétries : {len(knowledge['symmetries']) + 1} façon(s) de voir une position "
               "(renumérotations vérifiées dans le labo)")
-        print(f"Règles : {' > '.join(knowledge['rules']) or 'aucune'} ; souvenirs : {len(knowledge['memories'])}")
+        memories = knowledge["memories"]
+        small = sum("?" in key for key in memories)
+        print(f"Règles : {' > '.join(knowledge['rules']) or 'aucune'} ; souvenirs : {len(memories)}"
+              f" (dont {small} petit(s) motif(s), « ? » : une case qui ne compte pas)")
+        for key, move in memories.items():
+            print(f"  {key} -> {move}")
         print("Concepts construits par la mère (une règle : jouer un coup après lequel…) :")
         needed = concepts.dependances(knowledge["rules"], knowledge["concepts"])
         for name in needed:

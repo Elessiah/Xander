@@ -33,11 +33,13 @@ def empty_knowledge(model) -> dict:
         "effect": None,     # le programme qui décrit l'action, construit par la mère (Hypothese)
         "action": model.action.short_name,
         "end_signal": model.end_signal,
+        "actions": [],      # actions que le jeu accepte au départ (essayées dans le labo)
+        "reach": {},        # action -> cases qu'elle remplit quand on la rejoue (mesurées dans le labo)
         "marks": [],        # pions posés par chaque joueur (« X », « O »)
         "patterns": [],     # motifs qui finissent la partie, compris par contre-épreuve
         "concepts": {},     # nom -> arbre de concept construit par la mère (une brique)
         "rules": [],        # concepts appris comme règles, du plus prioritaire au moins prioritaire
-        "memories": {},     # cle(etat, moi) -> action
+        "memories": {},     # cle(etat, moi) -> case à jouer ; « ? » dans la clé : case qui ne compte pas
         "symmetries": [],   # renumérotations des cases qui ne changent rien au jeu (vérifiées)
     }
 
@@ -47,44 +49,67 @@ def symmetries_literal(knowledge: dict) -> str:
 
 
 def apres_source(effect: effets.Hypothese) -> str:
-    """``apres`` à partir du programme que la mère a trouvé pour décrire l'action.
+    """``apres`` (et ``case_jouee``) à partir du programme que la mère a trouvé pour l'action.
 
-    Pour un tableau, le programme dit quelles cases changent ; elles reçoivent
-    le pion du joueur (supposé à la main : la mère ne décrit pas encore la
-    valeur écrite). Pour un nombre, il donne directement la nouvelle valeur.
+    Pour un tableau, le programme dit quelles cases changent ; la case jouée est
+    la seule qui change, si elle est libre, et elle reçoit le pion du joueur
+    (supposé à la main : la mère ne décrit pas encore la valeur écrite). Pour un
+    nombre, le programme donne directement la nouvelle valeur.
     """
-    if effect.forme == effets.CHANGEES:
-        body = """    suite = list(etat)
-    for case in changees(etat, (action,)):
-        suite[case] = joueur
-    return suite"""
-    else:
-        body = "    return valeur_apres(etat, (action,))"
-    return f"""{effets.source(effect)}
+    if effect.forme != effets.CHANGEES:
+        return f"""{effets.source(effect)}
 
 def apres(etat, action, joueur):
     global VUES
     VUES += 1
-{body}
+    return valeur_apres(etat, (action,))
+"""
+    return f"""{effets.source(effect)}
+
+def case_jouee(etat, action):
+    \"\"\"La case que remplit l'action : la seule qui change, si elle est libre.\"\"\"
+    cases = changees(etat, (action,))
+    if len(cases) != 1:
+        return None
+    (case,) = cases
+    return case if etat[case] not in PIONS else None
+
+
+def apres(etat, action, joueur):
+    global VUES
+    VUES += 1
+    suite = list(etat)
+    suite[case_jouee(etat, action)] = joueur
+    return suite
 """
 
 
 def perception_source(knowledge: dict) -> str:
-    """Les quatre notions, pour un état en tableau."""
+    """Les quatre notions, pour un état en tableau dont chaque action remplit une case."""
     return f'''# --- Perception (écrite par la mère) -------------------------------------
 # L'action est décrite par le programme que la mère a construit (Analyzer) ;
-# elle a vu quel pion pose chaque joueur et quels motifs finissent la partie.
+# elle a essayé les actions dans son labo, vu quel pion pose chaque joueur et
+# quels motifs finissent la partie.
 
 PIONS = {knowledge["marks"]!r}
 MOTIFS = {pformat(knowledge["patterns"], compact=True, width=70)}
 VUES = 0  # positions regardées pendant le coup en cours
 
-
-def possibles(etat):
-    return [i for i, valeur in enumerate(etat) if valeur not in PIONS]
+ACTIONS = {knowledge["actions"]!r}  # acceptées par le jeu au départ (essayées dans le labo)
+PORTEES = {pformat(knowledge["reach"], compact=True, width=70)}  # cases remplies en rejouant l'action
+ACTION_DE = {{case: action for action in reversed(ACTIONS) for case in PORTEES.get(action, [])}}
 
 
 {apres_source(knowledge["effect"])}
+
+def action_pour(case):
+    """L'action qui peut remplir cette case (vu dans le labo)."""
+    return ACTION_DE.get(case)
+
+
+def possibles(etat):
+    return [action for action in ACTIONS if case_jouee(etat, action) is not None]
+
 
 def gagne(etat, joueur):
     return any(all(etat[case] == joueur for case in motif) for motif in MOTIFS)
@@ -111,14 +136,35 @@ def transformer(etat, sigma):
     return image
 
 
+def contient(motif, k):
+    """La position (sa clé) contient-elle ce petit motif ? « ? » : une case qui ne compte pas."""
+    return all(m == "?" or m == v for m, v in zip(motif, k))
+
+
+def jouable(etat, case, sigma):
+    """L'action qui remplit ici la case d'un souvenir (vu sous sigma), si elle est jouable."""
+    if sigma is not None:
+        case = sigma.index(case)
+    action = action_pour(case)
+    return action if action is not None and case_jouee(etat, action) == case else None
+
+
 def rappel(etat, moi, souvenirs):
-    """Un souvenir de cette position, ou d'une position équivalente : (sa clé, mon coup ici)."""
+    """Un souvenir de cette position, d'une position équivalente, ou d'un petit motif
+    qu'elle contient (où qu'il soit, sous chaque façon de la voir) : (sa clé, mon coup ici).
+    Un souvenir dit quelle case occuper ; il ne vaut que si une action la remplit."""
     for sigma in SYMETRIES:
         vue = etat if sigma is None else transformer(etat, sigma)
         k = cle(vue, moi)
         if k in souvenirs:
-            coup = souvenirs[k]
-            return k, (coup if sigma is None else sigma.index(coup))
+            action = jouable(etat, souvenirs[k], sigma)
+            if action is not None:
+                return k, action
+        for motif in souvenirs:
+            if "?" in motif and contient(motif, k):
+                action = jouable(etat, souvenirs[motif], sigma)
+                if action is not None:
+                    return motif, action
     return None, None
 
 
@@ -182,8 +228,8 @@ def play(game):
             return resultat
         suite = getattr(game, GETTER)()
         if suite != etat:  # coup accepté (un coup refusé ne change rien)
-            joue = changees(etat, (action,))  # mon pion : ce qui est apparu là où j'ai joué
-            MEMOIRE["moi"] = next((suite[c] for c in joue if suite[c] in PIONS), moi)
+            case = case_jouee(etat, action)  # mon pion : ce qui est apparu là où j'ai joué
+            MEMOIRE["moi"] = suite[case] if case is not None and suite[case] in PIONS else moi
             MEMOIRE["poses"] = sum(v in PIONS for v in suite)
             return resultat
     raise RuntimeError("le jeu a refusé toutes mes actions")

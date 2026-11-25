@@ -15,12 +15,18 @@ ce qui a changé. Elle prend l'une de deux formes :
 
 Le terme ``t`` est un arbre construit avec :
 
-* les feuilles ``arg(k)`` (le k-ième argument de l'appel) et ``avant`` (la
-  valeur d'avant) ;
+* les feuilles ``arg(k)`` (le k-ième argument de l'appel), ``avant`` (la
+  valeur d'avant) et des **constantes mesurées** sur les cas (voir
+  :func:`constantes`) : écarts entre la case changée et un argument, écarts
+  entre les cases changées par deux appels de mêmes arguments, valeurs
+  qu'avaient les cases changées ;
 * ``plus(x, y)`` et ``moins(x, y)`` sur des nombres ;
 * ``case(x)`` : la case d'indice ``x`` ; ``valant(x)`` : les cases dont la
   valeur est ``x`` (ou s'écrit comme ``x``) ; ``union(e, f)`` de deux ensembles
-  de cases.
+  de cases ;
+* ``premiere(x, pas, v)`` : la première case qui vaut ``v`` sur la file
+  ``x``, ``x + pas``, ``x + 2 pas``… (une pile, un tube, la gravité du
+  Puissance 4 : ``premiere(arg0, 7, ' ')``).
 
 La mère énumère les termes par taille croissante et garde, pour chaque
 variable, les plus petites hypothèses qui expliquent **tous** les cas
@@ -33,21 +39,27 @@ case qui vaut p » disent toujours la même chose).
 Exemples (que la mère doit trouver seule, ils ne sont écrits nulle part sauf
 dans les tests) : au Morpion ``changees = case(arg0)`` ; aux Allumettes
 ``apres = moins(avant, arg0)`` ; un déplacement ``changees = union(case(arg0),
-case(arg1))``.
+case(arg1))`` ; au Puissance 4 ``changees = premiere(arg0, 7, ' ')``.
 
-Ce qui est fourni à la main : les deux formes, les feuilles, les cinq
-opérations ci-dessus, la taille maximale des termes (:data:`MAX_TAILLE`) et le
-nombre minimal de cas (:data:`MIN_CAS`).
+Ce qui est fourni à la main : les deux formes, les feuilles, les sortes de
+constantes mesurées, les six opérations ci-dessus (dont ``premiere``, une
+brique générale de parcours qu'il faudra plus tard découvrir comme
+composition), la taille maximale des termes (:data:`MAX_TAILLE`) et le nombre
+minimal de cas (:data:`MIN_CAS`).
 """
 
 from __future__ import annotations
 
+import itertools
+from collections import Counter
 from dataclasses import dataclass
 
 #: Taille maximale d'un terme (nombre de nœuds).
 MAX_TAILLE = 5
 #: Nombre minimal de cas distincts pour qu'une hypothèse soit retenue.
 MIN_CAS = 2
+#: Nombre maximal de constantes de chaque sorte retenues (les plus fréquentes).
+MAX_CONSTANTES = 8
 
 APRES, CHANGEES = "apres", "changees"
 
@@ -69,7 +81,7 @@ class Terme:
     _table: dict = {}
 
     def __new__(cls, kind, *args):
-        key = (kind,) + tuple(a.id if isinstance(a, Terme) else a for a in args)
+        key = (kind,) + tuple(a.id if isinstance(a, Terme) else (type(a).__name__, a) for a in args)
         node = cls._table.get(key)
         if node is None:
             node = object.__new__(cls)
@@ -83,6 +95,8 @@ class Terme:
             return f"arg{self.args[0]}"
         if self.kind == "avant":
             return "avant"
+        if self.kind == "const":
+            return repr(self.args[0])
         return f"{self.kind}({', '.join(map(repr, self.args))})"
 
 
@@ -92,6 +106,10 @@ def arg(k: int) -> Terme:
 
 def avant() -> Terme:
     return Terme("avant")
+
+
+def const(valeur) -> Terme:
+    return Terme("const", valeur)
 
 
 def _ordonnes(x: Terme, y: Terme) -> tuple[Terme, Terme]:
@@ -116,6 +134,10 @@ def valant(x: Terme) -> Terme:
 
 def union(e: Terme, f: Terme) -> Terme:
     return Terme("union", *_ordonnes(e, f))
+
+
+def premiere(x: Terme, pas: Terme, v: Terme) -> Terme:
+    return Terme("premiere", x, pas, v)
 
 
 @dataclass(frozen=True)
@@ -179,6 +201,8 @@ def evaluer(terme: Terme, cas: Cas, enfants: tuple = None):
         return cas.arguments[k] if k < len(cas.arguments) else INDEFINI
     if kind == "avant":
         return tableau
+    if kind == "const":
+        return terme.args[0]
     if kind in ("plus", "moins"):
         x, y = enfants
         if not (_est_nombre(x) and _est_nombre(y)):
@@ -195,18 +219,61 @@ def evaluer(terme: Terme, cas: Cas, enfants: tuple = None):
     if kind == "union":
         e, f = enfants
         return e | f if isinstance(e, frozenset) and isinstance(f, frozenset) else INDEFINI
+    if kind == "premiere":
+        x, pas, v = enfants
+        if not (isinstance(tableau, list) and _est_entier(x) and _est_entier(pas) and pas
+                and not isinstance(v, (frozenset, list))):
+            return INDEFINI
+        return frozenset(_premiere(tableau, x, pas, v))
     raise ValueError(kind)
+
+
+def _est_entier(valeur) -> bool:
+    return isinstance(valeur, int) and not isinstance(valeur, bool)
+
+
+def _premiere(tableau, x, pas, v) -> set:
+    """La première case qui vaut ``v`` sur la file ``x``, ``x + pas``… (vide s'il n'y en a pas)."""
+    case = x
+    while 0 <= case < len(tableau):
+        if tableau[case] == v:
+            return {case}
+        case += pas
+    return set()
+
+
+PREMIERE_SOURCE = """def _premiere(tableau, x, pas, v):
+    \"\"\"La première case qui vaut v sur la file x, x + pas… (vide s'il n'y en a pas).\"\"\"
+    case = x
+    while 0 <= case < len(tableau):
+        if tableau[case] == v:
+            return {case}
+        case += pas
+    return set()
+"""
 
 
 # ---------------------------------------------------------------------- #
 # Découvrir les hypothèses
 # ---------------------------------------------------------------------- #
 
-UNAIRES = (case, valant)
-BINAIRES = (plus, moins, union)
+#: Les opérations et leur nombre d'arguments.
+OPERATIONS = ((case, 1), (valant, 1), (plus, 2), (moins, 2), (union, 2), (premiere, 3))
+#: Opérations commutatives : un seul ordre d'arguments est essayé.
+COMMUTATIVES = (plus, union)
 
 
-def termes(cas: list[Cas], nb_arguments: int, max_taille: int = MAX_TAILLE):
+def _compositions(total: int, parts: int):
+    """Les façons d'écrire ``total`` comme somme ordonnée de ``parts`` entiers positifs."""
+    if parts == 1:
+        yield (total,)
+        return
+    for first in range(1, total - parts + 2):
+        for rest in _compositions(total - first, parts - 1):
+            yield (first,) + rest
+
+
+def termes(cas: list[Cas], nb_arguments: int, max_taille: int = MAX_TAILLE, constants: tuple = ()):
     """Énumère les termes par taille croissante, avec leurs valeurs sur ``cas``.
 
     Renvoie ``(terme, valeurs)``. Un terme qui donne les mêmes valeurs qu'un
@@ -228,37 +295,65 @@ def termes(cas: list[Cas], nb_arguments: int, max_taille: int = MAX_TAILLE):
             par_taille.setdefault(terme.size, []).append((terme, valeurs))
         return terme, valeurs
 
-    def construire(terme: Terme, *enfants):
-        valeurs = tuple(evaluer(terme, c, tuple(e[i] for e in enfants)) for i, c in enumerate(cas))
+    def construire(terme: Terme, enfants: dict | None = None):
+        ordre = [enfants[a] for a in terme.args if isinstance(a, Terme)] if enfants else []
+        valeurs = tuple(evaluer(terme, c, tuple(v[i] for v in ordre)) for i, c in enumerate(cas))
         return proposer(terme, valeurs)
 
-    feuilles = [arg(k) for k in range(nb_arguments)] + [avant()]
+    feuilles = [arg(k) for k in range(nb_arguments)] + [avant()] + [const(v) for v in constants]
     for feuille in feuilles:
         trouve = construire(feuille)
         if trouve:
             yield trouve
     for taille in range(2, max_taille + 1):
-        for operation in UNAIRES:
-            for terme, valeurs in list(par_taille.get(taille - 1, [])):
-                trouve = construire(operation(terme), valeurs)
-                if trouve:
-                    yield trouve
-        for operation in BINAIRES:
-            for gauche in range(1, taille - 1):
-                droite = taille - 1 - gauche
-                for x, vx in list(par_taille.get(gauche, [])):
-                    for y, vy in list(par_taille.get(droite, [])):
-                        if operation is not moins and x.id > y.id:
-                            continue  # commutatif : un seul ordre
-                        if x is y and operation is not plus:
-                            continue  # x - x et x ∪ x n'apprennent rien
-                        terme = operation(x, y)
-                        if terme.size != taille:
-                            continue
-                        enfants = (vx, vy) if terme.args[0] is x else (vy, vx)
-                        trouve = construire(terme, *enfants)
-                        if trouve:
-                            yield trouve
+        for operation, arite in OPERATIONS:
+            if taille - 1 < arite:
+                continue
+            for tailles in _compositions(taille - 1, arite):
+                groupes = [list(par_taille.get(t, [])) for t in tailles]
+                for choix in itertools.product(*groupes):
+                    enfants = [t for t, _ in choix]
+                    if operation in COMMUTATIVES and enfants[0].id > enfants[1].id:
+                        continue  # commutatif : un seul ordre
+                    if operation in (moins, union) and enfants[0] is enfants[1]:
+                        continue  # x - x et x ∪ x n'apprennent rien
+                    terme = operation(*enfants)
+                    trouve = construire(terme, dict(choix))
+                    if trouve:
+                        yield trouve
+
+
+def constantes(cas: list[Cas]) -> tuple:
+    """Les constantes que la mère remarque dans les cas (les plus fréquentes de chaque sorte).
+
+    * écarts entre une case changée et un argument entier (un décalage) ;
+    * écarts entre les cases changées par deux appels de mêmes arguments (un
+      pas : rejouer la même action a rempli une autre case) ;
+    * valeurs qu'avaient les cases changées (au Puissance 4, la case vide).
+
+    Pour un nombre (forme ``apres``), aucune constante n'est mesurée.
+    """
+    nombres, valeurs = Counter(), Counter()
+    seules: dict = {}  # arguments -> cases changées seules, dans l'ordre des cas
+    for c in cas:
+        if c.forme != CHANGEES:
+            continue
+        changees = sorted(c.cible())
+        for i in changees:
+            valeurs[_cle(c.valeur_avant[i])] += 1
+            for a in c.arguments:
+                if _est_entier(a):
+                    nombres[i - a] += 1
+        if len(changees) == 1:
+            seules.setdefault(_cle(c.arguments), []).append(changees[0])
+    for suite in seules.values():
+        for i, x in enumerate(suite):
+            for y in suite[i + 1:]:
+                if y != x:
+                    nombres[y - x] += 1
+    retenus = [n for n, _ in nombres.most_common(MAX_CONSTANTES)]
+    vues = [cle[1] for cle, _ in valeurs.most_common(MAX_CONSTANTES)]
+    return tuple(sorted(retenus, key=lambda n: (abs(n), n))) + tuple(vues)
 
 
 def _cle(valeur):
@@ -285,7 +380,7 @@ def decouvrir(observations: list[Cas], max_taille: int = MAX_TAILLE,
     cibles = tuple(_cle(c.cible()) for c in cas)
     nb_arguments = min(len(c.arguments) for c in cas)
     trouvees: list[Hypothese] = []
-    for terme, valeurs in termes(cas, nb_arguments, max_taille):
+    for terme, valeurs in termes(cas, nb_arguments, max_taille, constantes(cas)):
         if trouvees and terme.size > trouvees[0].terme.size:
             break
         if tuple(_cle(v) for v in valeurs) == cibles:
@@ -315,6 +410,8 @@ def traduire(terme: Terme) -> str:
         return f"args[{a[0]}]"
     if kind == "avant":
         return "avant"
+    if kind == "const":
+        return repr(a[0])
     if kind == "plus":
         return f"({traduire(a[0])} + {traduire(a[1])})"
     if kind == "moins":
@@ -326,14 +423,21 @@ def traduire(terme: Terme) -> str:
         return f"{{i for i, v in enumerate(avant) if v == {x} or str(v) == str({x})}}"
     if kind == "union":
         return f"({traduire(a[0])} | {traduire(a[1])})"
+    if kind == "premiere":
+        return f"_premiere(avant, {traduire(a[0])}, {traduire(a[1])}, {traduire(a[2])})"
     raise ValueError(kind)
+
+
+def _utilise(terme: Terme, kind: str) -> bool:
+    return terme.kind == kind or any(isinstance(a, Terme) and _utilise(a, kind) for a in terme.args)
 
 
 def source(hypothese: Hypothese) -> str:
     """La fonction Python ``changees(avant, args)`` ou ``valeur_apres(avant, args)``."""
     nom = "changees" if hypothese.forme == CHANGEES else "valeur_apres"
     quoi = "les cases qui changent" if hypothese.forme == CHANGEES else "la nouvelle valeur"
-    return (f"def {nom}(avant, args):\n"
+    aide = PREMIERE_SOURCE + "\n\n" if _utilise(hypothese.terme, "premiere") else ""
+    return (aide + f"def {nom}(avant, args):\n"
             f'    """{quoi.capitalize()} : {hypothese!r} (trouvé par la mère)."""\n'
             f"    return {traduire(hypothese.terme)}\n")
 
