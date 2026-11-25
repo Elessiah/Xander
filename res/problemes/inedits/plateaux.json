@@ -1,0 +1,110 @@
+{
+  "lot": "jamais vus : positions de nos jeux (écrits après le gel du commit e7e14f3, passés une seule fois)",
+  "domaine": "plateaux",
+  "enonce": "Mêmes écritures qu'à l'entraînement : Morpion en 9 cases ou en 3 rangées (« X », « O », « . » libre), colonne de Puissance 4 du bas vers le haut, Allumettes en nombres.",
+  "problemes": [
+    {
+      "nom": "pions-de-o",
+      "enonce": "Morpion (9 cases) : combien de pions O.",
+      "paires": [
+        {"entree": ["X", ".", "O", ".", "X", ".", ".", ".", "O"], "sortie": 2},
+        {"entree": ["O", "X", ".", ".", ".", ".", ".", ".", "."], "sortie": 1},
+        {"entree": ["X", "O", "X", "O", "X", "O", ".", ".", "."], "sortie": 3},
+        {"entree": [".", ".", ".", ".", "X", ".", ".", ".", "."], "sortie": 0}
+      ],
+      "questions": [{"entree": [".", ".", ".", "O", "X", "O", "X", ".", "."], "sortie": 2}]
+    },
+    {
+      "nom": "cases-de-x",
+      "enonce": "Morpion (9 cases) : les indices des cases où X a joué.",
+      "paires": [
+        {"entree": ["X", ".", "O", ".", "X", ".", ".", ".", "O"], "sortie": [0, 4]},
+        {"entree": ["O", "X", ".", ".", ".", ".", ".", ".", "."], "sortie": [1]},
+        {"entree": ["X", "O", "X", "O", "X", "O", ".", ".", "."], "sortie": [0, 2, 4]}
+      ],
+      "questions": [{"entree": [".", ".", ".", "O", "X", "O", "X", ".", "."], "sortie": [4, 6]}]
+    },
+    {
+      "nom": "nombre-de-cases-libres",
+      "enonce": "Morpion (9 cases) : combien de cases libres.",
+      "paires": [
+        {"entree": ["X", ".", "O", ".", "X", ".", ".", ".", "O"], "sortie": 5},
+        {"entree": ["O", "X", ".", ".", ".", ".", ".", ".", "."], "sortie": 7},
+        {"entree": ["X", "O", "X", "O", "X", "O", ".", ".", "."], "sortie": 3}
+      ],
+      "questions": [{"entree": [".", ".", ".", "O", "X", "O", "X", ".", "."], "sortie": 5}]
+    },
+    {
+      "nom": "plateau-vide",
+      "enonce": "Morpion (9 cases) : personne n'a encore joué ?",
+      "paires": [
+        {"entree": [".", ".", ".", ".", ".", ".", ".", ".", "."], "sortie": true},
+        {"entree": ["X", ".", "O", ".", "X", ".", ".", ".", "O"], "sortie": false},
+        {"entree": [".", ".", ".", ".", "X", ".", ".", ".", "."], "sortie": false},
+        {"entree": ["O", "X", ".", ".", ".", ".", ".", ".", "."], "sortie": false}
+      ],
+      "questions": [{"entree": ["X", "O", "X", "O", "X", "O", ".", ".", "."], "sortie": false}]
+    },
+    {
+      "nom": "case-en-haut-a-gauche",
+      "enonce": "Morpion (3 rangées) : ce qu'il y a dans la case en haut à gauche.",
+      "paires": [
+        {"entree": [["X", ".", "O"], [".", "X", "."], ["O", ".", "."]], "sortie": "X"},
+        {"entree": [[".", ".", "."], ["O", "X", "."], [".", ".", "X"]], "sortie": "."},
+        {"entree": [["O", "O", "X"], [".", ".", "."], ["X", ".", "."]], "sortie": "O"}
+      ],
+      "questions": [{"entree": [[".", "X", "."], [".", "O", "."], ["O", ".", "X"]], "sortie": "."}]
+    },
+    {
+      "nom": "rangee-du-bas",
+      "enonce": "Morpion (3 rangées) : la rangée du bas.",
+      "paires": [
+        {"entree": [["X", ".", "O"], [".", "X", "."], ["O", ".", "."]], "sortie": ["O", ".", "."]},
+        {"entree": [[".", ".", "."], ["O", "X", "."], [".", ".", "X"]], "sortie": [".", ".", "X"]},
+        {"entree": [["O", "O", "X"], [".", ".", "."], ["X", ".", "."]], "sortie": ["X", ".", "."]}
+      ],
+      "questions": [{"entree": [[".", "X", "."], [".", "O", "."], ["O", ".", "X"]], "sortie": ["O", ".", "X"]}]
+    },
+    {
+      "nom": "colonne-de-droite",
+      "enonce": "Morpion (3 rangées) : la colonne de droite, de haut en bas.",
+      "paires": [
+        {"entree": [["X", "O", "."], [".", "X", "O"], [".", ".", "."]], "sortie": [".", "O", "."]},
+        {"entree": [["O", ".", "X"], ["X", ".", "."], [".", "O", "O"]], "sortie": ["X", ".", "O"]},
+        {"entree": [[".", ".", "."], ["X", "O", "X"], ["O", ".", "."]], "sortie": [".", "X", "."]}
+      ],
+      "questions": [{"entree": [["X", ".", "O"], [".", ".", "X"], ["O", "X", "."]], "sortie": ["O", "X", "."]}]
+    },
+    {
+      "nom": "hauteur-de-la-colonne",
+      "enonce": "Puissance 4 : une colonne, du bas vers le haut ; combien de pions elle contient.",
+      "paires": [
+        {"entree": ["X", "O", ".", ".", ".", "."], "sortie": 2},
+        {"entree": ["X", ".", ".", ".", ".", "."], "sortie": 1},
+        {"entree": ["O", "X", "X", "O", "X", "."], "sortie": 5}
+      ],
+      "questions": [{"entree": ["X", "X", "O", ".", ".", "."], "sortie": 3}]
+    },
+    {
+      "nom": "allumettes-apres-deux-coups",
+      "enonce": "Allumettes : [allumettes en jeu, prises par le premier, prises par le second] : combien il en reste.",
+      "paires": [
+        {"entree": [10, 2, 3], "sortie": 5},
+        {"entree": [7, 1, 1], "sortie": 5},
+        {"entree": [20, 3, 3], "sortie": 14}
+      ],
+      "questions": [{"entree": [15, 2, 1], "sortie": 12}]
+    },
+    {
+      "nom": "pions-du-joueur",
+      "enonce": "Morpion : [plateau en 9 cases, joueur] : combien de pions ce joueur a posés.",
+      "paires": [
+        {"entree": [["X", ".", "O", ".", "X", ".", ".", ".", "O"], "X"], "sortie": 2},
+        {"entree": [["O", "X", ".", ".", ".", ".", ".", ".", "."], "O"], "sortie": 1},
+        {"entree": [["X", "O", "X", "O", "X", "O", ".", ".", "."], "O"], "sortie": 3},
+        {"entree": [[".", ".", ".", ".", "X", ".", ".", ".", "."], "X"], "sortie": 1}
+      ],
+      "questions": [{"entree": [[".", ".", ".", "O", "X", "O", "X", ".", "."], "O"], "sortie": 2}]
+    }
+  ]
+}

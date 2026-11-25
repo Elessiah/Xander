@@ -1,0 +1,86 @@
+{
+  "lot": "jamais vus : listes de nombres (écrits après le gel du commit e7e14f3, passés une seule fois)",
+  "domaine": "listes",
+  "problemes": [
+    {
+      "nom": "le-plus-petit",
+      "enonce": "Le plus petit nombre de la liste.",
+      "paires": [
+        {"entree": [4, 2, 8], "sortie": 2},
+        {"entree": [9, 7], "sortie": 7},
+        {"entree": [5, 1, 3, 6], "sortie": 1}
+      ],
+      "questions": [{"entree": [12, 15, 10], "sortie": 10}]
+    },
+    {
+      "nom": "sans-le-premier",
+      "enonce": "La liste sans son premier élément.",
+      "paires": [
+        {"entree": [1, 2, 3], "sortie": [2, 3]},
+        {"entree": [7, 8], "sortie": [8]},
+        {"entree": [4, 4, 5, 6], "sortie": [4, 5, 6]}
+      ],
+      "questions": [{"entree": [9, 0, 1], "sortie": [0, 1]}]
+    },
+    {
+      "nom": "les-pairs",
+      "enonce": "Garder les nombres pairs.",
+      "paires": [
+        {"entree": [1, 2, 3, 4], "sortie": [2, 4]},
+        {"entree": [6, 7, 8], "sortie": [6, 8]},
+        {"entree": [5, 10], "sortie": [10]}
+      ],
+      "questions": [{"entree": [11, 12, 14, 15], "sortie": [12, 14]}]
+    },
+    {
+      "nom": "tripler",
+      "enonce": "Chaque nombre multiplié par trois.",
+      "paires": [
+        {"entree": [1, 2], "sortie": [3, 6]},
+        {"entree": [4], "sortie": [12]},
+        {"entree": [0, 5, 10], "sortie": [0, 15, 30]}
+      ],
+      "questions": [{"entree": [7, 3], "sortie": [21, 9]}]
+    },
+    {
+      "nom": "nombre-de-negatifs",
+      "enonce": "Combien de nombres sont plus petits que zéro.",
+      "paires": [
+        {"entree": [-1, 2, -3], "sortie": 2},
+        {"entree": [4, 5], "sortie": 0},
+        {"entree": [-7, -8, -9, 1], "sortie": 3}
+      ],
+      "questions": [{"entree": [-2, 0, -5, 6], "sortie": 2}]
+    },
+    {
+      "nom": "deuxieme-element",
+      "enonce": "Le deuxième élément de la liste.",
+      "paires": [
+        {"entree": [5, 6, 7], "sortie": 6},
+        {"entree": [1, 9], "sortie": 9},
+        {"entree": [8, 3, 4, 2], "sortie": 3}
+      ],
+      "questions": [{"entree": [10, 20, 30], "sortie": 20}]
+    },
+    {
+      "nom": "dernier-moins-premier",
+      "enonce": "Le dernier nombre moins le premier.",
+      "paires": [
+        {"entree": [2, 5, 9], "sortie": 7},
+        {"entree": [10, 4], "sortie": -6},
+        {"entree": [3, 3], "sortie": 0}
+      ],
+      "questions": [{"entree": [1, 8, 6, 20], "sortie": 19}]
+    },
+    {
+      "nom": "mettre-a-plat",
+      "enonce": "Les groupes mis bout à bout en une seule liste.",
+      "paires": [
+        {"entree": [[1, 2], [3]], "sortie": [1, 2, 3]},
+        {"entree": [[4], [5, 6], [7]], "sortie": [4, 5, 6, 7]},
+        {"entree": [[8, 9]], "sortie": [8, 9]}
+      ],
+      "questions": [{"entree": [[1], [2], [3, 4]], "sortie": [1, 2, 3, 4]}]
+    }
+  ]
+}
