@@ -218,6 +218,7 @@ class Education:
             raise LabError("l'exemple ne montre ni quelles cases change l'action, ni quelle valeur "
                            "elle donne : la mère ne peut pas encore éduquer de fils")
         self.tableau = self.forme == effets.CHANGEES
+        self.formes = (self.forme,)                 # formes de description acceptées
         self.parsed = parsed
         self.model = model
         self.lab = Lab(parsed, model)
@@ -335,7 +336,7 @@ class Education:
                 # les nouveaux coups montrent peut-être des cases qu'une action remplit aussi
                 reach = self.knowledge["reach"] = effets.portees_observees(list(observed) + gathered)
                 survivors = [h for h in effets.decouvrir(list(observed) + gathered, portees=reach)
-                             if h.forme == self.forme]
+                             if h.forme in self.formes]
                 for hypothesis in survivors:  # réfutée avec des portées incomplètes, pas avec celles-ci
                     trials.refutations.pop(hypothesis, None)
                 trials.survivors = survivors

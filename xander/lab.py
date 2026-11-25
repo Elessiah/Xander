@@ -9,7 +9,10 @@ Le labo tient la liste des coups joués depuis le début (``moves``) et l'état
 lu avant chaque coup (``states``). :meth:`Lab.goto` amène la partie à
 n'importe quelle suite de coups en annulant puis en rejouant.
 
-Un coup est *refusé* quand l'état lu après lui n'a pas changé ; il *termine*
+Un coup est *refusé* quand l'état lu après lui n'a pas changé et que l'action
+n'a pas renvoyé ce qu'elle renvoie d'habitude (au Morpion, ``False`` au lieu
+du plateau) : un écran qui défile sur du vide renvoie l'écran, inchangé, et le
+coup a bien été joué. Il *termine*
 la partie quand l'action renvoie le signal de fin appris dans l'exemple. Après
 la fin, l'état n'est plus relu (certains jeux recommencent une partie quand on
 lit un état terminé).
@@ -44,6 +47,19 @@ def build_game(parsed: ParsedExample):
     return namespace[game_calls[0].return_value.name]
 
 
+def usual_return(parsed: ParsedExample, model: GameModel):
+    """Le type de ce que l'action renvoie d'habitude dans l'exemple (``None`` si elle ne renvoie
+    rien). Un coup refusé renvoie autre chose (au Morpion, ``False`` au lieu du plateau)."""
+    if model.action is None or model.report is None:
+        return None
+    seen = [type(model.report.observations[f.time]) for f in parsed.player_functions()
+            if f.name == model.action.name and f.time in model.report.observations]
+    if not seen:
+        return None
+    usual = max(set(seen), key=seen.count)
+    return None if usual is type(None) else usual
+
+
 class Spy:
     """Le jeu tel que le voit le professeur : la mère note chaque coup qu'il joue."""
 
@@ -71,6 +87,8 @@ class Lab:
         self.action = model.action.short_name
         self.back = model.back_function.short_name
         self.end_signal = model.end_signal
+        self.usual = usual_return(parsed, model)
+        self.refusals = 0          # coups refusés vus depuis le début (toutes parties)
         self.new_game()
 
     def new_game(self) -> None:
@@ -102,10 +120,17 @@ class Lab:
             self.ended = True
             return result
         after = self.read()
-        if after != self.states[-1]:
+        if after != self.states[-1] or self.as_usual(result):
             self.moves.append(arguments)
             self.states.append(after)
+        else:
+            self.refusals += 1
         return result
+
+    def as_usual(self, result) -> bool:
+        """L'action a-t-elle renvoyé ce qu'elle renvoie d'habitude (un état) ? Alors le coup a
+        été joué, même si rien de visible n'a changé (un écran qui défile sur du vide)."""
+        return self.usual is not None and result is not None and type(result) is self.usual
 
     def play(self, *arguments) -> str:
         """Joue et résume : ``"moved"``, ``"end"`` ou ``"refused"``."""

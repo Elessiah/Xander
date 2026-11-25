@@ -103,6 +103,12 @@ class Analyzer:
             explained = any(effets.explique(op.programme, case)
                             for op in function.operations
                             for case in calls.get(op.variable.name, (None, []))[1])
+            # rien n'a changé : expliqué si la description le prévoit (un écran qui défile sur du vide)
+            explained = explained or any(
+                effets.explique(op.programme, Cas(prev, tuple(function.arguments), nxt))
+                for op in function.operations
+                for variable, prev, nxt in self.compared_values(function)
+                if variable.name == op.variable.name and isinstance(prev, list) and prev == nxt)
             if not explained:
                 unknown.append(function)
 

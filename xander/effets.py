@@ -53,6 +53,13 @@ constantes mesurées, les sept opérations ci-dessus (dont ``premiere_de``, une
 brique d'ordre générale), la façon d'observer une portée (rejouer la même
 action depuis le début), la taille maximale des termes (:data:`MAX_TAILLE`) et
 le nombre minimal de cas (:data:`MIN_CAS`).
+
+**Un état qui défile.** Quand aucun ensemble de cases changées ne s'explique,
+la mère essaie une troisième forme, ``suite = decale(avant, d)`` (voir
+:class:`Defilement`) : l'état d'avant, décalé, sauf ce qu'elle sait nommer et
+ne prévoit pas (ce qui entre par le bord, un mobile qui ne défile pas, des
+cases fixes). Fournis à la main : ces trois sortes d'exceptions, la profondeur
+de l'entrée (2 |d|) et la part de l'état qu'elle peut couvrir (la moitié).
 """
 
 from __future__ import annotations
@@ -561,14 +568,206 @@ def decouvrir(observations: list[Cas], max_taille: int = MAX_TAILLE, min_cas: in
             break
         if tuple(_cle(v) for v in valeurs) == cibles:
             trouvees.append(Hypothese(forme, terme))
+    if not trouvees and forme == CHANGEES:
+        # Aucun ensemble de cases changées ne s'explique : l'état a peut-être défilé.
+        return defilements(cas, min_cas)
     return trouvees
 
 
 def explique(hypothese: Hypothese, cas: Cas, portees: dict | None = None) -> bool:
     """L'hypothèse prédit-elle ce qui s'est passé dans ``cas`` ?"""
+    if isinstance(hypothese, Defilement):
+        return hypothese.explique(cas)
     if cas.forme != hypothese.forme:
         return False
     return _cle(evaluer(hypothese.terme, cas, None, portees)) == _cle(cas.cible())
+
+
+# ---------------------------------------------------------------------- #
+# Un état qui défile : « l'état d'avant, décalé », sauf ce qu'elle ne prévoit pas
+# ---------------------------------------------------------------------- #
+
+#: Troisième forme : l'état d'après en entier, prévu case par case (``INDEFINI`` : pas prévu).
+SUITE = "suite"
+
+
+@dataclass(frozen=True)
+class Defilement:
+    """« ``suite = decale(avant, d)`` » : la case *i* reçoit ce qui était en *i* + *d*.
+
+    Quand une action change beaucoup de cases à la fois (un bandeau qui défile,
+    une file d'attente qui avance d'une place, un tapis roulant), le décrire par
+    l'ensemble des cases changées n'explique rien. La mère le décrit comme l'état
+    d'avant, décalé (c'est le décalage « chaque case + d » qu'elle essaie déjà sur
+    ses motifs), **avec les exceptions qu'elle sait nommer**. La description est
+    partielle et le dit :
+
+    * ``entree`` : ce qui entre par le bord (les cases dont la source sort de
+      l'état, et les ``|d|`` suivantes, où un objet qui entre a pu apparaître
+      d'un coup) : imprévisible, elle ne voit pas au-delà du bord ;
+    * ``mobile`` : une valeur présente exactement une fois dans chaque état vu
+      (un curseur, un pion, un personnage) qui ne défile pas avec le reste ; sa
+      place suivante n'est pas prévue, et ce qu'il cache non plus ;
+    * ``fixes`` : les cases qui n'ont jamais changé et que le décalage
+      contredirait (un décor immobile, un cadre) ;
+    * ``mouvements`` : les déplacements du mobile qu'elle a vus, par argument de
+      l'action ; si un même argument en a donné plusieurs, ce qui décide est
+      caché (elle ne le prévoit pas).
+
+    Sur ces cases, rien n'est prévu ; partout ailleurs, la prédiction doit être
+    exacte dans **tous** les cas. Jumper n'est pas le seul problème : un texte
+    qui défile sur un panneau, une file d'attente au guichet (chacun avance
+    d'une place, un nouveau arrive au bout), un registre à décalage, une
+    partition qui défile sous les yeux d'un musicien (``Games/Partition.py``).
+    """
+
+    d: int
+    entree: tuple = ()
+    mobile: object = None
+    fixes: frozenset = frozenset()
+    mouvements: tuple = ()     # (argument, déplacements vus du mobile)
+
+    forme = SUITE
+
+    def __repr__(self) -> str:
+        sauf = []
+        if self.entree:
+            sauf.append(f"ce qui entre par le bord (cases {self.entree[0]} à {self.entree[-1]}, imprévisible)")
+        if self.mobile is not None:
+            vus = "; ".join(f"{a!r} -> {list(m)}" for a, m in self.mouvements)
+            cache = any(len(m) > 1 for _, m in self.mouvements)
+            sauf.append(f"le mobile {self.mobile!r}, qui ne défile pas (déplacements vus par argument : {vus}"
+                        + (" ; ce qui les décide est caché" if cache else "") + ")")
+        if self.fixes:
+            sauf.append(f"{len(self.fixes)} case(s) fixe(s) {sorted(self.fixes)}")
+        return f"suite = decale(avant, {self.d})" + (" sauf : " + ", ".join(sauf) if sauf else "")
+
+    def prevoir(self, avant: list) -> tuple:
+        """L'état d'après prévu case par case (``INDEFINI`` là où elle ne prévoit rien)."""
+        n, prevu = len(avant), []
+        for i in range(n):
+            j = i + self.d
+            if i in self.fixes:
+                prevu.append(avant[i])
+            elif i in self.entree or not 0 <= j < n or _egal(avant[j], self.mobile):
+                prevu.append(INDEFINI)
+            else:
+                prevu.append(avant[j])
+        return tuple(prevu)
+
+    def ecarts(self, cas: Cas) -> list[int]:
+        """Les cases prévues que le cas contredit (celles où se trouve le mobile ne comptent pas)."""
+        avant, apres = cas.valeur_avant, cas.valeur_apres
+        if not (isinstance(avant, list) and isinstance(apres, list) and len(avant) == len(apres)):
+            return [-1]
+        return [i for i, v in enumerate(self.prevoir(avant))
+                if v is not INDEFINI and not _egal(apres[i], self.mobile) and _cle(v) != _cle(apres[i])]
+
+    def explique(self, cas: Cas) -> bool:
+        """Un cas où rien n'a changé (un écran qui défile sur du vide) s'explique aussi."""
+        inchange = isinstance(cas.valeur_avant, list) and cas.valeur_avant == cas.valeur_apres
+        return (cas.forme is not None or inchange) and not self.ecarts(cas)
+
+
+def _egal(valeur, mobile) -> bool:
+    return mobile is not None and _cle(valeur) == _cle(mobile)
+
+
+def _mobile(etats: list[list]):
+    """Une valeur présente exactement une fois dans chaque état (``None`` s'il n'y en a pas une seule)."""
+    candidats = None
+    for etat in etats:
+        uniques = {_cle(v) for v in etat if sum(_cle(w) == _cle(v) for w in etat) == 1} \
+            if len(etat) <= 64 else _uniques(etat)
+        candidats = uniques if candidats is None else candidats & uniques
+        if not candidats:
+            return None
+    if candidats is None or len(candidats) != 1:
+        return None
+    return next(iter(candidats))[1]
+
+
+def _place(etat: list, valeur) -> int | None:
+    return next((i for i, v in enumerate(etat) if _cle(v) == _cle(valeur)), None)
+
+
+def _uniques(etat: list) -> set:
+    compte = Counter(_cle(v) for v in etat)
+    return {cle for cle, n in compte.items() if n == 1}
+
+
+def defilements(observations: list[Cas], min_cas: int = MIN_CAS) -> list[Defilement]:
+    """Les décalages qui expliquent tous les cas, à des exceptions nommées près (voir :class:`Defilement`).
+
+    Le décalage *d* est mesuré sur les cas (le plus fréquent parmi ceux qui
+    expliquent les cases changées : une **constante mesurée**, comme les écarts
+    case − argument). Il doit expliquer au moins une case changée dans au moins
+    ``min_cas`` cas, et plus de la moitié des cases changées qu'il prévoit ; tout
+    ce qu'il ne prévoit pas doit être nommé (entrée par le bord, mobile, cases
+    fixes), sinon il n'y a pas de description.
+    """
+    cas = [c for c in observations if c.forme == CHANGEES]
+    if len(cas) < min_cas:
+        return []
+    n = len(cas[0].valeur_avant)
+    if any(len(c.valeur_avant) != n for c in cas):
+        return []
+    etats = [c.valeur_avant for c in cas] + [c.valeur_apres for c in cas]
+    mobile = _mobile(etats)
+    votes = Counter()
+    for c in cas:
+        changees = [i for i in c.cible() if not _egal(c.valeur_apres[i], mobile)]
+        for d in range(1 - n, n):
+            if d and sum(0 <= i + d < n and _cle(c.valeur_apres[i]) == _cle(c.valeur_avant[i + d])
+                         and not _egal(c.valeur_apres[i], mobile) for i in changees) * 2 > len(changees):
+                votes[d] += 1
+    trouves = []
+    for d, _ in votes.most_common(3):
+        # un mobile ne défile pas : une valeur unique qui suit toujours le décalage n'en est pas un
+        suit = mobile is not None and all(
+            _place(c.valeur_apres, mobile) == _place(c.valeur_avant, mobile) - d for c in cas)
+        description = _defilement(cas, d, None if suit else mobile, etats, min_cas)
+        if description is not None:
+            trouves.append(description)
+            break
+    return trouves
+
+
+def _defilement(cas: list[Cas], d: int, mobile, etats: list, min_cas: int) -> Defilement | None:
+    n = len(cas[0].valeur_avant)
+    if 4 * abs(d) > n:
+        return None  # l'entrée par le bord en couvrirait plus de la moitié : ce n'est plus un défilement
+    bord = list(range(n - d, n)) if d > 0 else list(range(0, -d))
+    voisins = list(range(n - 2 * d, n - d)) if d > 0 else list(range(-d, -2 * d))
+    brut = Defilement(d, tuple(sorted(bord)), mobile)
+    constantes = {i for i in range(n) if len({_cle(e[i]) for e in etats}) == 1}
+    fixes, entree, expliques, prevues, soutiens = set(), set(), 0, 0, 0
+    for c in cas:
+        for i in brut.ecarts(c):
+            if i in voisins:
+                entree.add(i)          # un objet qui entre a pu apparaître juste après le bord
+            elif i in constantes:
+                fixes.add(i)           # un décor immobile que le décalage contredirait
+            else:
+                return None            # une exception qu'elle ne sait pas nommer
+        changees = [i for i in c.cible() if i not in bord and not _egal(c.valeur_apres[i], mobile)]
+        bons = [i for i in changees if 0 <= i + d < n and not _egal(c.valeur_avant[i + d], mobile)
+                and _cle(c.valeur_apres[i]) == _cle(c.valeur_avant[i + d])]
+        expliques, prevues = expliques + len(bons), prevues + len(changees)
+        soutiens += bool(bons)
+    if soutiens < min_cas or expliques * 2 <= prevues:
+        return None
+    entree = sorted(set(bord) | (set(voisins) if entree else set()))
+    mouvements = {}
+    if mobile is not None:
+        for c in cas:
+            avant = [i for i, v in enumerate(c.valeur_avant) if _egal(v, mobile)]
+            apres = [i for i, v in enumerate(c.valeur_apres) if _egal(v, mobile)]
+            if len(avant) == 1 and len(apres) == 1:
+                argument = c.arguments[0] if c.arguments else None
+                mouvements.setdefault(argument, set()).add(apres[0] - avant[0])
+    vus = tuple(sorted(((a, tuple(sorted(m))) for a, m in mouvements.items()), key=repr))
+    return Defilement(d, tuple(entree), mobile, frozenset(fixes), vus)
 
 
 # ---------------------------------------------------------------------- #
@@ -623,7 +822,8 @@ def predictions(hypotheses: list[Hypothese], valeur_avant, arguments: tuple,
                 portees: dict | None = None) -> list:
     """Ce que chaque hypothèse annonce si l'on joue ``arguments`` sur ``valeur_avant``."""
     cas = Cas(valeur_avant, tuple(arguments), None)
-    return [_cle(evaluer(h.terme, cas, None, portees)) for h in hypotheses]
+    return [_cle(h.prevoir(valeur_avant)) if isinstance(h, Defilement)
+            else _cle(evaluer(h.terme, cas, None, portees)) for h in hypotheses]
 
 
 def decisive(hypotheses: list[Hypothese], valeur_avant, arguments: tuple,
