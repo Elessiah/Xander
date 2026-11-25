@@ -133,7 +133,7 @@ le score n° 1 n'est pas comparable à ceux des examens suivants.
 ## Reprendre le travail
 
 Pour l'agent qui prend la relève. État au soir du 2026-11-25 (`main`
-après la PR #20).
+après la PR #20), mis à jour le 2026-11-26.
 
 ### Méthode de travail
 
@@ -175,7 +175,7 @@ après la PR #20).
 | Jumper, Partition | 1 | jusqu'au plafond sur 50 graines jamais vues, un petit motif | des règles pour un joueur seul |
 | Tours de Hanoï | 1 | range la pile en 7 coups dès la 5e partie | il a retenu un chemin : 15 positions de départ sur 27 seulement |
 | Le compte est bon | 1 | gagne le tirage du labo | 3 tirages jamais vus sur 100 : le labo rejoue un seul tirage, pas de « configuration » |
-| Morpion à trois | 3 | 24 alignements, 8 symétries, 4 règles construites (gagner, parer chacun des deux autres, menacer) ; 60 situations de mesure tenues sur 60 face au professeur à sa place | 304 souvenirs (surtout des ouvertures), environ 29 minutes pour 200 parties ; pas de fourchette propre à trois |
+| Morpion à trois | 3 | 24 alignements, 8 symétries, 4 règles construites (gagner, parer chacun des deux autres, menacer) ; 60 situations de mesure tenues sur 60 face au professeur à sa place | 304 souvenirs (surtout des ouvertures), 340 s pour 200 parties ; pas de fourchette propre à trois |
 | Mastermind, Mot mystère | 1 | trouve les actions, pas leur effet | un bloc de cases écrites, une information cachée |
 | Pylos 3×3 | 2 | décrit les trois actions | tour de longueur variable, plusieurs sortes d'actions, défaite « plus de coup » |
 | Problèmes entrée → sortie | 0 | lot jamais vu 25/34 | programmes plus grands (jalon 2), notions absentes |
@@ -188,11 +188,10 @@ l'éducation bloque) est dans `docs/jeux.md`. Commandes :
 
 ### Priorités pour la suite, dans l'ordre
 
-1. **Vérifier le Morpion à trois après la fusion** (PR #22) : la mesure de
-   200 parties a été faite avant l'intégration de la PR #20 (60 sur 60),
-   celle d'après interrompue à 80 parties ; la comparaison avant / après du
-   Puissance 4 n'est pas faite ; le temps (environ 29 minutes) frôle la
-   limite d'un examen. Voir l'étape 6, « Reste à faire ».
+1. ~~Vérifier le Morpion à trois après la fusion~~ : **fait** (2026-11-26).
+   Morpion à trois et Puissance 4 identiques leçon pour leçon avant et après
+   les PR #20 et #22 ; 200 parties de Morpion à trois en 340 s (voir
+   l'étape 6).
 2. **Le bulletin du fils** (section suivante), d'abord comme mesure seule.
    C'est lui qui dira si les fils actuels ont compris ou seulement retenu.
 3. **Généraliser au lieu de retenir** : Hanoï depuis toute position, Le
@@ -598,16 +597,17 @@ de plus petit n'explique les cas), ce qui rejoint le jalon 2.
      composition, se créer une menace), 0 coup impossible, au plus 784
      positions par coup, et 60 situations sur 60 tenues face au professeur à
      sa place (détail dans `docs/jeux.md`).
-     **Reste à faire** (pour l'agent qui reprend) :
-     - refaire la mesure complète de 200 parties **après** la fusion des
-       actions à plusieurs arguments (interrompue à 80 parties, même rythme ;
-       script : l'éducation avec `Mother().raise_son`, puis
-       `examen.situations` / `examen.jouer` place par place) ;
-     - vérifier le Puissance 4 avant / après sur quelques parties (non
-       mesuré : trop lent dans le temps imparti ; la suite de tests passe) ;
-     - le temps : 200 parties prennent environ 29 minutes, à la limite d'un
-       examen blanc ; les refactors (`views`, `check`) rejouent tous les cas,
-       et 304 souvenirs s'accumulent (surtout des ouvertures) ;
+     **Vérifié après la fusion des PR #20 et #22** (`main` 90859b1) : les 200
+     parties du Morpion à trois sont identiques leçon pour leçon à la mesure
+     d'avant (337 erreurs, 304 souvenirs, 60 situations sur 60), en 340 s
+     seulement (les 29 minutes d'avant venaient d'une machine plus lente et
+     chargée) ; le Puissance 4 (graine 0, 10 parties) donne les mêmes leçons,
+     les mêmes règles et le même bilan avant la PR #20 (65147a4) et après
+     (139 souvenirs, 3 règles, 518 positions au plus, 0 coup impossible,
+     environ 87 s par partie).
+     **Reste à faire** :
+     - le temps des refactors (`views`, `check` rejouent tous les cas), qui
+       croît avec les souvenirs (304 ici, surtout des ouvertures) ;
      - des règles pour ces souvenirs (une fourchette à trois, des petits
        motifs d'ouverture) ; des variantes sur le coup de l'avant-dernier
        joueur ; une fin à classement ou une victoire partagée.
