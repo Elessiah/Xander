@@ -374,6 +374,13 @@ de plus petit n'explique les cas), ce qui rejoint le jalon 2.
      `back` et la fin, mais pas l'effet de `play` (un bloc de 10 cases) :
      l'éducation bloque dans `Solo.__init__`, et l'état caché (un seul
      secret dans le labo) reste à comprendre (voir `docs/jeux.md`).
+   - **Morpion à trois joueurs** (`Games/Morpion3.py`, 4 × 4, trois alignés ;
+     professeur max^n `Games/MaxnMorpion3.py` ; exemple
+     `res/exampleMorpion3.py`) : trois joueurs, deux adversaires différents,
+     des tours à trois, un plateau plus grand. La mère y voit trois joueurs
+     et décrit l'action (`case(arg0)`) ; l'éducation s'arrête avant la
+     première partie (elle ne sait éduquer que deux joueurs qui alternent) ;
+     détail dans `docs/jeux.md`.
 8. **Plus tard : l'expérience.** Partir des apprentissages réussis (motifs,
    règles) d'un fils pour en élever un autre plus vite.
 

@@ -608,3 +608,113 @@ apprendrait par cœur le secret de la graine 10, pas à déduire. Il lui
 faudrait des parties à secrets différents et une façon de juger un coup
 sur l'ensemble des secrets encore possibles (le professeur le fait : il
 garde les mots compatibles avec les réponses).
+
+## Morpion à trois joueurs — `Games/Morpion3.py`
+
+Jeu d'entraînement pour apprendre qu'un adversaire n'est pas forcément
+« l'autre ». Trois joueurs, `X`, `O` et `Z`, posent chacun leur pion à tour
+de rôle (`X -> O -> Z -> X`, à partir du premier joueur choisi) sur un
+plateau 4 × 4. Le premier qui aligne **trois** pions (ligne, colonne ou
+diagonale : 24 fenêtres) gagne ; plateau plein sans alignement : nul.
+
+**Interface** : celle du Morpion. L'état est une liste plate de 16 cases ;
+une case libre contient son indice (`"0"`…`"15"`), une case jouée `"X"`,
+`"O"` ou `"Z"`. `init(start_player)` accepte `"X"`, `"O"`, `"Z"` ou `"R"`
+(au hasard parmi les trois). `play(i)` renvoie `False` pour un coup refusé
+(case occupée, hors plateau, pas un entier, un booléen, partie finie) sans
+rien changer, `True` quand la partie se termine, sinon le plateau. `back()`
+annule le dernier coup et rend la main à celui qui l'avait joué.
+`get_turn()`, `get_game_state()` (relance une partie finie), `get_moves()`,
+`set_game_state(plateau, joueur)` et `win` (`"X"`, `"O"`, `"Z"` ou `"D"`)
+suivent les autres jeux. `Morpion3(size, k)` change la taille et
+l'alignement.
+
+**Pourquoi 4 × 4 et trois alignés.** À trois, une double menace ne suffit
+plus : chacun des deux autres peut boucher une case avant que le menaçant
+rejoue. Mesures (le premier joueur est `X`) :
+
+| | 4 × 4, k = 3 | 5 × 5, k = 3 |
+|---|---|---|
+| 3 joueurs au hasard (20 000 parties) : X / O / Z / nul | 40 % / 25 % / 22 % / 14 % | 40 % / 32 % / 27 % / 1 % |
+| 3 professeurs, plateau vide | nul (quel que soit le premier) | X gagne en 10 coups |
+| 3 professeurs, premier coup au hasard | 300 parties : X 5 %, O 7 %, nul 87 % | 30 parties : O gagne 29 fois |
+
+Le 5 × 5 est dégénéré : presque jamais de nul, et dès que le premier coup
+change, la partie se décide d'elle-même (O gagne). Le 4 × 4 ne l'est pas :
+le premier joueur ne gagne pas d'office (nul en jeu du professeur), les
+parties ne sont pas toujours nulles (avec deux premiers coups au hasard,
+300 parties : X 13 %, Z 6 %, O 1 %, nul 80 % ; au hasard, 86 % de parties
+gagnées), et les trois places gagnent.
+
+**Professeur** : `Games/MaxnMorpion3.py`, fonction
+`maxn_morpion3_play(game)`. Le minimax ne s'applique pas tel quel à trois :
+il utilise **max^n**, où chaque position a une valeur par joueur et chacun
+maximise la sienne. Victoire : `1000 + profondeur restante` pour le
+gagnant, l'opposé pour les deux autres ; nul : 0 ; feuille : chaque fenêtre
+qui ne contient que les pions d'un joueur lui rapporte 1 (un pion) ou 5
+(deux), et sa note est `2 × ses points - ceux des deux autres`. Avant de
+chercher, à chaque nœud : (1) gagner s'il le peut ; (2) boucher la case
+gagnante du **suivant** ; (3) boucher celle du **troisième**, sans compter
+sur le suivant pour le faire (max^n pur lui laisserait ce travail ; un
+adversaire réel peut l'oublier). Sinon max^n explore un tour complet
+(3 demi-coups). **Départage** : à valeur égale pour celui qui a le trait,
+la première case dans un ordre fixe, des plus centrales (traversées par le
+plus de fenêtres) aux bords, puis par indice. Il est déterministe et garde
+ses calculs en mémoire : 0,6 ms par coup en moyenne sur 11 000 coups, 75 ms au
+plus (le premier coup sur un plateau vide).
+
+Force mesurée (300 parties par ligne, `X` commence) :
+
+| Professeur en… | contre deux joueurs au hasard : gagne / nul / perd |
+|---|---|
+| X (premier) | 96 % / 3 % / 1 % |
+| O (deuxième) | 90 % / 5 % / 5 % |
+| Z (troisième) | 82 % / 10 % / 8 % |
+
+Contre deux copies de lui-même, sans hasard, la partie est nulle quelle que
+soit sa place. Il n'est pas imbattable : seul contre deux, il ne peut pas
+parer toutes les menaces d'un joueur que le troisième laisse faire (le
+hasard ne pare pas), et une recherche plus profonde n'aide pas contre le
+hasard (max^n suppose que les autres jouent bien). Comparé pendant la mise
+au point : 2 demi-coups, ou une variante « paranoïaque » (les deux autres
+jouent ensemble contre moi), donnent à peu près le même résultat contre
+des copies ; 4 et 5 demi-coups sont 6 à 20 fois plus lents sans gain.
+
+Exemple de partie : [`res/exampleMorpion3.py`](../res/exampleMorpion3.py),
+12 coups, quatre tours complets ; Z gagne sur la diagonale 6-9-12.
+
+**Notions nouvelles** : plus de deux joueurs ; deux adversaires différents
+(le suivant, qu'il faut parer tout de suite, et le troisième, que le
+suivant peut parer ou non) ; un tour qui revient tous les trois coups ; un
+plateau plus grand que les fenêtres gagnantes (un même motif apparaît à
+plusieurs endroits).
+
+**Ce que la mère en comprend déjà** (`python -m xander
+res/exampleMorpion3.py`, sans rien changer à `xander/`) : la même chose
+qu'au Morpion. Elle voit `Joueurs (3) : X, O, Z`, un tour de deux appels
+(`get_game_state -> play`), l'annulation, le gagnant (`Z`), et décrit
+l'action seule : `changees = case(arg0)` (la case jouée), `valant(arg0)`.
+Elle ne dit pas dans quel ordre les joueurs se succèdent, ni qui est
+l'adversaire de qui.
+
+**Où l'éducation bloque** (`--prof Games.MaxnMorpion3:maxn_morpion3_play
+--son morpion3 --parties 30`) : avant la première partie, dans
+`Education.__init__` (`xander/education.py`, test `alternate()`, qui veut
+exactement deux joueurs) :
+
+> Erreur : dans l'exemple, deux joueurs ne jouent pas chacun leur tour :
+> la mère ne sait encore éduquer un fils que pour ces jeux-là
+
+(Le message est trompeur : les joueurs jouent bien chacun leur tour, mais
+ils sont trois.)
+
+**Ce qui lui manquerait** : lire dans l'exemple l'**ordre des joueurs**
+(un cycle de longueur 3) au lieu de la parité ; tout ce qui compte les
+coups `% 2` dans l'éducation (le pion posé, qui a joué, le fils qui joue
+un coup sur deux, les positions imaginées) ; des positions qui ne se lisent
+plus en `M` / `A` / `.` mais distinguent **les deux adversaires** (le
+suivant et le troisième) ; et, dans les règles, plus d'`adversaire(joueur)`
+unique : `suivant(joueur)` et « les autres », pour qu'une parade dise
+**qui** elle pare. Enfin, juger un coup du fils en faisant finir la partie
+par le professeur suppose de savoir qui gagne et ce que vaut un nul pour
+chacun des trois.
