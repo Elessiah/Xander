@@ -154,24 +154,34 @@ pour un jeu à la plus structurelle :
    d'une portée. L'Analyzer seul, sans labo, ne comprend plus le
    Puissance 4 : il faut explorer.
 2. **Puissance 4 : une éducation praticable.** Tout fonctionne de bout en
-   bout : l'Analyzer comprend la gravité, la mère retrouve des alignements
-   horizontaux, verticaux et diagonaux et le miroir gauche-droite, corrige et
-   réduit les souvenirs. Deux problèmes. Les petits motifs y sont mal
-   vérifiés : après 3 parties, 391 souvenirs, presque tous des motifs décalés
-   que les positions imaginées au hasard « confirment » parce que le
-   professeur y joue souvent le centre. Et une partie prend 2 à 8 minutes : chaque
-   jugement fait finir la partie deux fois au professeur (environ 0,7 s), et
-   la réduction d'un souvenir en petit motif demande des centaines de
-   jugements. Pistes : juger moins de positions (variantes, positions
-   imaginées), réutiliser les jugements entre positions équivalentes, et des
-   concepts qui regardent plus loin (les pièges du Puissance 4 sont plus
-   profonds que deux coups).
+   bout. Les petits motifs y sont maintenant vérifiés honnêtement :
+   - les positions imaginées sont **jouées** (coups permis), donc
+     atteignables avec la gravité ; avant, presque aucune ne l'était et un
+     motif était « vérifié » sur une ou deux positions ;
+   - un **groupe témoin** (le motif cassé) écarte les motifs que le
+     professeur « confirme » par habitude (la colonne du centre) ;
+   - la réduction regarde la **zone** du coup (les cases qui partagent un
+     motif de fin avec lui), avec un tamis de 5 positions avant chaque
+     vérification complète.
+   Au Morpion, chaque fils est parfait à 200 parties, après 16 à 30 erreurs,
+   sans aucun petit motif démenti sur 10 graines. Au Puissance 4, des motifs
+   de 5 à 15 cases sur 42 apparaissent, aucun démenti sur 3 parties.
+   Le coût a d'abord augmenté : maintenant que les positions sont réalistes,
+   chaque vérification les examine vraiment (35 minutes pour 3 parties). En
+   ne jugeant les désaccords qu'une fois les comptes passés, 3 parties
+   prennent environ 15 minutes, dont 10 pour réduire les souvenirs (425 fins
+   de partie jouées par le professeur au lieu de 2 200). Il reste à faire une
+   vraie éducation (50 à 100 parties) et son bilan contre le hasard et contre
+   le professeur. Pistes : arrêter plus tôt une vérification perdue d'avance,
+   et des concepts qui regardent plus loin (les pièges du Puissance 4 sont
+   plus profonds que deux coups). La mère n'y trouve pas encore le miroir
+   gauche-droite en 3 parties.
 3. **Petits motifs dans les règles.** Les motifs de fin et les souvenirs se
    décalent déjà : un souvenir est réduit aux cases qui comptaient, puis
    reconnu partout (vérifié dans le labo). Il reste à en faire des briques
    (« jouer un coup qui crée cette configuration »), et à les essayer sur un
    grand plateau. Au Morpion, presque toutes les cases comptent, et les
-   petits motifs gardent 6 à 7 cases sur 9.
+   petits motifs gardent environ 8 cases sur 9.
 4. **Symétries plus générales.** Aujourd'hui des renumérotations de cases.
    Il faudra des équivalences qui ne sont pas des permutations (échanger les
    deux joueurs, une quantité décalée).

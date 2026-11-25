@@ -244,7 +244,14 @@ mère voit quel coup il a choisi sans rien savoir de son fonctionnement.
    un entier.
 3. **Parties.** Le fils joue contre le professeur, contre un joueur au
    hasard et contre un adversaire « mixte » (une fois sur deux le coup du
-   professeur), une fois X, une fois O.
+   professeur), une fois X, une fois O. Si le jeu refuse un coup du fils, c'est
+   un **coup impossible** : sa perception se trompe. La mère note le refus
+   comme une observation du labo (rien n'a changé), réapprend quand une case
+   peut être jouée, réécrit le fils, et la partie continue. Si elle ne
+   comprend pas, elle s'arrête. **Règle de toute éducation** : après ses 5
+   premières parties, un fils ne fait plus aucun coup impossible (un test le
+   vérifie). Mieux vaut un fils qui apprend plus lentement qu'un fils qui
+   gagne vite en trichant.
 4. **Revue des décisions.** Pour chaque coup du fils, la mère demande son
    coup au professeur. S'il diffère, elle fait finir la partie au professeur
    des deux côtés, après chacun des deux coups. Si le coup du professeur mène
@@ -303,8 +310,10 @@ exprime la fourchette autrement (« il ne peut pas me menacer sans danger »).
 Lui donner plus (k jusqu'à 3) est pire : plus de concepts possibles, donc plus
 de coïncidences validées sur peu de cas.
 
-Avec les petits motifs, le fils fait environ 16 erreurs avant d'être parfait,
-contre 24 à 44 sans eux. L'éducation est aussi deux à trois fois plus rapide,
+Avec les petits motifs, le fils fait environ 16 à 30 erreurs avant d'être
+parfait, contre 24 à 44 sans eux. L'écart vient de l'ordre dans lequel la mère
+apprend : en faisant finir des parties au professeur pour juger un motif, elle
+découvre parfois un motif de fin, et ses règles changent plus tôt ou plus tard. L'éducation est aussi deux à trois fois plus rapide,
 car il y a moins de cas à revoir.
 
 ## 7. Motifs décalés et symétries — `xander/symmetries.py`
@@ -367,34 +376,71 @@ partout où il apparaît. La mère le vérifie de deux façons :
 
 - dans tous les cas enregistrés, sous chaque façon de les voir : le coup doit
   y être aussi bon que celui du professeur ;
-- dans 20 positions qu'elle imagine dans le labo. Les `?` y sont remplis au
-  hasard (pions de l'un, de l'autre, ou cases libres), le fils jouant en
-  premier ou en second. Elle écarte une position où la partie est déjà
-  finie, ou qu'aucune suite de coups n'atteint (avec la gravité, un pion ne
-  flotte pas). Elle demande son coup au professeur. S'il joue le coup du
+- dans 20 positions qu'elle imagine dans le labo, **en jouant** : à son
+  tour, chaque joueur pose un de ses pions du motif si une action le pose
+  là, ou un pion de plus sur une case `?` qu'une action remplit (le nombre
+  de pions est tiré au hasard, le fils jouant en premier ou en second). Avec
+  la gravité, aucun pion ne flotte : la mère n'a pas à le savoir, les
+  actions permises s'en chargent. Elle écarte une position où la partie est
+  déjà finie. Elle demande son coup au professeur. S'il joue le coup du
   motif, la position le **confirme**. S'il joue ailleurs, elle vérifie que le
   coup du motif est aussi bon que le sien, en lui faisant finir la partie :
-  sinon le motif est **démenti**, sinon la position ne dit rien. Il faut
-  qu'au moins la moitié des positions le confirment.
+  sinon le motif est **démenti**. Il faut qu'au moins la moitié des positions
+  le confirment.
 
-Pourquoi ne pas se contenter de « aussi bon » ? Au Morpion, un coup change
-souvent l'issue d'une partie. Au Puissance 4, presque jamais : finie par le
-professeur des deux côtés, une partie se termine de la même façon quel que
-soit le coup joué. « Aussi bon » y laisse donc passer presque tout. Demander
-au professeur ce qu'il jouerait est plus exigeant, et bien moins cher (un
-coup au lieu de deux fins de partie).
+  Remplir les `?` au hasard, puis chercher une suite de coups qui y mène,
+  marchait au Morpion. Au Puissance 4, presque aucune de ces positions
+  n'était atteignable : un motif était « vérifié » sur une ou deux positions.
 
-**Au Puissance 4, cela ne suffit pas encore.** Après 3 parties, la mère garde
-391 souvenirs, dont environ 400 petits motifs décalés, et des motifs absurdes
-passent encore (« la case 3 est libre : y jouer »). Le professeur joue la
-colonne du centre dans la plupart des positions imaginées au hasard : elles
-« confirment » un motif qui ne dit rien de la position. Il faudra des
-positions imaginées plus proches de vraies parties, ou une autre épreuve.
+**Le groupe témoin.** Confirmer ne suffit pas : au Puissance 4, le
+professeur joue la colonne du centre dans la plupart des positions imaginées
+au hasard. Elles « confirmaient » donc un motif comme « la case 3 est libre :
+y jouer », qui ne dit rien de la position (après 3 parties, 391 souvenirs,
+presque tous de tels motifs). La mère fait comme un expérimentateur : pour
+chaque position imaginée, elle en joue une **témoin**, avec autant de pions,
+où le motif est cassé (une de ses cases prend une autre valeur : un pion
+devient l'autre pion ou une case libre, une case libre reçoit un pion) et où
+le coup reste jouable. Elle compte :
 
-Elle cherche le **plus petit** motif qui tient : d'abord avec 0 case en plus
-de la case jouée, puis 1, 2 et 3 cases (`chunk_size`). Si aucun ne tient, elle
-oublie les cases une à une et garde chaque oubli qui tient (sur un grand
-plateau, les combinaisons seraient trop nombreuses). Ici, elle trouve
+- *r+* : la part des positions avec le motif où le professeur joue son coup ;
+- *r−* : la part des positions témoins où il le joue quand même.
+
+Le motif tient si *r+* ≥ (1 + *r−*) / 2 : il fait au moins la moitié du
+chemin entre le témoin et la certitude. Si le professeur joue le centre dans
+80 % des positions, motif ou pas, il faudrait *r+* ≥ 90 % : le motif est
+refusé. Un motif toujours confirmé (*r+* = 1) passe, même si une de ses
+cases ne compte pas : il est juste, simplement pas le plus petit.
+Il faut au moins une position témoin, et au moins une case en plus du coup
+(« jouer ici » tout court n'est pas un motif).
+
+**Ce que cela coûte.** Demander son coup au professeur coûte une recherche ;
+juger qu'un coup est aussi bon que le sien coûte deux fins de partie. La mère
+économise de trois façons :
+
+- elle retient l'issue et le coup du professeur pour **chaque position** par
+  laquelle passe une fin de partie, pas seulement la première : une autre
+  question sur l'une d'elles ne coûte plus rien ;
+- elle ne juge à fond que deux désaccords par motif, et seulement une fois
+  les comptes passés (confirmations et témoin) : un motif que les comptes
+  refusent ne coûte aucune fin de partie. Les désaccords suivants comptent
+  seulement comme des positions qui ne confirment pas ;
+- dans une fin de partie imaginée, elle ne fait pas la contre-épreuve d'un
+  plateau qui n'est pas plein (elle ne la fait que pour comprendre une vraie
+  fin de partie).
+
+Elle cherche le **plus petit** motif qui tient, en regardant d'abord la
+**zone** du coup : les cases qui partagent avec lui un motif de fin qu'elle
+connaît (ce qui se joue sur les lignes passant par le coup). Comme le joueur
+qui regarde les lignes de sa case, elle ne cherche pas plus loin : si rien ne
+tient dans la zone, le souvenir reste entier. (Un coup qu'aucun motif de fin
+ne contient a pour zone tout le plateau.) Dans la zone, elle essaie le coup
+avec 0 case, puis 1, 2, 3… cases, tant qu'il y a au plus 100 combinaisons à
+essayer en tout (`combinations` : au Morpion, toutes les combinaisons pour
+une case du bord ou un coin, jusqu'à 3 cases pour le centre ; au
+Puissance 4, une seule case). Ensuite, elle part de toute la zone et oublie
+les cases une à une. Elle garde chaque oubli qui tient sur 5 positions
+seulement (`sieve`, un tamis). Le motif obtenu est vérifié à la fin sur 20
+positions ; s'il ne tient pas, le souvenir reste entier. Ici, elle trouve
 `MM.??????` → 2 : mes deux pions et la case libre suffisent.
 
 **« Et ailleurs ? »** Comme un motif de fin, le petit motif est essayé décalé
@@ -409,11 +455,11 @@ cette position. La mère oublie alors ce petit motif. Les cas qu'il couvrait
 redeviennent des souvenirs entiers, qu'elle réduira de nouveau, avec ce
 nouveau cas comme test.
 
-Au Morpion, les petits motifs restent assez grands : 6 à 7 cases sur 9. Sur
-un plateau aussi petit, presque toutes les cases comptent pour la tactique.
-Un motif est parfois vrai d'une façon inattendue, par exemple parce que
-toutes les positions qui le contiennent sont perdues de toute façon. Aucun
-petit motif n'a été démenti sur 10 graines et 400 parties.
+Au Morpion, les petits motifs restent grands : environ 8 cases sur 9. Sur un
+plateau aussi petit, presque toutes les cases comptent pour la tactique. Un
+motif est parfois vrai d'une façon inattendue, par exemple parce que toutes
+les positions qui le contiennent sont perdues de toute façon. Aucun petit
+motif n'a été démenti sur 10 graines et 400 parties.
 
 ## 8. Les briques — `xander/concepts.py`
 
@@ -471,8 +517,10 @@ chaque correction, qui n'importe rien de Xander :
    plus tard transmettre l'expérience de ses frères.
 
 Le fils exécute son code bêtement : il ne simule que ce que ses règles
-demandent, sans mémoire, et n'appelle jamais `back` ; si le jeu refuse un
-coup, l'état n'a pas changé et il en essaie un autre. **Budget** : la mère
+demandent, sans mémoire, et n'appelle jamais `back`. Il ne joue qu'un coup
+par tour : si le jeu le refuse, il le dit (« coup impossible ») au lieu
+d'essayer d'autres actions jusqu'à ce que le jeu en accepte une, ce qui
+serait tricher. **Budget** : la mère
 refuse un refactor qui ferait regarder au fils plus de 1 000 positions pour
 un coup (un minimax complet en regarde plus de 500 000 au premier coup du
 Morpion) ; un test le vérifie sur toutes les positions.

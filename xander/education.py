@@ -60,6 +60,7 @@ chaque action remplit une case avec le pion du joueur.
 from __future__ import annotations
 
 import itertools
+import math
 import random
 from dataclasses import dataclass, field
 
@@ -127,10 +128,15 @@ class GameRecord:
     lessons: list[Lesson] = field(default_factory=list)
     patterns: list[list[int]] = field(default_factory=list)  # motifs découverts pendant la partie
     refactors: list[str] = field(default_factory=list)       # souvenirs remplacés par une règle
+    impossibles: list[str] = field(default_factory=list)     # coups du fils refusés par le jeu
 
     def __str__(self) -> str:
         text = f"partie {self.number:>3} | fils {self.son_side} contre {self.opponent:<10} : {self.result:<8}"
         text += f" | {len(self.lessons)} erreur(s)"
+        if self.impossibles:
+            text += f" | {len(self.impossibles)} coup(s) impossible(s)"
+        for impossible in self.impossibles:
+            text += f"\n      {impossible}"
         for pattern in self.patterns:
             text += f"\n      motif compris : {pattern}"
         for lesson in self.lessons:
@@ -228,6 +234,7 @@ class Education:
         self.knowledge["effect"] = self.trials.survivors[0]
         # Quand une case peut être jouée : déduit des coups joués et des coups refusés.
         self.knowledge["start"] = list(self.lab.states[0])
+        self.lab_cases = lab_cases                   # coups vus (joués et refusés) : la perception en vient
         self.knowledge["free"] = effets.liberte(self.knowledge["effect"], lab_cases,
                                                 self.knowledge["start"], self.knowledge["reach"])
         if self.knowledge["free"] is None:
@@ -235,6 +242,7 @@ class Education:
                            "elle ne peut pas encore éduquer de fils")
         self._son = self._mind = None                # code du fils et espace de pensée, à réécrire
         self.max_views = 0                           # plus grand nombre de positions regardées par le fils
+        self.impossibles: list[str] = []             # coups du fils refusés par le jeu (partie en cours)
         self.marks: dict[int, object] = {}          # parité du coup -> pion posé
         self.outcomes: dict[tuple, int | None] = {}  # position -> parité du gagnant (None : nul)
         self.teacher_moves: dict[tuple, tuple] = {}
@@ -248,7 +256,9 @@ class Education:
         self._shapes_known = False                   # motifs à essayer décalés (idem)
         self._shifts_tried: set = set()              # motifs décalés déjà essayés dans le labo
         self._generalized: set = set()               # souvenirs déjà réduits à un petit motif
-        self.chunk_size = 3                          # petits motifs cherchés d'abord : jusqu'à 3 cases + le coup
+        self.combinations = 100                      # petits motifs essayés d'abord, du plus petit au plus grand
+        self.variants = None                         # autres coups adverses revus par coup (None : tous)
+        self.sieve = 5                               # positions imaginées pour un oubli, avant la vérification finale
         self.max_size, self.max_depth = 6, 2         # bornes de la recherche de concepts
         self.counts = (1,)                           # valeurs de k dans AuMoins(k, …) : « il existe »
         self.budget = BUDGET                         # positions que le fils peut regarder pour un coup
@@ -523,8 +533,14 @@ class Education:
     # Comprendre une fin de partie
     # ------------------------------------------------------------------ #
 
-    def winner(self) -> int | None:
-        """Parité du gagnant de la partie terminée du labo, ``None`` pour un nul."""
+    def winner(self, full_board: bool = True) -> int | None:
+        """Parité du gagnant de la partie terminée du labo, ``None`` pour un nul.
+
+        Avec ``full_board=False`` (une partie que le professeur finit pour juger un coup), la
+        mère ne cherche pas de nouveau motif quand plus aucune action n'est possible : c'est
+        presque toujours un nul, et la contre-épreuve y coûte cher (aucune case libre où
+        déplacer un pion). Les motifs se découvrent dans les vraies parties.
+        """
         lab = self.lab
         self.learn_marks()
         mover = (len(lab.moves) - 1) % 2
@@ -533,6 +549,8 @@ class Education:
         mine = {i for i, v in enumerate(final) if v == self.marks[mover]}
         if any(last in p and set(p) <= mine for p in self.knowledge["patterns"]):
             return mover
+        if not full_board and not self.mind.possibles(list(final)):
+            return None
         pattern = self.counter_test(final, mover)
         if pattern is None:
             return None
@@ -740,7 +758,12 @@ class Education:
         return self.teacher_moves[key]
 
     def value(self, moves: list[tuple], side: int) -> int:
-        """Résultat pour ``side`` si le professeur finit la partie des deux côtés."""
+        """Résultat pour ``side`` si le professeur finit la partie des deux côtés.
+
+        Le professeur joue toujours de la même façon : chaque position par laquelle il passe
+        en finissant la partie a la même issue, et la mère retient aussi le coup qu'il y a
+        joué. Une autre question sur l'une de ces positions ne coûte plus rien.
+        """
         lab = self.lab
         lab.goto(moves)
         if lab.ended:
@@ -748,13 +771,25 @@ class Education:
         else:
             key = self.key()
             if key not in self.outcomes:
-                start = list(lab.moves)
+                start, seen = list(lab.moves), []
                 while not lab.ended:
-                    lab.ask(self.teacher)
-                self.outcomes[key] = self.winner()
+                    position = self.key()
+                    if position in self.outcomes:  # déjà fini depuis ici
+                        break
+                    seen.append(position)
+                    self.teacher_moves[position] = lab.ask(self.teacher)
+                winner = self.outcomes[position] if not lab.ended else self.winner(full_board=False)
+                for position in seen:
+                    self.outcomes[position] = winner
                 lab.goto(start)
             winner = self.outcomes[key]
         return 0 if winner is None else (1 if winner == side else -1)
+
+    def better(self, moves: list[tuple], teacher: tuple, action, side: int) -> bool:
+        """Le coup du professeur mène-t-il à un meilleur résultat que ``action`` ? (Inutile de
+        finir la partie après le sien si ``action`` gagne déjà.)"""
+        mine = self.value(moves + [(action,)], side)
+        return mine < 1 and self.value(moves + [teacher], side) > mine
 
     # ------------------------------------------------------------------ #
     # Parties et corrections
@@ -821,33 +856,64 @@ class Education:
     # ------------------------------------------------------------------ #
 
     def play_game(self, opponent, son_side: int) -> tuple[int, list]:
+        """Une partie du fils contre ``opponent``. Si le jeu refuse son coup (un coup
+        impossible), la mère comprend pourquoi (:meth:`impossible`) et le fils rejoue ; les
+        coups impossibles de la partie sont dans ``self.impossibles``."""
         lab = self.lab
         lab.goto([])
-        decisions = []
+        decisions, self.impossibles = [], []
         while not lab.ended:
             if len(lab.moves) % 2 == son_side:
-                state = lab.states[-1]
+                moves, state = list(lab.moves), list(lab.states[-1])
                 action, reason = self.son.choisir(list(state), self.marks[son_side])
                 self.max_views = max(self.max_views, self.son.VUES)
-                decisions.append((list(lab.moves), list(state), action, reason))
                 if lab.play(action) == "refused":
-                    raise LabError(f"le jeu refuse l'action {action}, que le fils croyait possible")
+                    self.impossibles.append(self.impossible(state, action))
+                    continue
+                decisions.append((moves, state, action, reason))
             else:
                 lab.ask(opponent)
         winner = self.winner()
         return (0 if winner is None else 1 if winner == son_side else -1), decisions
 
+    def impossible(self, state: list, action) -> str:
+        """Le jeu a refusé le coup du fils. « Pourquoi ? » C'est sa perception qui se trompe :
+        la mère note le refus comme une observation du labo (rien n'a changé), réapprend quand
+        une case peut être jouée (:func:`effets.liberte`) et réécrit le fils. Si elle ne
+        comprend pas, ou si le fils croirait encore ce coup possible, elle s'arrête : un fils
+        qui essaie des coups jusqu'à ce que le jeu en accepte un tricherait."""
+        self.lab_cases.append(effets.Cas(list(state), (action,), list(state)))
+        free = effets.liberte(self.knowledge["effect"], self.lab_cases,
+                              self.knowledge["start"], self.knowledge["reach"])
+        if free is not None:
+            self.knowledge["free"] = free
+            self.rethink()
+        if free is None or action in self.mind.possibles(list(state)):
+            raise LabError(f"le jeu refuse l'action {action}, que le fils croyait possible, "
+                           "et la mère ne comprend pas pourquoi")
+        return f"coup impossible : {action} refusé ; une case peut être jouée : {free}"
+
     def variations(self, decisions: list, son_side: int) -> list:
         """« Et s'il avait joué ailleurs ? » La mère revient (``back``) sur chaque coup de
-        l'adversaire, essaie les autres, et note ce que le fils aurait répondu."""
+        l'adversaire, essaie les autres, et note ce que le fils aurait répondu.
+
+        Avec ``self.variants``, elle n'essaie qu'autant d'autres coups par coup adverse, en
+        commençant par celui que le professeur aurait joué à sa place (le plus dangereux) :
+        comme un joueur qui revoit sa partie, elle ne regarde pas toutes les réponses.
+        """
         lab, me, imagined = self.lab, self.marks[son_side], []
         for moves, _, _, _ in decisions:
             if not moves:
                 continue
             before = moves[:-1]
             lab.goto(before)
-            for action in self.mind.possibles(list(lab.states[-1])):
-                if (action,) == moves[-1] or not lab.goto(before + [(action,)]) or lab.ended:
+            others = [a for a in self.mind.possibles(list(lab.states[-1])) if (a,) != moves[-1]]
+            if self.variants is not None and len(others) > self.variants:
+                best = self.action(self.teacher_move(before))
+                others = ([best] if best in others else []) + [a for a in others if a != best]
+                others = others[:self.variants]
+            for action in others:
+                if not lab.goto(before + [(action,)]) or lab.ended:
                     continue
                 state = list(lab.states[-1])
                 son_cell, reason = self.son.choisir(list(state), me)
@@ -861,8 +927,7 @@ class Education:
         for moves, state, son_cell, reason in decisions:
             teacher = self.teacher_move(moves)
             teacher_cell = self.action(teacher)
-            if (teacher_cell == son_cell
-                    or self.value(moves + [teacher], son_side) <= self.value(moves + [(son_cell,)], son_side)):
+            if teacher_cell == son_cell or not self.better(moves, teacher, son_cell, son_side):
                 key = self.mind.cle(list(state), me)
                 if key not in self.cases:  # bien joué : la position reste un test pour les refactors
                     self.cases[key] = Case(list(moves), list(state), me, key, son_cell, teacher_cell)
@@ -920,25 +985,48 @@ class Education:
 
     def reduce(self, key: str, move: int) -> str:
         """« Qu'est-ce qui comptait ? » La plus petite partie du souvenir (le reste devient
-        « ? ») après laquelle le coup reste bon partout où elle apparaît : dans les cas
-        enregistrés et dans des positions que la mère imagine dans le labo.
+        « ? ») qui tient (:meth:`holds`) : le coup reste bon partout où elle apparaît, et à
+        cause d'elle.
 
-        Elle essaie d'abord les configurations de 0, 1, 2… cases (en plus de la case jouée),
-        jusqu'à ``self.chunk_size`` ; au-delà (un grand plateau en a trop), elle oublie les
-        cases une à une et garde chaque oubli qui tient.
+        La mère regarde d'abord la **zone** du coup : les cases qui partagent avec lui un
+        motif de fin qu'elle connaît (ce qui se joue sur les lignes passant par le coup).
+        Si rien n'y tient, le souvenir reste entier. (Sans motif de fin connu par le coup, elle
+        regarde toutes les cases.)
         """
         others = [i for i, v in enumerate(key) if i != move and v != "?"]
-        for size in range(min(self.chunk_size, len(others)) + 1):
-            for kept in itertools.combinations(others, size):
+        zone = {c for p in self.knowledge["patterns"] if move in p for c in p}
+        near = [i for i in others if i in zone]
+        chunk = self.smallest(key, move, near if zone else others)
+        return key if chunk is None else chunk
+
+    def smallest(self, key: str, move: int, cells: list[int]) -> str | None:
+        """Le plus petit motif qui tient, fait du coup et de cases prises dans ``cells``.
+
+        Elle essaie d'abord les configurations de 0, 1, 2… cases, tant qu'il y en a au plus
+        ``self.combinations`` à essayer (sur les 9 cases du Morpion, jusqu'à 3 cases ; sur les
+        42 du Puissance 4, une seule). Ensuite, partie de toutes les cases de ``cells``, elle
+        les oublie une à une et garde chaque oubli qui tient sur quelques positions. Chaque
+        essai passe d'abord ce tamis (``self.sieve`` positions) : seul un motif qui le passe
+        est vérifié sur toutes. Rien si aucun ne tient.
+        """
+        tried = 0
+        for size in range(len(cells) + 1):
+            tried += math.comb(len(cells), size)
+            if tried > self.combinations:
+                break
+            for kept in itertools.combinations(cells, size):
                 chunk = "".join(v if i == move or i in kept else "?" for i, v in enumerate(key))
-                if self.holds(chunk, move):
+                if self.holds(chunk, move, self.sieve) and self.holds(chunk, move):
                     return chunk
-        chunk = list(key)
-        for i in others:
+        else:
+            return None  # toutes les configurations essayées : aucune ne tient
+        chunk = [v if i == move or i in cells else "?" for i, v in enumerate(key)]
+        for i in cells:
             trial = chunk[:i] + ["?"] + chunk[i + 1:]
-            if self.holds("".join(trial), move):
+            if self.holds("".join(trial), move, self.sieve):
                 chunk = trial
-        return "".join(chunk)
+        chunk = "".join(chunk)
+        return chunk if self.holds(chunk, move) else None
 
     def shift_chunk(self, chunk: str, move: int) -> list[str]:
         """« Et ailleurs ? » Le petit motif décalé (chaque case + d), vérifié de la même façon.
@@ -969,37 +1057,86 @@ class Education:
         return False
 
     def holds(self, chunk: str, move: int, number: int = 20) -> bool:
-        """Le coup est-il le bon partout où le petit motif apparaît ? D'abord dans des positions
-        imaginées, puis dans les cas enregistrés (vus sous chaque façon de les voir).
+        """Le coup est-il le bon partout où le petit motif apparaît, **à cause** du motif ?
+        D'abord dans des positions imaginées, puis dans les cas enregistrés (vus sous chaque
+        façon de les voir).
 
         Dans une position imaginée, la mère demande son coup au professeur. S'il joue le coup
         du motif, la position le confirme. S'il joue ailleurs, elle vérifie que le coup du
-        motif est aussi bon (en lui faisant finir la partie) : sinon le motif est démenti,
-        sinon la position ne dit rien (sur un grand plateau, un seul coup change rarement
-        l'issue : « aussi bon » n'y départage presque rien). Une position où le motif ne
-        s'applique pas (sa case n'y est pas atteignable) ne dit rien non plus. Il faut
-        qu'au moins la moitié des positions imaginées le confirment.
+        motif est aussi bon (en lui faisant finir la partie) : sinon le motif est démenti.
+        Elle ne le vérifie ainsi que pour les deux premiers désaccords (chacun coûte deux fins
+        de partie), et seulement une fois les comptes passés (confirmations et témoin) : un
+        motif que les comptes refusent ne coûte aucune fin de partie. Les désaccords suivants
+        comptent seulement comme des positions qui ne confirment pas.
+        Une position où le motif ne s'applique pas (sa case n'y est pas atteignable) ne dit
+        rien.
+
+        **Le témoin.** Pour chaque position, elle imagine aussi la même position *sans* le
+        motif (une de ses cases changée, voir :meth:`witness`) et demande de nouveau son coup
+        au professeur. Si le professeur joue ce coup aussi souvent sans le motif, le motif
+        n'explique rien (au Puissance 4, il joue souvent la colonne du centre, motif ou
+        pas). Avec ``r+`` la part des positions qui confirment et ``r-`` la part des témoins
+        où il joue quand même ce coup, il faut ``r+ >= (1 + r-) / 2`` : le motif fait au
+        moins la moitié du chemin entre le témoin et la certitude. Un motif réduit à la case
+        jouée n'a pas de témoin possible : il n'explique rien.
         """
-        action = self.mind.action_pour(move)
-        imagined = confirmed = 0
+        kept = [i for i, v in enumerate(chunk) if v != "?" and i != move]
+        if not kept:
+            return False
+        mind, rng = self.mind, random.Random(chunk + "témoin")
+        action = mind.action_pour(move)
+        imagined = applied = confirmed = witnesses = still = 0
+        disagreements = []
         for moves in self.imagine(chunk, number):
             imagined += 1
             state = list(self.lab.states[-1])
-            if self.mind.case_jouee(state, action) == move:
-                if self.action(self.teacher_move(moves)) == action:
-                    confirmed += 1
-                elif not self.judge(moves, state, action):
-                    return False
+            if mind.case_jouee(state, action) != move:
+                continue  # la case n'y est pas encore atteignable : le motif ne s'applique pas
+            applied += 1
+            if self.action(self.teacher_move(moves)) == action:
+                confirmed += 1
+            elif len(disagreements) < 2:  # jugés plus loin, si le motif passe les comptes
+                disagreements.append((list(moves), state))
+            witness = self.witness(chunk, kept, move, len(moves), rng)
+            if witness is not None:
+                witnesses += 1
+                still += self.action(self.teacher_move(witness)) == action
             if 2 * (imagined - confirmed) > number:
                 return False  # la moitié ne peut plus être atteinte
-        if 2 * confirmed < imagined:
+        if not witnesses or 2 * confirmed < imagined:
             return False
-        trial, mind = {chunk: move}, self.mind
+        if 2 * confirmed * witnesses < applied * (witnesses + still):  # r+ < (1 + r-) / 2
+            return False
+        for moves, state in disagreements:  # un jugement coûte deux fins de partie
+            if not self.judge(moves, state, action):
+                return False
+        trial = {chunk: move}
         for case in self.cases.values():
             _, cell = mind.rappel(list(case.state), case.me, trial)
             if cell is not None and not self.good(case, cell):
                 return False
         return True
+
+    def witness(self, chunk: str, kept: list[int], move: int, total: int, rng) -> list[tuple] | None:
+        """Une position sans le petit motif, aussi chargée (``total`` pions) : une case du motif
+        prend une autre valeur (un pion devient l'autre pion ou une case libre ; une case
+        libre reçoit un pion), le reste est joué comme dans :meth:`imagine`. Le coup du motif
+        doit y rester jouable. Renvoie la suite de coups qui y mène (le labo y est), ou
+        ``None``."""
+        action, side = self.mind.action_pour(move), total % 2
+        for _ in range(5):
+            cell = rng.choice(kept)
+            broken = list(chunk)
+            broken[cell] = rng.choice([v for v in "MA." if v != chunk[cell]])
+            mine = total // 2 - broken.count("M")
+            his = total - total // 2 - broken.count("A")
+            if mine < 0 or his < 0:
+                continue
+            moves = self.grow("".join(broken), side, mine, his, rng)
+            if (moves is not None and self.lab.goto(moves) and not self.lab.ended
+                    and self.mind.case_jouee(list(self.lab.states[-1]), action) == move):
+                return moves
+        return None
 
     def order(self, first: list[int], second: list[int], rng) -> list[tuple] | None:
         """Une suite de coups qui pose les pions de chacun sur ses cases, chacun son tour (un
@@ -1018,10 +1155,10 @@ class Education:
         return moves
 
     def imagine(self, chunk: str, number: int = 20):
-        """Des positions qui contiennent le petit motif, fabriquées dans le labo : les cases
-        « ? » sont remplies au hasard (pions de l'un, de l'autre, ou libres), le fils pouvant
-        être l'un ou l'autre joueur. Une position où la partie est déjà finie est écartée.
-        Chaque suite de coups est donnée quand le labo y est arrivé."""
+        """Des positions qui contiennent le petit motif, fabriquées dans le labo en jouant
+        (:meth:`grow`) : le fils peut être l'un ou l'autre joueur, et un nombre de pions tiré
+        au hasard occupe les cases « ? ». Une position où la partie est déjà finie est
+        écartée. Chaque suite de coups est donnée quand le labo y est arrivé."""
         rng = random.Random(chunk)
         cells = {v: [i for i, c in enumerate(chunk) if c == v] for v in "MA?"}
         found, seen = 0, set()
@@ -1029,22 +1166,50 @@ class Education:
             if found >= number:
                 break
             side = rng.randrange(2)  # 0 : le fils joue en premier
-            extra = rng.sample(cells["?"], rng.randint(0, len(cells["?"])))
-            total = len(cells["M"]) + len(cells["A"]) + len(extra)
+            total = len(cells["M"]) + len(cells["A"]) + rng.randint(0, len(cells["?"]))
             mine = total // 2 - len(cells["M"])  # pions du fils à ajouter
-            if total % 2 != side or not 0 <= mine <= len(extra):
+            his = total - total // 2 - len(cells["A"])
+            if total % 2 != side or mine < 0 or his < 0:
                 continue
-            mine_cells, his_cells = cells["M"] + extra[:mine], cells["A"] + extra[mine:]
-            first, second = (mine_cells, his_cells) if side == 0 else (his_cells, mine_cells)
-            signature = (side, frozenset(mine_cells), frozenset(his_cells))
-            if signature in seen:
-                continue
-            moves = self.order(first, second, rng)
+            moves = self.grow(chunk, side, mine, his, rng)
             if moves is None or not self.lab.goto(moves) or self.lab.ended:
+                continue
+            signature = tuple(self.lab.states[-1])
+            if signature in seen:
                 continue
             seen.add(signature)
             found += 1
             yield moves
+
+    def grow(self, chunk: str, side: int, mine: int, his: int, rng) -> list[tuple] | None:
+        """Une suite de coups permis qui mène au motif : à son tour, chacun pose un de ses
+        pions du motif si une action le pose là, ou un pion de plus (il en a ``mine`` pour le
+        fils, ``his`` pour l'autre) sur une case « ? » qu'une action remplit. Comme dans une
+        vraie partie, aucun pion n'arrive là où aucune action ne le pose. ``None`` si un
+        joueur ne peut plus rien poser."""
+        mind = self.mind
+        need = [[i for i, c in enumerate(chunk) if c == v] for v in "MA"]  # 0 : le fils
+        left = [mine, his]
+        state, moves = list(self.lab.states[0]), []
+        while need[0] or need[1] or left[0] or left[1]:
+            turn = len(moves) % 2
+            who = turn if side == 0 else 1 - turn
+            actions = {}
+            for action in mind.possibles(state):
+                actions.setdefault(mind.case_jouee(state, action), action)
+            options = [c for c in need[who] if c in actions]
+            if left[who]:
+                options += [c for c in actions if c is not None and chunk[c] == "?"]
+            if not options:
+                return None
+            cell = rng.choice(options)
+            if cell in need[who]:
+                need[who].remove(cell)
+            else:
+                left[who] -= 1
+            state = mind.apres(state, actions[cell], self.marks[turn])
+            moves.append((actions[cell],))
+        return moves
 
     # ------------------------------------------------------------------ #
     # Refactor : remplacer des souvenirs par une règle
@@ -1085,8 +1250,7 @@ class Education:
         key = (repr(list(state)), cell)
         if key not in self._judged:
             side, teacher = len(moves) % 2, self.teacher_move(moves)
-            self._judged[key] = (self.action(teacher) == cell
-                                 or self.value(moves + [(cell,)], side) >= self.value(moves + [teacher], side))
+            self._judged[key] = self.action(teacher) == cell or not self.better(moves, teacher, cell, side)
         return self._judged[key]
 
     def covering(self) -> dict[str, str | None]:
@@ -1215,6 +1379,7 @@ class Education:
             symmetry = None if self._symmetries_known else self.discover_symmetries()
             result, decisions = self.play_game(opponent, side)
             record = GameRecord(len(self.records), name, str(self.marks[side]), RESULTS[result])
+            record.impossibles = self.impossibles
             record.refactors += shifted
             if symmetry:
                 record.refactors.append(symmetry)

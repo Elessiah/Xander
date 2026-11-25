@@ -93,6 +93,12 @@ résoudre seule un problème qu'elle n'a jamais vu ? »
   `parer` ne contient que `parer`). Il lit l'état, applique ses règles et joue.
   **Il n'utilise jamais `back`** et ne fait pas de force brute avec essai et
   annulation. C'est la mère qui réfléchit et qui corrige ce code.
+- **Le fils ne triche jamais.** Il joue un seul coup par tour ; si le jeu le
+  refuse, c'est un coup impossible (une erreur de perception que la mère
+  corrige), jamais un essai suivi d'un autre. Règle de toute éducation et de
+  tout banc : **après ses 5 premières parties, un fils ne fait plus aucun
+  coup impossible.** Mieux vaut un fils nul qui apprend plus lentement qu'un
+  fils qui a vite des résultats en trichant.
 - **`back` est l'outil de la mère.** Il lui sert à revenir sur une erreur du
   fils, à comparer avec d'autres coups et à comprendre ce qui s'est passé.
 - **Les Minmax de `Games/`** sont des adversaires et des professeurs (la mère

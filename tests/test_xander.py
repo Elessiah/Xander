@@ -408,6 +408,16 @@ class MotherTest(unittest.TestCase):
             self.assertEqual(game.board[0], "X")  # sans règle : première case libre
 
 
+class RefusingMorpion(Morpion):
+    """Un Morpion qui refuse tous les coups, et compte combien on en essaie."""
+
+    calls = 0
+
+    def play(self, *arguments):
+        self.calls += 1
+        return False
+
+
 class NoBackMorpion(Morpion):
     """Un Morpion qui interdit ``back`` : le fils ne doit jamais s'en servir."""
 
@@ -625,6 +635,25 @@ class EducationTest(unittest.TestCase):
         board = ["0", "O", "2", "X", "X", "5", "O", "7", "8"]  # mes deux pions au milieu
         self.assertEqual(teaching.son.choisir(board, "X"), (5, "souvenir"))
 
+    def test_small_pattern_needs_control_group(self):
+        """Un professeur qui joue la case 2 dans deux positions sur trois, motif ou pas,
+        « confirme » MM.?????? -> 2 dans plus de la moitié des positions. Le groupe témoin (le
+        motif cassé, autant de pions) montre qu'il la joue aussi souvent sans lui."""
+        teaching = education()
+        teaching.knowledge["patterns"] = [list(line) for line in LINES]
+        teaching.rethink()
+        self.assertTrue(teaching.holds("MM.??????", 2))
+        self.assertFalse(teaching.holds("?????????", 2))  # aucune case en plus du coup
+
+        def biased(moves):  # ne regarde que le nombre de pions
+            teaching.lab.goto(moves)
+            others = [a for a in teaching.mind.possibles(list(teaching.lab.states[-1])) if a != 2]
+            return (2,) if len(moves) % 3 or not others else (others[0],)
+
+        teaching.teacher_move = biased
+        teaching.judge = lambda moves, state, action: True  # ses autres coups ne sont pas pires
+        self.assertFalse(teaching.holds("MM.??????", 2))
+
     def test_false_small_pattern_is_forgotten(self):
         """Un petit motif démenti est oublié ; les cas qu'il couvrait redeviennent des souvenirs."""
         teaching = education()
@@ -682,6 +711,33 @@ class EducationTest(unittest.TestCase):
         records = education(60).records[1:]
         first, last = records[:20], records[-20:]
         self.assertGreater(sum(len(r.lessons) for r in first), sum(len(r.lessons) for r in last))
+
+    def test_impossible_move_is_understood(self):
+        """Un coup refusé par le jeu est une erreur : la mère comprend pourquoi (sa perception
+        se trompait), réécrit le fils, et il ne recommence pas."""
+        teaching = education()
+        teaching.knowledge["free"] = ("toujours",)  # perception fausse : toute case se joue
+        teaching.rethink()
+        teaching.play_game(minmax_morpion_play, 0)
+        self.assertEqual(len(teaching.impossibles), 1)  # une case déjà prise
+        self.assertEqual(teaching.knowledge["free"], ("depart",))  # compris grâce au refus
+        teaching.play_game(minmax_morpion_play, 1)
+        self.assertEqual(teaching.impossibles, [])
+
+    def test_no_impossible_move_after_five_games(self):
+        """Après ses 5 premières parties, un fils ne fait plus aucun coup impossible."""
+        teaching = education(200)
+        self.assertEqual([r.number for r in teaching.records if r.number > 5 and r.impossibles], [])
+
+    def test_son_never_tries_another_action(self):
+        """Si le jeu refuse son coup, le fils le dit : essayer d'autres actions jusqu'à ce
+        que le jeu en accepte une, ce serait tricher."""
+        son = son_writer.load(render_son("fils", education()))
+        game = RefusingMorpion()
+        game.init("X")
+        with self.assertRaisesRegex(RuntimeError, "coup impossible"):
+            son.play(game)
+        self.assertEqual(game.calls, 1)
 
     def test_saved_son_plays_against_minmax_without_back(self):
         son = son_writer.load(render_son("fils", education(200)))  # le fichier écrit par la mère
