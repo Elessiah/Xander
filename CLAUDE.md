@@ -118,6 +118,8 @@ de logiques pré-induites.
 ## Pratique
 
 - Le code, les commentaires, la doc et les messages de commit sont en **français**.
+- Claude répond **toujours en français** dans ce projet, même si on lui écrit
+  dans une autre langue.
 - Python 3.10+, aucune dépendance.
 - Tests : `python -m unittest discover -s tests -t .`
 - Apprendre un exemple : `python -m xander res/exampleMorpion.py`
