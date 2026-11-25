@@ -612,6 +612,25 @@ class EducationTest(unittest.TestCase):
         board = ["0", "O", "2", "X", "X", "5", "O", "7", "8"]  # mes deux pions au milieu
         self.assertEqual(teaching.son.choisir(board, "X"), (5, "souvenir"))
 
+    def test_small_pattern_needs_control_group(self):
+        """Un professeur qui joue la case 2 dans deux positions sur trois, motif ou pas,
+        « confirme » MM.?????? -> 2 dans plus de la moitié des positions. Le groupe témoin (le
+        motif cassé, autant de pions) montre qu'il la joue aussi souvent sans lui."""
+        teaching = education()
+        teaching.knowledge["patterns"] = [list(line) for line in LINES]
+        teaching.rethink()
+        self.assertTrue(teaching.holds("MM.??????", 2))
+        self.assertFalse(teaching.holds("?????????", 2))  # aucune case en plus du coup
+
+        def biased(moves):  # ne regarde que le nombre de pions
+            teaching.lab.goto(moves)
+            others = [a for a in teaching.mind.possibles(list(teaching.lab.states[-1])) if a != 2]
+            return (2,) if len(moves) % 3 or not others else (others[0],)
+
+        teaching.teacher_move = biased
+        teaching.judge = lambda moves, state, action: True  # ses autres coups ne sont pas pires
+        self.assertFalse(teaching.holds("MM.??????", 2))
+
     def test_false_small_pattern_is_forgotten(self):
         """Un petit motif démenti est oublié ; les cas qu'il couvrait redeviennent des souvenirs."""
         teaching = education()
