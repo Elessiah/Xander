@@ -81,6 +81,8 @@ EXPERIENCES = 40
 PARTIES_D_ESSAI = 8
 #: Nouvelles recherches de programme permises quand le labo a tout réfuté.
 REPRISES = 3
+#: Refus de suite après lesquels la mère cesse d'essayer des entiers plus loin.
+PATIENCE = 2
 
 
 @dataclass
@@ -138,25 +140,27 @@ class GameRecord:
         return text
 
 
-def random_player(rng: random.Random):
-    """Adversaire faible : essaie des arguments au hasard jusqu'à ce que le jeu en accepte un."""
+def random_player(rng: random.Random, actions: list, action: str, getter: str, end_signal):
+    """Adversaire faible : essaie au hasard les actions que la mère a trouvées, jusqu'à ce que le
+    jeu en accepte une (il les connaît par leurs noms dans l'exemple, comme le fils)."""
     def play(game):
-        state = game.get_game_state()
-        for argument in rng.sample(range(len(state)), len(state)):
-            if game.play(argument) is not False:
+        state = getattr(game, getter)()
+        for argument in rng.sample(actions, len(actions)):
+            result = getattr(game, action)(argument)
+            if type(result) is type(end_signal) and result == end_signal:
+                return  # la partie est finie : ne pas relire l'état
+            if getattr(game, getter)() != state:
                 return
     play.__name__ = "hasard"
     return play
 
 
-def mixed_player(teacher, rng: random.Random):
+def mixed_player(teacher, rng: random.Random, randomly):
     """Adversaire imprévisible : une fois sur deux le coup du professeur, sinon un coup au hasard.
 
     Il crée des menaces comme le professeur, mais pas toujours les mêmes : le
     fils rencontre ainsi des positions variées et difficiles.
     """
-    randomly = random_player(rng)
-
     def play(game):
         (teacher if rng.random() < 0.5 else randomly)(game)
     play.__name__ = "mixte"
@@ -254,7 +258,7 @@ class Education:
         rng, lab, trials = random.Random(f"effets-{self.seed}"), self.lab, Trials(list(effects))
         reach = self.knowledge["reach"]
         calls = [f for f in self.parsed.player_functions() if f.name == self.model.action.name]
-        values = list(dict.fromkeys(a for f in calls for a in f.arguments))
+        values = list(dict.fromkeys(list(self.knowledge["actions"]) + [a for f in calls for a in f.arguments]))
         width = len(self.model.action.parameters)
         candidates = list(itertools.product(values, repeat=width))[:200]
         example = [tuple(f.arguments) for f in calls]
@@ -339,15 +343,68 @@ class Education:
         """La case que remplit le coup ``arguments`` dans ``state`` (perception de la mère)."""
         return self.mind.case_jouee(list(state), self.action(arguments))
 
+    def random_player(self, rng: random.Random):
+        """Un adversaire qui joue au hasard parmi les actions que la mère a trouvées."""
+        return random_player(rng, self.knowledge["actions"], self.knowledge["action"],
+                             self.knowledge["getter"], self.knowledge["end_signal"])
+
     def discover_actions(self) -> list:
-        """Quelles actions le jeu accepte-t-il au départ ? La mère les essaie dans le labo."""
-        lab, accepted = self.lab, []
-        for argument in range(len(lab.states[0])):
-            lab.goto([])
-            if lab.play(argument) != "refused":
-                accepted.append(argument)
+        """Quelles actions existent ? La mère ne le sait pas d'avance : elle part des valeurs que
+        l'exemple a passées à l'action et explore autour, dans son labo.
+
+        * des entiers : tous ceux entre le plus petit et le plus grand vus, puis plus loin dans
+          chaque sens, tant que le jeu en accepte (« si 7 marche, et 8 ? ») ; elle s'arrête après
+          :data:`PATIENCE` refus de suite ;
+        * des booléens : les deux ;
+        * d'autres valeurs : celles de l'exemple.
+
+        Une valeur est une action si le jeu l'accepte au départ ou à une position de l'exemple.
+        """
+        lab = self.lab
+        calls = [f for f in self.parsed.player_functions() if f.name == self.model.action.name]
+        example = [tuple(f.arguments) for f in calls]
+        seen = list(dict.fromkeys(f.arguments[0] for f in calls if f.arguments))
+        positions = [example[:k] for k in range(len(example))]
+        verdicts: dict = {}
+
+        def accepted(value) -> bool:
+            key = (type(value).__name__, value)
+            if key not in verdicts:
+                verdicts[key] = False
+                for moves in positions:
+                    if not lab.goto(moves) or lab.ended:
+                        continue
+                    try:
+                        outcome = lab.play(value)
+                    except Exception:  # le jeu ne supporte pas cette valeur
+                        lab.new_game()
+                        break
+                    if outcome != "refused":
+                        lab.undo()
+                        verdicts[key] = True
+                        break
+            return verdicts[key]
+
+        integers = sorted({v for v in seen if isinstance(v, int) and not isinstance(v, bool)})
+        candidates = [v for v in seen if not (isinstance(v, int) and not isinstance(v, bool))]
+        if any(isinstance(v, bool) for v in seen):
+            candidates += [v for v in (False, True) if v not in candidates]
+        found = [v for v in candidates if accepted(v)]
+        if integers:
+            inside = [v for v in range(integers[0], integers[-1] + 1) if accepted(v)]
+            outside = []
+            for start, step in ((integers[-1] + 1, 1), (integers[0] - 1, -1)):
+                value, refusals = start, 0
+                while refusals < PATIENCE:
+                    if accepted(value):
+                        outside.append(value)
+                        refusals = 0
+                    else:
+                        refusals += 1
+                    value += step
+            found += sorted(inside + outside)
         lab.goto([])
-        return accepted
+        return found
 
     def discover_reach(self) -> dict:
         """Quelles cases chaque action peut-elle remplir ? La mère la rejoue dans le labo,
@@ -1086,8 +1143,8 @@ class Education:
                 on_game(record)
         if len(self.marks) < 2:
             raise LabError("la mère n'a pas compris quel pion pose chaque joueur")
-        opponents = [("professeur", self.teacher), ("hasard", random_player(self.rng)),
-                     ("mixte", mixed_player(self.teacher, self.rng))]
+        opponents = [("professeur", self.teacher), ("hasard", self.random_player(self.rng)),
+                     ("mixte", mixed_player(self.teacher, self.rng, self.random_player(self.rng)))]
         for number in range(1, nb_games + 1):
             name, opponent = opponents[(number - 1) // 2 % len(opponents)]
             side = (number - 1) % 2
@@ -1112,7 +1169,7 @@ class Education:
         """Fait jouer le fils sans le corriger : bilan par adversaire."""
         scores = {}
         for name, opponent, games in (("professeur", self.teacher, 2),
-                                      ("hasard", random_player(random.Random(1)), nb_random)):
+                                      ("hasard", self.random_player(random.Random(1)), nb_random)):
             score = {"victoire": 0, "nul": 0, "défaite": 0}
             for number in range(games):
                 result, _ = self.play_game(opponent, number % 2)

@@ -242,6 +242,14 @@ class EffectExperimentTest(unittest.TestCase):
         self.assertEqual(teaching.knowledge["reach"][3], [38, 31, 24, 17, 10, 3])
         self.assertEqual(teaching.mind.case_jouee([" "] * 38 + ["X"] + [" "] * 3, 3), 31)
 
+    def test_actions_are_explored(self):
+        """La mère ne suppose pas que les actions sont des indices : à partir des valeurs de
+        l'exemple, elle essaie autour (« si 7 marche, et 8 ? ») et s'arrête après deux refus."""
+        morpion = Mother().raise_son(RES / "exampleMorpion.py", None, 0)  # l'exemple joue 4, 5, 1, 2, 7
+        self.assertEqual(morpion.knowledge["actions"], list(range(9)))
+        puissance4 = Mother().raise_son(RES / "examplePuissance4.py", None, 0)  # 3, 2, 4, 1
+        self.assertEqual(puissance4.knowledge["actions"], list(range(7)))
+
     def test_unknown_action_is_an_error(self):
         """Jumper : rien n'explique l'action, même avec le labo ; la mère le dit."""
         with self.assertRaises(LabError):

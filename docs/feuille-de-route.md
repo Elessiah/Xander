@@ -19,6 +19,20 @@
 
 ## Prochaines étapes proposées
 
+**Retirer les aides orientées.** Objectif : que la mère n'ait plus que des
+briques générales. État des aides qu'on lui donne encore, de la plus taillée
+pour un jeu à la plus structurelle :
+
+| Aide | État |
+|---|---|
+| Les actions sont les indices du plateau (`range(len(state))`) | **retirée** : elle explore autour des valeurs de l'exemple |
+| L'adversaire au hasard appelle `get_game_state` et `play` | **retirée** : il utilise les noms appris dans l'exemple |
+| `premiere(x, pas, v)`, la gravité toute faite | **retirée** (étape 4) : elle compose `premiere_de(portee(arg0), valant(' '))` |
+| Une seule expérience pour voir une portée : rejouer la même action depuis le début | reste ; à remplacer par des expériences qu'elle choisit (curiosité) ou par un ordre déduit de tout ce qu'elle a vu |
+| `valant` compare aussi le texte (`"4"` et `4`), une conversion cachée pensée pour le Morpion | reste ; à rendre explicite (une brique `texte(x)`). Coût : au Morpion, `case(arg0)` et `valant(arg0)` ne seraient plus départageables du tout, et le jeu d'essai qui les départage est à refaire |
+| Une case changée reçoit le pion du joueur | reste ; la mère devrait décrire la valeur écrite comme elle décrit la case |
+| Une case libre est une case sans pion ; pions appris par parité de coup ; positions lues en `M` / `A` / `.` | reste ; c'est le cadre « plateau à pions » de toute l'éducation, qui touche aussi l'entraînement (à coordonner) |
+
 1. **Analyzer plus général.** C'est lui qui donne à la mère le vocabulaire
    pour percevoir un jeu. La mère construit la description de l'action avec
    un petit langage (étape 1 : elle retrouve seule les anciennes hypothèses,

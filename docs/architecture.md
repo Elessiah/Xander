@@ -184,7 +184,15 @@ mère voit quel coup il a choisi sans rien savoir de son fonctionnement.
      colonne, et l'Analyzer trouve `case(arg0)`. En jouant deux fois dans la
      même colonne, la mère le réfute.
 
-   Avant les expériences, elle rejoue chaque action depuis le début pour voir
+   Avant les expériences, elle cherche **quelles actions existent** : elle ne
+   suppose pas que ce sont des indices. Elle part des valeurs que l'exemple a
+   passées à l'action et explore autour dans le labo : pour des entiers, tous
+   ceux entre le plus petit et le plus grand vus, puis plus loin dans chaque
+   sens tant que le jeu en accepte (« si 7 marche, et 8 ? »), jusqu'à deux refus
+   de suite ; pour des booléens, les deux. Au Morpion, l'exemple joue 4, 5, 1, 2
+   et 7 : elle trouve 0 à 8. L'adversaire « au hasard » joue parmi ces actions.
+
+   Ensuite, elle rejoue chaque action depuis le début pour voir
    ce qu'elle remplit (sa **portée**), puis cherche de nouveau le programme
    avec ces portées : c'est ainsi qu'elle comprend la gravité. Quand le labo a
    tout réfuté, elle **apprend du contre-exemple** : les coups joués dans le
@@ -454,8 +462,10 @@ fils dans `output/sons/<nom>.py`.
   (`get, play, get`) est rattaché au tour suivant.
 - Éducation : seulement pour deux joueurs qui alternent, un état en tableau et
   une action qui remplit une case (le programme trouvé annonce une seule case
-  changée). Les actions sont celles que le jeu accepte au départ, essayées
-  parmi les indices du plateau. Les Allumettes (quantité) attendent que la
+  changée), à un seul argument. Les actions sont explorées autour des valeurs
+  de l'exemple : une action qu'aucune valeur voisine ne laisse deviner (un
+  entier isolé loin des autres, un texte jamais vu) reste inconnue. Les
+  Allumettes (quantité) attendent que la
   perception sache décrire une quantité.
 - Les concepts sont construits par la mère, mais leur langage (les quatre
   sortes de nœuds) est fourni. Ses concepts sont parfois
