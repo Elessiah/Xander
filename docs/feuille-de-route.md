@@ -193,8 +193,8 @@ l'éducation bloque) est dans `docs/jeux.md`. Commandes :
    celle d'après interrompue à 80 parties ; la comparaison avant / après du
    Puissance 4 n'est pas faite ; le temps (environ 29 minutes) frôle la
    limite d'un examen. Voir l'étape 6, « Reste à faire ».
-2. **Le bulletin du fils** (section suivante), d'abord comme mesure seule.
-   C'est lui qui dira si les fils actuels ont compris ou seulement retenu.
+2. ~~Le bulletin du fils, comme mesure seule~~ : **fait** (2026-11-26, section
+   suivante). Il confirme que Hanoï a retenu et que le Morpion a compris.
 3. **Généraliser au lieu de retenir** : Hanoï depuis toute position, Le
    compte est bon sur des tirages jamais vus. Il faut que le labo varie
    l'état de départ (d'autres tirages, d'autres positions) et que la mère
@@ -225,7 +225,41 @@ logique qui explique tous les cas (le refactor), des configurations
 reconnues plutôt que des positions entières (Chase et Simon). Un bulletin
 automatique dit, pour chaque fils, s'il a compris ou s'il a retenu.
 
-### 1. Le bulletin, une mesure pour nous (à faire d'abord)
+### 1. Le bulletin, une mesure pour nous : **fait** (2026-11-26)
+
+`xander/bulletin.py`, `--bulletin` en ligne de commande, tests dans
+`tests/test_bulletin.py` ; fonctionnement dans `docs/architecture.md`, § 12.
+Premiers bulletins (graine 0 ; « général. » : positions jamais vues tenues) :
+
+| Jeu (parties) | Taille (nœuds + cases) | Compression | Coups décidés par une règle / un motif ou souvenir / le défaut | Général. |
+|---|---|---|---|---|
+| Morpion (200) | 81 (10 + 71) | 3,84 | 64 % / 23 % / 13 % | 49/50 |
+| Morpion à trois (200) | 4 865 (7 + 4 858) | 0,65 | 61 % / 21 % / 17 % | 41/50 |
+| Allumettes (200) | 5 (5 + 0) | 1,80 | 48 % / 0 % / 52 % | toutes vues |
+| Allumettes misère (200) | 6 (4 + 2) | 1,67 | 15 % / 25 % / 61 % | toutes vues |
+| Nim (200) | 104 (11 + 93) | 0,81 | 38 % / 32 % / 29 % | 19/35 |
+| Nim misère (200) | 118 (10 + 108) | 0,72 | 30 % / 51 % / 19 % | 17/34 |
+| Jumper (30) | 1 (0 + 1) | 322 | 0 % / 12 % / 88 % | 4/4 |
+| Partition (30) | 1 (0 + 1) | 300 | 0 % / 38 % / 62 % | toutes vues |
+| Hanoï (30) | 21 (0 + 21) | 2,19 | 0 % / 57 % / 43 % | 3/15 (la mère gagne depuis les 15) |
+| Le compte est bon (30) | 15 (0 + 15) | 0,40 | 0 % / 100 % / 0 % | 50/50, mais personne ne gagne depuis ces positions |
+
+Ce qu'il dit : le Morpion a **compris** (règles qui décident, 98 % de
+positions jamais vues tenues) ; Hanoï a **retenu** un chemin (rien que des
+souvenirs et le coup par défaut, 3 positions jamais vues sur 15 alors que la
+mère sait gagner depuis les 15) ; au Nim, la moitié des positions nouvelles
+sont ratées (la somme de Nim manque) ; le Morpion à trois tient 82 % des
+positions nouvelles mais sa taille est faite de 302 souvenirs entiers. Deux
+découvertes : au Morpion à trois, 4 des 3 143 cas enregistrés ne sont plus
+bien joués par le fils final (cause pas encore cherchée : un refactor ou
+un petit motif ? les refactors vérifient pourtant tous les cas) ; et au Compte est bon, la généralisation ne veut
+rien dire tant que le labo rejoue un seul tirage.
+
+**Reste à faire** : l'écrire dans le rapport du lanceur d'examen ; la
+stabilité en ligne de commande ; comprendre les 4 cas cassés du Morpion à
+trois.
+
+Conception d'origine :
 
 Un module `xander/bulletin.py`, qui ne modifie rien. Il lit une éducation
 finie (`Education` ou `Solo` : `knowledge["memories"]`, `["patterns"]`,

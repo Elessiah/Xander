@@ -69,6 +69,16 @@ def print_solo(education: Solo, args) -> None:
         print(f"\nFils écrit dans {path}")
 
 
+def print_bulletin(education, args) -> None:
+    """Le bulletin du fils (voir :mod:`xander.bulletin`), si on l'a demandé."""
+    if not args.bulletin:
+        return
+    from pathlib import Path
+
+    from xander.bulletin import bulletin
+    print("\n" + bulletin(education, Path(args.example).stem).decrire())
+
+
 def solve_problems(path: str, only: str | None = None, son: str | None = None) -> int:
     """Un problème « entrée -> sortie » (fichier ``.json``) : ce que la mère comprend, ce que répond le fils."""
     import json
@@ -129,6 +139,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="professeur qui joue un coup, ex. Games.MinmaxMorpion:minmax_morpion_play")
     parser.add_argument("--parties", type=int, default=200, help="parties d'entraînement du fils (défaut : 200)")
     parser.add_argument("--son", metavar="NOM", help="écrit le fils dans output/sons/NOM.py")
+    parser.add_argument("--bulletin", action="store_true",
+                        help="après l'éducation, affiche le bulletin du fils (taille, compression, origine "
+                        "des coups, généralisation à des positions jamais vues)")
     parser.add_argument("-q", "--quiet", action="store_true", help="n'affiche pas le détail de chaque partie")
     args = parser.parse_args(argv)
 
@@ -141,7 +154,7 @@ def main(argv: list[str] | None = None) -> int:
     mother = Mother(verbose=args.verbose)
     try:
         print(mother.learn(args.example, keep_pool_test=args.keep).describe())
-        if not (args.prof or args.son):
+        if not (args.prof or args.son or args.bulletin):
             return 0
         teacher = load_teacher(args.prof) if args.prof else None
         print("\nÉducation du fils :")
@@ -152,6 +165,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\nAction : {education.trials.describe()}")
         if isinstance(education, Solo):
             print_solo(education, args)
+            print_bulletin(education, args)
             return 0
         if education.tableau:
             print(f"Motifs compris : {knowledge['patterns']}")
@@ -185,6 +199,7 @@ def main(argv: list[str] | None = None) -> int:
             from xander.mother import render_son
             path.write_text(render_son(args.son, education), encoding="utf-8")
             print(f"\nFils écrit dans {path}")
+        print_bulletin(education, args)
     except (ExampleSyntaxError, ReplayError, LabError, OSError, UnicodeDecodeError, ValueError,
             ImportError, AttributeError) as error:
         print(f"Erreur : {error}", file=sys.stderr)
