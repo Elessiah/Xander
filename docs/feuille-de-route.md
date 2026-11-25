@@ -185,6 +185,14 @@ comparant des résultats.
 | Un joueur : horizon pour juger un coup | durée d'effet la plus longue vue + 1 | `Solo.measure_horizon` | principe (voir l'effet d'un coup jusqu'au bout) ; le « + 1 » a priori |
 | Un joueur : petits motifs essayés avant d'oublier les cases une à une | 20 000 | `un_joueur.COMBINAISONS` | a priori (vérifier un motif ne coûte ici aucune partie : les cas sont déjà jugés) |
 | Un joueur : choix entre motifs de même taille | la plus grande part de cas qui confirment, puis le plus de confirmations | `Solo.smallest` | réglé à Jumper (l'ordre des cases choisissait une coïncidence à égalité) |
+| Actions à plusieurs arguments : combinaisons essayées par argument / actions explorées au plus | 50 / 1 000 | `education.COMBINAISONS_ARGUMENT`, `ACTIONS_MAX` | a priori |
+| Contre-épreuve d'une fin sans pions : états essayés au plus | 3 000 | `education.SOURCES_MAX` | a priori |
+| Épreuves du labo pour vérifier quand un coup est permis | 600 | `education.EPREUVES_LIBERTE` | a priori |
+| Valeurs d'un argument pour décrire la valeur écrite « selon » lui | 8 au plus | `effets.MAX_VALEURS_SELON` | a priori |
+| Cases écrites : exactes au moins sur | la moitié des cas (et 2 cas) | `effets.ecrites` | a priori ; la borne de 2 est `MIN_CAS` (principe) |
+| Quand un coup est permis : terme comparé / comparaisons au plus / paires essayées | 5 nœuds contre une feuille / 2 / 400 | `effets.MAX_TAILLE_CONDITION`, `liberte_valeurs`, `MAX_ATOMES_PAIRES` | 5 nœuds repris de `MAX_TAILLE` ; 2 et 400 a priori (400 pour le temps) |
+| Un joueur : horizon d'un casse-tête dont la victoire est comprise | longueur de l'exemple | `Solo.measure_horizon` | a priori (l'exemple montre qu'on y arrive en autant de coups) |
+| Un joueur : valeur d'une victoire | 2 h + 2 × profondeur restante | `Solo.end_value` | principe (« plus tôt vaut mieux ») ; changé à Hanoï (avec « 2 h + profondeur », chaque coup de survie annulait l'avance : gagner en 7 coups ou en 9 valait autant) |
 | Examen : parties d'éducation / graine maîtresse | 200 / 0 | `examen.BUDGET` | a priori (le défaut de `raise_son`) |
 | Examen : graines de mesure par place et par sorte d'adversaires | 10 | `examen.BUDGET` | a priori ; changé (2 parties contre le professeur, 100 contre le hasard) à cause des fragilités du protocole, pas du score |
 | Examen : barème | au moins aussi bien que le professeur à sa place, dans toutes les situations ; aucun coup impossible après la partie 5 | `examen.mesurer`, `BUDGET.rodage` | principe (« le fils ne triche jamais ») ; changé (« ne perdre aucune partie ») à cause des fragilités du protocole, pas du score |
@@ -350,8 +358,13 @@ de plus petit n'explique les cas), ce qui rejoint le jalon 2.
      `Games/NimMisere.py`, professeur exact `Games/MinmaxNim.py`, exemples
      `res/exampleNim.py` et `res/exampleNimMisere.py`) : un état fait de
      plusieurs nombres, une action à deux arguments (quel tas, combien), une
-     stratégie qui n'est pas une période (la somme de Nim). La mère y voit
-     déjà quel tas change (`case(arg0)`), pas la valeur écrite.
+     stratégie qui n'est pas une période (la somme de Nim). **Fait :**
+     l'éducation (actions à plusieurs arguments, ci-dessous). La mère écrit
+     `moins(ici, arg1)`, trouve « on ne prend pas plus qu'il n'y a » et la
+     fin `(0, 0, 0)`, construit deux règles et garde une trentaine de
+     souvenirs ; le fils gagne en premier contre le professeur, bat le hasard
+     196 à 200 fois sur 200, et rate encore 16 des 102 positions gagnables
+     (la somme de Nim est hors de portée : on accepte des souvenirs).
    - **Mastermind** (`Games/Mastermind.py`, 3 chiffres de 1 à 6, 8 essais ;
      professeur `Games/MinmaxMastermind.py`, 5 essais au plus ; exemple
      `res/exampleMastermind.py`) : un jeu à un joueur qui se gagne, une
@@ -361,17 +374,49 @@ de plus petit n'explique les cas), ce qui rejoint le jalon 2.
    - **Tours de Hanoï** (`Games/Hanoi.py`, professeur exact par parcours
      en largeur, exemple `res/exampleHanoi.py`) : un joueur, une action à
      deux arguments (départ, arrivée), un déplacement sous contrainte, un
-     but avec une limite de coups. La mère ne décrit pas encore l'action et
-     l'éducation s'arrête avant la première partie (actions à un seul
-     argument) ; détail dans `docs/jeux.md`.
+     but avec une limite de coups. **Fait :** l'éducation seule. La mère
+     décrit l'action avec des portées rangées par argument, trouve « jamais
+     sur un plus petit », distingue la victoire de la limite atteinte (même
+     signal) par l'état de fin ; dès la 5e partie, le fils range la pile en
+     7 coups (le minimum), avec 7 souvenirs. Reste : reconnaître des
+     positions qu'il n'a pas vues (il ne range la pile que depuis 15 des 27
+     positions), et plus de disques.
    - **Le compte est bon, version courte** (un joueur, 4 nombres et une
      cible) : combiner des quantités pour atteindre un but, une action à
      trois arguments `play(i, j, op)`. **Fait :** le jeu
      (`Games/CompteEstBon.py`), son professeur exact
-     (`Games/SolveurCompteEstBon.py`) et `res/exampleCompteEstBon.py`. La
-     mère voit quelles places change un coup, pas ce qu'il calcule ;
-     l'éducation bloque parce qu'elle ne cherche que des actions à un
-     argument (voir `docs/jeux.md`).
+     (`Games/SolveurCompteEstBon.py`) et `res/exampleCompteEstBon.py`.
+     **Fait :** la mère décrit le coup (les cases écrites, l'opération
+     choisie par `arg2`, la place qui se vide), quand il est permis, la
+     victoire (l'état final de l'exemple) et la défaite (une partie
+     bloquée). Sur le tirage du labo, le fils gagne dès la 4e partie avec 3
+     souvenirs. **Où elle s'arrête :** 3 tirages jamais vus gagnés sur 100.
+     Il faudrait reconnaître des configurations (« il manque 5, et j'ai un
+     5 ») et comprendre la victoire comme « la cible apparaît », pas un état
+     exact (voir `docs/jeux.md`).
+   - **Actions à plusieurs arguments, et ce qu'elles écrivent** (fait, pour
+     le Nim, Hanoï et le Compte est bon ; rien de propre à un jeu dans
+     `xander/`, voir `docs/architecture.md`, § 3 et § 6) : découvrir chaque
+     argument à partir de ses valeurs vues ; une action est un tuple (labo,
+     fils, souvenirs, règles) ; portées rangées par argument ; la valeur
+     écrite décrite partie par partie par un petit programme (`ici`, `val`,
+     les quatre opérations, « selon » un argument) ; les cases écrites ;
+     quand un coup est permis, par une ou deux comparaisons déduites des
+     coups joués et refusés, puis mises à l'épreuve dans le labo ; un
+     tableau sans pions traité comme une valeur (la position porte le
+     trait) ; deux fins au même signal distinguées par l'état de fin ; un
+     casse-tête jugé jusqu'à la longueur de l'exemple. Restent, pour les
+     jeux qui les attendent : **Mastermind** et **Mot mystère** (l'action y
+     est découverte, 216 propositions au Mastermind, mais les cases écrites
+     dépendent d'un compteur que l'état ne montre que par les rangées déjà
+     remplies — « la première rangée vide » — et d'un secret caché : il
+     faudrait décrire un **bloc** de cases écrites à partir d'une position
+     calculée, et une valeur écrite qui dépend d'une information cachée,
+     donc des hypothèses sur le secret) ; **Pylos** (plusieurs fonctions
+     d'action par tour, un tour de longueur variable, et une action
+     `move(src, dest)` qui écrit le pion du joueur **et** vide une case :
+     des parties dont l'une écrit un pion, que le mode à pions ne sait pas
+     encore prévoir).
    - **Mot mystère** (`Games/MotMystere.py`) : un joueur, un mot secret de
      5 lettres caché, 6 essais ; le professeur, qui ne lit pas le secret,
      trouve les 405 secrets en 2,99 essais. La mère voit le joueur seul,

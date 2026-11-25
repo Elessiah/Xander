@@ -158,16 +158,108 @@ Au Morpion, `case(arg0)` et
 ne les départage pas, le labo s'en charge (§ 6). Les appels dont aucun cas
 n'est expliqué sont listés dans `AnalysisReport.unknown_calls`.
 
-Ce qui est encore fourni à la main : les trois formes (`apres`, `changees`,
-`suite` pour un état qui défile, ci-dessous), les
+**Une action à plusieurs arguments.** Au Nim, `play(tas, nombre)` ; à
+Hanoï, `play(depart, arrivee)` ; au Compte est bon, `play(i, j, op)`. Les
+programmes ont déjà `arg0`, `arg1`… ; ce qui change :
+
+- **les portées se rangent par argument** (`portees_observees`). La clé
+  `(k, x)` donne les cases que l'action a remplies quand son argument `k`
+  valait `x`, dans l'ordre déduit comme au Puissance 4, et `portee(argk)` la
+  lit. À Hanoï, `(0, 0)` (partir du piquet 0) vaut `[0, 1, 2]` : le petit
+  disque part avant le moyen, le moyen avant le grand. La case changée est
+  alors `premiere_de(portee(arg0), valant(arg0))`, « le premier disque du
+  piquet de départ » (taille 5), sans que la mère sache ce qu'est un disque ;
+- **les cases écrites** (`effets.ecrites`, forme `ecrites`). Au Compte est
+  bon, 5 × 1 laisse 5 à sa place pendant que l'autre place se vide : la case
+  est écrite mais ne change pas. Quand aucun programme ne donne exactement
+  les cases changées, la mère cherche le plus petit qui les **contient** dans
+  tous les cas et les donne exactement dans au moins la moitié (sinon
+  « toutes les cases » expliquerait tout). C'est une hypothèse plus faible,
+  que la description de la valeur écrite doit confirmer : avec elle, l'état
+  d'après est prévu en entier.
+
+**Ce que l'action écrit : un petit programme** (`effets.ecritures`). La
+description `changees = …` dit **où**. Pour dire **quoi**, la mère découpe la
+description en **parties** (les termes réunis par `union` : au Compte est
+bon, la place du résultat et celle qui se vide) et décrit la valeur que
+reçoit la case de chaque partie, de la plus simple à la moins simple :
+une constante, un argument, une valeur propre au joueur (comme avant), puis
+un **petit programme** construit comme les autres, par taille croissante et
+vérifié sur tous les cas (au moins deux), avec les arguments, `ici` (la
+valeur qu'avait la case), `val(x)` (la valeur qu'avait la case *x*) et les
+quatre opérations `plus`, `moins`, `fois`, `divise` (une division d'entiers
+n'a de sens que si elle tombe juste). Enfin, **selon un argument** : si un
+argument prend peu de valeurs (au plus 8), elle sépare les cas selon sa
+valeur et décrit chaque groupe seul ; un groupe vu une seule fois n'est pas
+décrit (elle ne prévoit rien pour cette valeur). Elle trouve :
+
+| Jeu | Où | Ce qu'elle écrit |
+|---|---|---|
+| Nim | `case(arg0)` | `moins(ici, arg1)` : le tas perd ce qu'on y prend |
+| Hanoï | `premiere_de(portee(arg0), valant(arg0))` | `arg1` : le piquet d'arrivée |
+| Compte est bon | `case(arg0)` | selon `arg2` : `plus`, `moins`, `fois`, `divise(ici, val(arg1))` |
+| | `case(arg1)` | `0` : la place se vide |
+
+Avec où et quoi, elle **prévoit l'état d'après en entier** (`effets.prevoir`).
+Un coup dont elle ne prévoit rien (une partie sans case, une division qui ne
+tombe pas juste, deux parties sur la même case) ou qui ne changerait rien
+n'est pas un coup.
+
+**Quand un coup est permis, selon les valeurs** (`effets.liberte_valeurs`).
+Le Nim refuse de prendre plus qu'il n'y a ; Hanoï, de poser sur un plus
+petit ; le Compte est bon, de combiner une place vide ou de donner un
+résultat qui n'est pas positif. La méthode est celle de la case libre :
+déduire des coups joués et refusés, de la description la plus simple à la
+moins simple. Un coup refusé dont elle ne prévoit rien est déjà expliqué ;
+les autres doivent être écartés par une **condition**, qui reste vraie pour
+tous les coups joués. Une condition se construit comme les programmes : des
+**comparaisons** (`inf` : plus petit, `egal`, éventuellement niées) entre
+un terme (au plus 5 nœuds, avec `valant`, `portee`, `premiere_de`, `val`,
+`plus`, `moins`) et une **feuille** (un argument, `ici`, `ecrit` et
+`cellule` de chaque partie, une borne mesurée sur les coups joués) ; une
+seule si elle suffit, sinon deux à la fois. Une case seule se compare par
+son indice ; une comparaison qui n'a pas de sens est fausse.
+
+| Jeu | Condition trouvée | Lecture |
+|---|---|---|
+| Nim | `non inf(ici, arg1)` | le tas a au moins ce qu'on prend |
+| Hanoï | `non inf(premiere_de(portee(arg0), valant(arg1)), cellule)` | aucun disque du piquet d'arrivée ne vient avant celui qu'on déplace : jamais sur un plus petit |
+| Compte est bon | `inf(ecrit1, ici) et inf(ecrit1, ecrit)` | la place n'était pas vide (0 < ce qu'elle valait) et le résultat est positif |
+
+Avec peu de coups refusés, une coïncidence de même taille peut gagner (au
+Compte est bon, graine 0 : `inf(arg0, ici)`, « l'indice de la place est plus
+petit que son nombre », vrai sur le seul tirage du labo). Si aucune
+condition ne convient, la mère dit que la condition est hors de portée de
+son langage. Ce qu'elle a vérifié est ce que le fils exécute : les briques
+sont recopiées dans le fils en Python (`effets.AIDES_SOURCE`,
+`source_prevision`) et un test compare les deux prévisions sur tous les
+coups vus.
+
+Ce qui est encore fourni à la main : les quatre formes (`apres`, `changees`,
+`ecrites`, `suite` pour un état qui défile, ci-dessous), les
 feuilles et les sortes de constantes, les sept opérations (dont
 `premiere_de`, une brique d'ordre générale), la façon de déduire l'ordre
 d'une portée (une case remplie alors qu'une autre était dans le même état
-vient avant elle), les trois descriptions de la valeur écrite et les trois de
-la case libre (pour un nombre, les quatre bornes d'une action permise, § 6),
-la taille maximale des programmes (5 nœuds) et le minimum de deux cas ; pour
-un défilement, les trois sortes d'exceptions (bord, mobile, cases fixes) et
-la profondeur de l'entrée par le bord (2 |*d*|).
+vient avant elle) et son rangement par argument, les descriptions de la
+valeur écrite (constante, argument, joueur, programme, selon un argument) et
+leurs briques (`ici`, `val`, les quatre opérations), les trois descriptions
+de la case libre (pour un nombre, les quatre bornes d'une action permise,
+§ 6) et le langage des conditions (`inf`, `egal`, la négation, un terme
+contre une feuille, au plus deux comparaisons), la taille maximale des
+programmes (5 nœuds) et le minimum de deux cas ; pour un défilement, les
+trois sortes d'exceptions (bord, mobile, cases fixes) et la profondeur de
+l'entrée par le bord (2 |*d*|).
+
+Pourquoi ces briques : `ici`, `val` et `moins` servent au Nim et au Compte
+est bon ; `plus` et `moins` décrivaient déjà les Allumettes ; `fois` est
+aussi une brique des problèmes « entrée → sortie » (§ 10, `les-carres`,
+`le-carre`) ; `divise`, l'inverse de `fois`, n'est justifiée que par le
+Compte est bon (l'équipement « nombre » de naissance, dit tel quel).
+« Selon un argument » n'est justifié, pour la valeur écrite, que par le
+Compte est bon (`op` choisit l'opération) ; c'est la même idée qu'une table
+apprise par valeur d'argument, que la mère a déjà : la portée de chaque
+action (Puissance 4) et les déplacements du mobile par argument (Jumper).
+Les comparaisons servent au Nim, à Hanoï et au Compte est bon.
 
 **Un état qui défile : l'état d'avant, décalé.** À Jumper, chaque coup fait
 avancer tout le décor d'une case : beaucoup de cases changent, et aucun
@@ -265,6 +357,18 @@ joué. Avant, le labo le prenait pour un refus et se désynchronisait du jeu.
    sens tant que le jeu en accepte (« si 7 marche, et 8 ? »), jusqu'à deux refus
    de suite ; pour des booléens, les deux. Au Morpion, l'exemple joue 4, 5, 1, 2
    et 7 : elle trouve 0 à 8. L'adversaire « au hasard » joue parmi ces actions.
+   **Une action à plusieurs arguments** s'explore argument par argument, en
+   partant des valeurs vues **pour cet argument** : une valeur est permise si
+   le jeu accepte au moins une action où elle figure, les autres arguments
+   prenant les valeurs de l'exemple (au plus 50 combinaisons, pour ne pas
+   exploser). Au Nim, l'exemple joue les tas 2, 1, 0 et les nombres 2, 4, 1 :
+   elle trouve les tas 0 à 2 et les nombres 1 à 5 (6 est refusé, 7 aussi).
+   Les actions sont alors les combinaisons que le jeu accepte à une position
+   de l'exemple ; en explorant, elle essaie aussi les autres et garde celles
+   qu'il accepte quelque part (au Nim, 12 sur 15 : le tas 0 n'a jamais 4
+   objets ; à Hanoï, 6 sur 9 ; au Compte est bon, 36 sur 64). Une action est
+   alors le **tuple** de ses arguments : le labo le joue tel quel, et
+   souvenirs, petits motifs et règles retiennent l'action entière.
    Elle lit aussi dans l'exemple **l'ordre des joueurs** : ils jouent chacun
    leur tour, toujours dans le même ordre, un cycle (X, O, X, O… à deux ; X,
    O, Z, X, O, Z… à trois). C'est ce qui lui permet ensuite de reconnaître qui
@@ -286,6 +390,19 @@ joué. Avant, le labo le prenait pour un refus et se désynchronisait du jeu.
    bas, elle passe ainsi de `case(arg0)` à la gravité. Si rien n'explique les
    cas (une action qui mélange l'état), elle sait qu'elle n'a pas compris
    l'action.
+
+   Quand elle prévoit l'état d'après en entier (une valeur écrite décrite par
+   un programme, § 3), elle **met aussi à l'épreuve** ce qu'elle a compris de
+   « quand un coup est permis » (`test_free`) : depuis les positions vues en
+   explorant (les plus proches du début d'abord, chaque état une fois), elle
+   joue chaque action et compare au jeu ce qu'elle prévoyait (au plus 600
+   coups). Un coup qu'elle croyait permis et que le jeu refuse, ou l'inverse,
+   devient une observation ; un coup joué qu'elle ne prévoyait pas lui fait
+   revoir ses portées et sa description de la valeur écrite (au Compte est
+   bon, les divisions vues donnaient toutes 1 : « écrire 1 » tombe dès que
+   10 / 5 donne 2). Puis elle cherche de nouveau la condition. À Hanoï, sans
+   cette épreuve, l'exploration seule donnait `non egal(val(0), arg1)` (« le
+   petit disque n'est pas sur le piquet d'arrivée »), une coïncidence.
 1. **Leçon de l'exemple.** La mère rejoue l'exemple, vérifie que l'action
    change bien les cases que prédit son programme, apprend quel pion pose
    chaque joueur, puis comprend pourquoi la partie finit (ci-dessous).
@@ -460,6 +577,48 @@ vrai sans rien dire). Le fils ne s'y trompe pas parce qu'il joue la plus
 petite des actions que la règle propose (à 3 allumettes, prendre 2 plutôt que
 3) ; les cas enregistrés le vérifient, la règle seule ne le garantit pas.
 
+### Un tableau sans pions : le Nim
+
+Au Morpion, la case jouée reçoit le pion du joueur : l'état dit qui a joué.
+Au Nim, le tas reçoit `moins(ici, arg1)` : rien n'y dit qui a joué. Quand la
+valeur écrite n'est pas « une valeur propre au joueur », la mère traite le
+tableau **comme une valeur** (`Education.liste`, `tableau` est faux) : la
+position est `[état, trait]` (l'état en tuple), elle prévoit l'état d'après
+en entier (§ 3), les actions permises sont celles qu'elle prévoit, et la fin
+est un **état** compris par contre-épreuve, avec qui il fait gagner. Rien
+n'y est propre au Nim : c'est le même chemin que les Allumettes, avec un
+état plus grand. Pour la contre-épreuve, si les positions de l'exploration
+ne donnent pas deux états d'où un coup finit la partie, elle cherche un coup
+plus loin (au plus 3 000 coups joués). Au Nim, elle trouve
+`FINS = {(0, 0, 0): "dernier"}` (en misère, `"trait"`), vérifiée depuis
+`(0, 0, 1)`, `(0, 0, 2)`, `(0, 1, 0)`…
+
+Résultats (tas 3, 4, 5 ; 30 parties contre le professeur, le hasard et
+l'adversaire mixte ; graines 0 à 2, moins de 2 s chacune) :
+
+- 44 ou 45 erreurs, presque toutes dans les deux premières parties (avec
+  les variantes de l'adversaire), la dernière à la partie 7, 16 ou 22 ;
+  0 coup impossible après la partie 5. Avec 200 parties : 43 erreurs dans
+  les 20 premières, 2 ensuite, plus rien après la 100e.
+- La mère construit deux règles :
+  `Non(AuMoins(1, moi, Non(AuMoins(1, moi, gagne(moi)))))` (« après mon
+  coup, tout coup laisse un gain » : la règle des Allumettes) et
+  `Non(AuMoins(1, moi, Non(AuMoins(1, moi, Non(gagne(moi))))))`, et garde
+  30 ou 31 souvenirs. Au plus 301 positions regardées pour un coup.
+- Le fils gagne en premier contre le professeur (la position de départ est
+  gagnante), perd en second (elle est perdue pour lui), et bat le hasard
+  196 à 200 fois sur 200.
+- Sur les 102 positions gagnables à 3, 4 et 5 tas au plus, il rate le gain
+  dans 16 ou 17 : la somme de Nim (le ou exclusif) est hors de portée de ses
+  concepts, il ne sait que ce qu'il a vu et ce que deux coups d'avance lui
+  montrent. Avec 200 parties, toujours 16 : le professeur rejoue les mêmes
+  parties, le fils ne voit rien de neuf.
+- Variante misère : `FINS = {(0, 0, 0): "trait"}`, 48 ou 49 erreurs, une
+  règle (`Non(AuMoins(1, lui, Et(Non(gagne(moi)), concept_1(moi))))`, avec
+  `concept_1 = Non(AuMoins(1, lui, Non(gagne(moi))))`), 35 ou 36 souvenirs,
+  199 ou 200 victoires sur 200 contre le hasard, 17 ou 18 positions
+  gagnables ratées sur 101.
+
 ### Un seul joueur : juger un coup par ce qui arrive — `xander/un_joueur.py`
 
 Quand l'exemple ne montre qu'un joueur (Jumper, Partition), il n'y a ni
@@ -551,6 +710,64 @@ Ce qu'il faut savoir pour lire ce résultat :
   de souvenirs (non essayé) ;
 - l'élan caché ne gêne pas la mère parce qu'elle juge dans le vrai jeu ; elle
   confond seulement deux positions identiques à l'écran (aucun cas vu).
+
+**Des casse-têtes à plusieurs arguments : Hanoï et le Compte est bon.** Ce
+qui change quand la mère prévoit l'état d'après en entier (§ 3) :
+
+- **le fils ne propose que des coups permis** : `possibles` est écrit par la
+  mère à partir de sa prévision (sinon, sans refus vu, toute action était
+  permise ; avec des refus, elle s'arrêtait) ;
+- **deux fins au même signal** (`Solo.understand_solo_end`). À Hanoï,
+  `play` renvoie `True` quand la pile est rangée (gagnée) et quand la limite
+  de 14 coups est atteinte (perdue) ; l'exemple ne lit pas `win`. La mère ne
+  prend donc pas le signal pour la fin de l'exemple : elle calcule l'**état
+  de fin** de l'exemple (`[2, 2, 2]`) et le vérifie par contre-épreuve (des
+  coups qui y mènent depuis d'autres positions finissent la partie, aucun n'y
+  mène sans la finir). Une fin ailleurs n'est **pas comprise** : elle ne vaut
+  rien, jamais une victoire ;
+- **un casse-tête** : quand la fin comprise est gagnée, ce qui compte n'est
+  pas de durer. L'exemple a atteint le but en *n* coups (10 à Hanoï, 3 au
+  Compte est bon) : la mère juge un coup en cherchant une victoire jusqu'à
+  *n* coups plus loin, et un état déjà jugé ne coûte plus rien (elle juge
+  sur ce qu'elle voit). **Plus tôt vaut mieux** : une victoire vaut
+  `2 h + 2 d` (*d* : les coups qui restaient à regarder). Avant, elle valait
+  `2 h + d`, et le coup de plus qu'elle avait duré annulait le coup de moins
+  qu'il restait : gagner en 7 coups ou en 9 valait autant (sans effet à
+  Jumper et Partition, dont la fin est perdue) ;
+- **une partie bloquée** : au Compte est bon, la défaite (il ne reste qu'un
+  nombre) renvoie `False` sur un coup pourtant joué. Le fils ne voit alors
+  aucun coup ; la mère essaie chaque action dans le labo : toutes refusées,
+  la partie est **bloquée** (perdue). Si le jeu en acceptait une, sa
+  perception se trompait : elle en apprendrait, ou s'arrêterait.
+
+**Hanoï** (3 disques, 30 parties, graines 0 à 2, moins d'une seconde
+chacune). La mère comprend `play` (§ 3), la fin `[2, 2, 2]` (contre-épreuve
+depuis 2 états), et l'épreuve du labo corrige 3 fois sa condition avant
+la première partie. Les parties 1 à 4 finissent à la limite (« fin non
+comprise »), avec 25 erreurs (le fils joue la plus petite action et tourne
+en rond) ; dès la partie 5, il range la pile en **7 coups, le minimum**, à
+chaque partie. 7 souvenirs (les 7 positions du chemin), aucun petit motif,
+0 coup impossible. Le fils voit 76 des 78 coups permis des 27 positions, et
+aucun coup interdit ; il ne range la pile que depuis 15 des 27 positions
+(ailleurs, il n'a rien appris : il ne reconnaît que ce qu'il a vu).
+
+**Le compte est bon** (10 ou 30 parties, graines 0 et 1, 6 à 9 s). La
+mère comprend `play` (`ecrites = union(case(arg0), case(arg1))`, le
+résultat selon `arg2`, la place qui se vide), la fin (l'état
+`[0, 0, 85, 0, 85]` du tirage de l'exemple) et quand un coup est permis.
+L'épreuve du labo corrige 7 fois sa perception (les divisions vues
+donnaient toutes 1 : « écrire 1 » tombe dès que 10 / 5 donne 2). Le labo
+rejoue toujours le même tirage
+(`5 5 10 4 → 85`) : les parties 1 à 3 finissent bloquées (une erreur
+chacune), puis le fils gagne en 3 coups à chaque partie, avec **3
+souvenirs**. Sur 100 tirages jamais vus, il gagne 3 fois (il ne joue que le
+coup par défaut hors de ses souvenirs) sans un seul coup refusé ; sur les
+premiers coups de 200 tirages, il voit 78 % des coups permis et aucun coup
+interdit (la coïncidence `inf(arg0, ici)` de la graine 0, et les actions
+jamais acceptées sur ce tirage, lui en cachent). Pour être bon, il lui
+faudrait reconnaître des configurations (« il manque 5, et j'ai un 5 ») au
+lieu de souvenirs d'états exacts : les petits motifs, qui comparent des
+cases à des valeurs fixes, n'y suffisent pas.
 
 ## 7. Motifs décalés et symétries — `xander/symmetries.py`
 
@@ -1180,8 +1397,10 @@ limite dépendant de la machine), pas à cause du score.
 
 ## Limites connues
 
-- Le langage des effets (deux formes, feuilles, constantes mesurées, sept
-  opérations dont `premiere_de` et l'observation `portee`) est fourni. La
+- Le langage des effets (quatre formes, feuilles, constantes mesurées, sept
+  opérations dont `premiere_de` et l'observation `portee` ; pour la valeur
+  écrite et les conditions, `ici`, `val`, les quatre opérations, `inf` et
+  `egal`) est fourni. La
   gravité n'y est plus : la mère la compose. Une portée suppose que l'action
   remplisse une case à la fois, et elle n'est complète que si l'exploration a
   vu l'action remplir chacune de ses cases. Un état qui défile est décrit
@@ -1203,8 +1422,9 @@ limite dépendant de la machine), pas à cause du score.
   L'horizon suppose que les deux suites se rejoignent ; sinon il vaut 40. La
   mère juge sur ce qu'elle voit : deux positions identiques à l'écran mais pas
   dans le jeu (un élan caché) sont confondues. Un état en liste dont le jeu
-  refuse parfois une action n'est pas encore éduqué à un joueur (seule la
-  borne « toujours » existe pour une liste).
+  refuse parfois une action n'est éduqué que si la mère prévoit l'état
+  d'après en entier (où l'action écrit, et quoi : Hanoï, le Compte est bon) ;
+  sinon (un défilement), seule la borne « toujours » existe.
 - Plus de deux joueurs : une fin ne vaut que victoire (le gagnant) ou défaite
   (tous les autres), ou nul pour tous ; pas de classement, pas de victoire
   partagée. Un concept parle des coups d'un joueur à la fois (aucune alliance
@@ -1214,14 +1434,34 @@ limite dépendant de la machine), pas à cause du score.
   l'exemple.
 - Éducation à deux joueurs ou plus : seulement pour des joueurs qui jouent
   chacun leur tour, dans un ordre fixe (un cycle lu dans l'exemple : pas de
-  joueur qui passe ou rejoue, pas d'ordre qui s'inverse), avec une action à un
-  seul argument, et un état qui est soit un tableau dont chaque action remplit
-  une case (le programme trouvé annonce une seule case changée), soit un
-  nombre (§ 6, les Allumettes). Un état d'une autre sorte (texte, liste de
-  longueur variable, plusieurs variables à la fois) n'est pas éduqué. Les
-  actions sont explorées autour des valeurs de l'exemple : une action
-  qu'aucune valeur voisine ne laisse deviner (un entier isolé loin des
-  autres, un texte jamais vu) reste inconnue.
+  joueur qui passe ou rejoue, pas d'ordre qui s'inverse), et un état
+  qui est soit un tableau dont chaque action remplit une case du pion du
+  joueur (Morpion, Puissance 4), soit un tableau dont l'action écrit des
+  valeurs décrites par un programme (le Nim), soit un nombre (les
+  Allumettes). Un état d'une autre sorte (texte, liste de longueur variable,
+  plusieurs variables à la fois) n'est pas éduqué, ni une action qui pose un
+  pion **et** vide une autre case (un déplacement de pion, aux dames :
+  plusieurs parties dont l'une écrit le pion du joueur). Les actions sont
+  explorées autour des valeurs de l'exemple : une action qu'aucune valeur
+  voisine ne laisse deviner (un entier isolé loin des autres, un texte
+  jamais vu) reste inconnue.
+- Actions à plusieurs arguments : chaque argument est exploré à partir des
+  valeurs vues pour lui, les autres prenant les valeurs de l'exemple ; une
+  combinaison que ni l'exemple ni l'exploration n'a vue acceptée n'est pas
+  une action (au Compte est bon, 36 des 64 combinaisons sur le tirage du
+  labo). Une portée rangée par argument n'est complète que si le labo a vu
+  l'action remplir chacune de ses cases (à Hanoï, le fils ignore 2 des 78
+  coups permis). Une condition est une ou deux comparaisons entre un terme
+  et une feuille : une règle qui demande plus (« la somme des tas… ») est
+  hors de portée, et la mère le dit ; avec peu de coups refusés, une
+  coïncidence de même taille peut gagner (au Compte est bon, `inf(arg0, ici)`
+  sur la graine 0). « Selon un argument » ne vaut que pour la valeur écrite
+  et un argument à 8 valeurs au plus.
+- Une fin comprise par son état exact (Nim, Hanoï, Compte est bon) ne vaut
+  que pour cet état : au Compte est bon, la mère ne reconnaît comme victoire
+  que l'état final de l'exemple (la cible à la place 2), pas « la cible
+  apparaît quelque part ». Une fin ailleurs n'est pas comprise : comptée
+  nulle à deux, sans valeur seul (jamais une victoire).
 - Pour un nombre, les actions permises sont décrites par des bornes sur la
   valeur d'après (fournies à la main : toujours, au moins, au plus, entre),
   mesurées sur ce qu'elle a vu. Une fin de partie est une valeur exacte, pas
@@ -1242,10 +1482,10 @@ limite dépendant de la machine), pas à cause du score.
   pièges sont plus profonds (Puissance 4). Il faudra alors des briques
   composées plus loin, ou des suites forcées.
 - `gagne(etat, joueur)` sait dire qu'un coup fait **perdre** celui qui le joue
-  quand l'état est une valeur : la position porte alors le trait (variante
-  des Allumettes jouée jusqu'au bout, § 6). Pas encore pour un tableau : la
-  contre-épreuve suppose que le joueur qui finit la partie avec un motif la
-  gagne.
+  quand la position porte le trait : une valeur (variante des Allumettes
+  jouée jusqu'au bout, § 6) ou un tableau sans pions (Nim misère). Pas
+  encore pour un tableau à pions : la contre-épreuve suppose que le joueur
+  qui finit la partie avec un motif la gagne.
 - Les concepts regardent au plus deux coups plus loin : aux Allumettes, la
   mère trouve « laisser 5 » mais pas la période 4 (« laisser 9, 13… ») ; au
   delà de ce qu'il a vu, le fils garde des souvenirs par quantité, ou perd.
