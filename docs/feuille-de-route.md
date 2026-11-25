@@ -1,5 +1,76 @@
 # Feuille de route
 
+## Le cap : l'examen ARC
+
+Première finalité (règles complètes dans `CLAUDE.md`, « Première finalité :
+l'examen ARC ») : brancher le test ARC de François Chollet comme n'importe
+quel test, sans avoir rien préparé sur ses tâches, et qu'un fils créé par la
+mère le réussisse. Ce n'est pas pour tout de suite ; chaque étape doit nous
+en rapprocher, et aucune ne doit être justifiée par ARC lui-même.
+
+**Une tâche ARC, vue par Xander.** C'est un problème d'un genre que la mère
+ne connaît pas encore : ni partie, ni adversaire, ni actions, mais quelques
+paires « avant / après » et une entrée dont il faut deviner l'après. Elle
+fait pourtant déjà la même chose en petit quand elle décrit `apres` : elle
+cherche avec son langage le plus petit programme qui explique tous les cas
+observés, puis le met à l'épreuve. Les paires d'exemples jouent le rôle des
+souvenirs (les tests du refactor), et le programme trouvé devient le fils.
+Ce qui manque, c'est surtout de la **généralité**.
+
+Les jalons, dans l'ordre. Chacun se vérifie sur des problèmes qui ne sont
+pas ARC.
+
+1. **Des jeux aux problèmes.** La mère accepte n'importe quel problème sous
+   une forme commune : un exemple est une suite d'observations (un état,
+   ce qui s'est passé, l'état suivant), avec ou sans actions, avec deux
+   joueurs, un seul ou aucun. D'abord l'étape 6 (Jumper, état qui n'est pas
+   un tableau), puis un genre nouveau : **transformer une entrée en sortie**
+   à partir de paires, sur des problèmes que nous inventons dans des
+   domaines variés (listes, mots, nombres, plateaux de nos jeux), sans
+   recopier ARC. Le fils est alors un programme qui répond, pas un joueur.
+2. **Un langage qui grandit.** Les concepts que la mère trouve deviennent des
+   briques qu'elle garde d'un problème à l'autre (étapes 3 et 5). Ce qui
+   reste fourni à la main se réduit à une liste courte et documentée,
+   l'équipement de naissance (tableau « Retirer les aides orientées »). Et
+   elle doit chercher des programmes plus grands sans tout énumérer, guidée
+   par ce qu'elle observe (comme les portées vues dans le labo, étape 1).
+3. **Percevoir.** L'Analyzer (étape 1) doit voir ce qu'un humain voit sans y
+   penser : des **objets** (des cases voisines qui vont ensemble), leurs
+   propriétés (taille, forme, valeur, position), leurs relations (contact,
+   inclusion, alignement, même forme), des **quantités** (compter, comparer)
+   et des **équivalences** qui ne sont pas des renumérotations (étape 4).
+   Chaque notion arrive parce qu'un problème qui n'est pas ARC la demande, et
+   la mère doit la retrouver seule sur un autre.
+4. **Conclure à partir de peu.** Avec quelques paires seulement, plusieurs
+   explications tiennent : il faut choisir (la plus courte, celle qui
+   réutilise des briques connues), vérifier qu'elle explique **toutes** les
+   paires, et savoir proposer un deuxième essai réellement différent quand le
+   test en permet plusieurs. Lien avec l'étape 5 (coïncidences validées sur
+   peu de cas).
+5. **L'expérience.** Chaque fils part de zéro, mais la mère arrive à
+   l'examen avec ce qu'elle a appris ailleurs. L'étape 8, prévue « plus
+   tard », devient nécessaire.
+6. **Examens blancs.** Écrire des jeux de problèmes inédits, les mettre sous
+   scellé hors du dépôt (pour qu'aucun agent ne les lise pendant le
+   développement), puis les passer avec le protocole de l'examen : code figé,
+   un fils par problème, aucune retouche, score noté. Un premier examen blanc
+   est possible tôt : une variante de jeu jamais montrée à la mère, branchée
+   sans changer une ligne.
+7. **Le branchement ARC.** L'adaptateur (format JSON officiel vers « des
+   exemples et une question ») et le lanceur d'examen (commit noté, budget
+   de calcul, nombre d'essais, score), écrits d'après la description du
+   format et testés sur une tâche inventée. Possible dès le jalon 1, sans
+   danger tant qu'on ne le lance pas sur de vraies tâches.
+8. **L'examen.** Sur le jeu d'évaluation public, jamais vu, puis, si le
+   résultat le justifie, par la voie officielle (tâches cachées). Le score
+   va dans le journal ci-dessous, et les tâches ratées ne sont pas regardées.
+
+### Journal des examens
+
+| Date | Examen | Jeu de problèmes | Commit | Score |
+|---|---|---|---|---|
+| | *aucun examen passé* | | | |
+
 ## Où en est le projet
 
 | Étape | État |
@@ -15,9 +86,19 @@
 | Refactoriser : des souvenirs aux règles, concepts construits par la mère | fait, Morpion : fils imbattable |
 | Découvrir les symétries (positions équivalentes) | fait, vérifiées dans le labo |
 | Petits motifs : un souvenir réduit à ce qui comptait, reconnu partout | fait, vérifiés dans le labo |
-| Réutiliser l'expérience d'un fils pour un autre | **plus tard** |
+| Réutiliser l'expérience d'un fils pour un autre | **plus tard**, nécessaire pour ARC (jalon 5) |
+| Problèmes qui ne sont pas des jeux (une entrée, une sortie) | à faire (jalon 1) |
+| Examens blancs sous scellé | à faire (jalon 6) |
+| Branchement ARC (adaptateur et lanceur d'examen) | à faire (jalon 7) |
+| Examen ARC | **le cap** (jalon 8) |
 
 ## Prochaines étapes proposées
+
+Chacune sert un jalon du cap ARC : 1 → jalons 2 et 3 ; 2 → jalons 2 et 4
+(vérifier honnêtement, chercher sans tout essayer) ; 3 et 5 → jalons 2 et
+4 ; 4 → jalon 3 ; 6 → jalon 1 ; 7 → jalons 1 et 3 (de nouvelles
+notions à chaque jeu : tour de longueur variable, défaite qui n'est pas un
+motif, déplacements) ; 8 → jalon 5.
 
 **Retirer les aides orientées.** Objectif : que la mère n'ait plus que des
 briques générales. État des aides qu'on lui donne encore, de la plus taillée
