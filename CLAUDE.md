@@ -11,6 +11,78 @@ statistique à l'aveugle : chaque correction doit venir d'une **explication**.
 seulement des jeux de plateau). À partir d'un exemple, elle crée son fils, le
 corrige erreur après erreur et finit avec un fils parfait.
 
+## Première finalité : l'examen ARC
+
+Le but n'est pas pour tout de suite, mais **tout le travail va dans cette
+direction** : résoudre des problèmes de logique inédits comme ceux du test
+ARC de François Chollet (*Abstraction and Reasoning Corpus*). Chaque tâche
+donne quelques paires d'exemples (une grille d'entrée, la grille de sortie
+attendue) et une ou plusieurs entrées de test ; il faut produire la grille
+de sortie exacte, avec le nombre d'essais que permet la version du test.
+Les tâches sont nouvelles : le test mesure la capacité à apprendre une
+compétence à partir de très peu, ce que Xander prétend faire.
+
+Cet examen sert à **démontrer la méthode**. Il ne vaut que si personne n'a
+aidé : ni nous, ni Claude. On branche ARC comme on brancherait n'importe
+quel test du genre, la mère crée un fils pour chaque tâche, et le fils
+répond. Règles, à respecter **à la lettre** :
+
+1. **Aucune préparation sur ARC.** Personne ne regarde les tâches ARC
+   (entraînement ou évaluation) pour concevoir une brique, un concept, une
+   heuristique, un test ou un réglage. Aucune tâche ARC dans le dépôt, aucun
+   téléchargement avant l'examen. Ni la mère ni un fils n'en voient une
+   avant le jour de l'examen. Claude connaît ARC par sa formation : il ne
+   s'en sert pas pour orienter la mère, et ne justifie jamais un changement
+   par « ARC en aura besoin ».
+   *Pourquoi, même le jeu d'entraînement public :* si nous lisons des tâches
+   pour décider quoi construire, l'intelligence vient de nous et le
+   résultat devient un « logiciel expert ARC » (le reproche fait aux
+   solveurs dont le langage a été écrit en étudiant les tâches) ; on ne
+   pourrait plus prouver que la mère a trouvé seule. Et si la mère
+   s'entraîne seule dessus, on ne démontre plus qu'une méthode générale
+   réussit un examen inédit, seulement qu'un entraînement sur ARC réussit
+   ARC. L'ordre est irréversible : une fois ARC vu, on ne peut plus passer
+   l'examen à vierge. On passe donc d'abord l'examen propre ; un résultat
+   avec entraînement ne viendrait qu'après, présenté comme tel. Le même
+   risque existe par la bande : nos problèmes d'entraînement ne doivent pas
+   ressembler à ARC (grilles de couleurs, objets à déplacer) ; on varie les
+   domaines.
+2. **Le branchement ne fait que traduire.** Un adaptateur lit le format
+   officiel (JSON) et présente chaque tâche à la mère comme tout autre
+   problème : des exemples et une question. Il n'interprète rien (ni objets,
+   ni couleurs, ni symétries, ni fond). C'est le seul code propre à ARC ; il
+   est écrit à partir de la description du format et testé sur une tâche
+   inventée, pas sur une vraie.
+3. **Pendant l'examen, personne ne touche à rien.** Le code est figé (on note
+   le commit), le budget de calcul est fixé d'avance, aucune réponse
+   attendue ne revient vers la mère pour l'aider, aucun humain n'intervient.
+4. **Un examen se passe une fois.** On note le score, le commit et la date
+   dans la feuille de route. On ne regarde pas les tâches ratées pour
+   corriger la mère : dès qu'on le fait, ce jeu de tâches devient de
+   l'entraînement et ses scores suivants ne comptent plus. L'examen suivant
+   se passe sur un jeu jamais vu.
+5. **Pas de béquille déguisée.** Interdit aussi : une brique ajoutée parce
+   qu'une tâche ARC ressemble à ça, un problème d'entraînement recopié d'une
+   tâche ARC, un seuil réglé sur un score ARC, une branche de la mère
+   réservée aux grilles de couleurs.
+
+**Préparer, sans tricher.** On doit tout faire pour que la mère arrive prête :
+
+- développer des capacités **générales** sur d'autres problèmes (jeux,
+  énigmes, problèmes que nous inventons), chacune justifiée par un problème
+  qui n'est pas ARC ;
+- garder ce qui est fourni à la main court, général et **listé** : c'est
+  l'équipement de naissance de la mère, l'équivalent de ce qu'un humain
+  apporte à l'examen (objets, nombre, géométrie élémentaire, agents),
+  fixé avant l'examen, et qu'elle doit à terme découvrir seule ;
+- faire passer des **examens blancs** : des problèmes écrits à l'avance et
+  mis sous scellé (jamais utilisés pendant le développement), branchés avec
+  le même protocole et sans aucune modification du code. C'est la vraie
+  mesure du progrès.
+
+À chaque changement, se demander : « est-ce que ça rapproche la mère de
+résoudre seule un problème qu'elle n'a jamais vu ? »
+
 ## Rôles — à respecter absolument
 
 - **La mère crée le fils.** Toute l'intelligence du fils doit venir de ce que

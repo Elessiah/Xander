@@ -1,5 +1,76 @@
 # Feuille de route
 
+## Le cap : l'examen ARC
+
+Première finalité (règles complètes dans `CLAUDE.md`, « Première finalité :
+l'examen ARC ») : brancher le test ARC de François Chollet comme n'importe
+quel test, sans avoir rien préparé sur ses tâches, et qu'un fils créé par la
+mère le réussisse. Ce n'est pas pour tout de suite ; chaque étape doit nous
+en rapprocher, et aucune ne doit être justifiée par ARC lui-même.
+
+**Une tâche ARC, vue par Xander.** C'est un problème d'un genre que la mère
+ne connaît pas encore : ni partie, ni adversaire, ni actions, mais quelques
+paires « avant / après » et une entrée dont il faut deviner l'après. Elle
+fait pourtant déjà la même chose en petit quand elle décrit `apres` : elle
+cherche avec son langage le plus petit programme qui explique tous les cas
+observés, puis le met à l'épreuve. Les paires d'exemples jouent le rôle des
+souvenirs (les tests du refactor), et le programme trouvé devient le fils.
+Ce qui manque, c'est surtout de la **généralité**.
+
+Les jalons, dans l'ordre. Chacun se vérifie sur des problèmes qui ne sont
+pas ARC.
+
+1. **Des jeux aux problèmes.** La mère accepte n'importe quel problème sous
+   une forme commune : un exemple est une suite d'observations (un état,
+   ce qui s'est passé, l'état suivant), avec ou sans actions, avec deux
+   joueurs, un seul ou aucun. D'abord l'étape 6 (Jumper, état qui n'est pas
+   un tableau), puis un genre nouveau : **transformer une entrée en sortie**
+   à partir de paires, sur des problèmes que nous inventons dans des
+   domaines variés (listes, mots, nombres, plateaux de nos jeux), sans
+   recopier ARC. Le fils est alors un programme qui répond, pas un joueur.
+2. **Un langage qui grandit.** Les concepts que la mère trouve deviennent des
+   briques qu'elle garde d'un problème à l'autre (étapes 3 et 5). Ce qui
+   reste fourni à la main se réduit à une liste courte et documentée,
+   l'équipement de naissance (tableau « Retirer les aides orientées »). Et
+   elle doit chercher des programmes plus grands sans tout énumérer, guidée
+   par ce qu'elle observe (comme les portées vues dans le labo, étape 1).
+3. **Percevoir.** L'Analyzer (étape 1) doit voir ce qu'un humain voit sans y
+   penser : des **objets** (des cases voisines qui vont ensemble), leurs
+   propriétés (taille, forme, valeur, position), leurs relations (contact,
+   inclusion, alignement, même forme), des **quantités** (compter, comparer)
+   et des **équivalences** qui ne sont pas des renumérotations (étape 4).
+   Chaque notion arrive parce qu'un problème qui n'est pas ARC la demande, et
+   la mère doit la retrouver seule sur un autre.
+4. **Conclure à partir de peu.** Avec quelques paires seulement, plusieurs
+   explications tiennent : il faut choisir (la plus courte, celle qui
+   réutilise des briques connues), vérifier qu'elle explique **toutes** les
+   paires, et savoir proposer un deuxième essai réellement différent quand le
+   test en permet plusieurs. Lien avec l'étape 5 (coïncidences validées sur
+   peu de cas).
+5. **L'expérience.** Chaque fils part de zéro, mais la mère arrive à
+   l'examen avec ce qu'elle a appris ailleurs. L'étape 8, prévue « plus
+   tard », devient nécessaire.
+6. **Examens blancs.** Écrire des jeux de problèmes inédits, les mettre sous
+   scellé hors du dépôt (pour qu'aucun agent ne les lise pendant le
+   développement), puis les passer avec le protocole de l'examen : code figé,
+   un fils par problème, aucune retouche, score noté. Un premier examen blanc
+   est possible tôt : une variante de jeu jamais montrée à la mère, branchée
+   sans changer une ligne.
+7. **Le branchement ARC.** L'adaptateur (format JSON officiel vers « des
+   exemples et une question ») et le lanceur d'examen (commit noté, budget
+   de calcul, nombre d'essais, score), écrits d'après la description du
+   format et testés sur une tâche inventée. Possible dès le jalon 1, sans
+   danger tant qu'on ne le lance pas sur de vraies tâches.
+8. **L'examen.** Sur le jeu d'évaluation public, jamais vu, puis, si le
+   résultat le justifie, par la voie officielle (tâches cachées). Le score
+   va dans le journal ci-dessous, et les tâches ratées ne sont pas regardées.
+
+### Journal des examens
+
+| Date | Examen | Jeu de problèmes | Commit | Score |
+|---|---|---|---|---|
+| | *aucun examen passé* | | | |
+
 ## Où en est le projet
 
 | Étape | État |
@@ -15,9 +86,19 @@
 | Refactoriser : des souvenirs aux règles, concepts construits par la mère | fait, Morpion : fils imbattable |
 | Découvrir les symétries (positions équivalentes) | fait, vérifiées dans le labo |
 | Petits motifs : un souvenir réduit à ce qui comptait, reconnu partout | fait, vérifiés dans le labo |
-| Réutiliser l'expérience d'un fils pour un autre | **plus tard** |
+| Réutiliser l'expérience d'un fils pour un autre | **plus tard**, nécessaire pour ARC (jalon 5) |
+| Problèmes qui ne sont pas des jeux (une entrée, une sortie) | à faire (jalon 1) |
+| Examens blancs sous scellé | à faire (jalon 6) |
+| Branchement ARC (adaptateur et lanceur d'examen) | à faire (jalon 7) |
+| Examen ARC | **le cap** (jalon 8) |
 
 ## Prochaines étapes proposées
+
+Chacune sert un jalon du cap ARC : 1 → jalons 2 et 3 ; 2 → jalons 2 et 4
+(vérifier honnêtement, chercher sans tout essayer) ; 3 et 5 → jalons 2 et
+4 ; 4 → jalon 3 ; 6 → jalon 1 ; 7 → jalons 1 et 3 (de nouvelles
+notions à chaque jeu : tour de longueur variable, défaite qui n'est pas un
+motif, déplacements) ; 8 → jalon 5.
 
 **Retirer les aides orientées.** Objectif : que la mère n'ait plus que des
 briques générales. État des aides qu'on lui donne encore, de la plus taillée
@@ -113,7 +194,42 @@ pour un jeu à la plus structurelle :
    le joue (Allumettes « misère »), ce qui demande de percevoir le trait.
 6. **Autres formes de problèmes.** Jeux à un joueur (Jumper), plus de deux
    joueurs, état qui n'est pas un tableau.
-7. **Plus tard : l'expérience.** Partir des apprentissages réussis (motifs,
+7. **Jeux suivants, une fois Morpion, Allumettes et Puissance 4 appris.**
+   Chaque jeu doit apporter de nouvelles notions sans tout changer à la
+   fois, et avoir un professeur fiable.
+   - **Pylos à base 3×3** (9 + 4 + 1 = 14 billes, 7 par joueur). Il réunit
+     ce que les trois premiers jeux ont appris : des carrés (motifs), une
+     réserve de billes (quantité) et des billes qui reposent sur quatre
+     autres (gravité). Il apporte aussi du nouveau : des `possibles` qui
+     dépendent du support, deux sortes d'actions (poser, ou monter une
+     bille d'une case à une autre), un tour dont le nombre d'actions varie
+     (reprendre 1 ou 2 billes après un carré), une défaite qui n'est pas un
+     motif (ne plus pouvoir jouer) et des symétries sur plusieurs étages.
+     La base 3×3 contient déjà toutes les règles, garde des parties courtes
+     et permet un Minmax exact comme professeur. **Fait :** le jeu
+     (`Games/Pylos.py`) et son Minmax exact (`Games/MinmaxPylos.py`). La
+     résolution montre que la base 3×3 n'est pas dégénérée : seul le coup
+     au centre gagne, la partie parfaite passe par un carré, et monter une
+     bille est parfois la seule façon de gagner (voir `docs/jeux.md`).
+     Exemple de partie : `res/examplePylos.py`. La mère y décrit seule
+     les trois actions (poser, monter, reprendre). Reste l'éducation, qui
+     suppose qu'un tour est une seule action d'une seule sorte :
+     comprendre un tour dont la longueur varie (il continue tant que le
+     même joueur a la main), rejouer et proposer toutes les sortes
+     d'actions dans le labo et dans le fils, et comprendre une défaite qui
+     n'est pas un motif (ne plus avoir d'action possible).
+   - **Pylos à base 4×4** (30 billes) ensuite. Le Minmax devra y limiter
+     sa profondeur : il faudra apprendre avec un professeur faillible.
+     C'est un bon test de « configurations n'importe où », et plus tard de
+     la réutilisation de l'expérience du fils 3×3.
+   - **Les échecs, par problèmes bornés.** D'abord des mats en 1 puis en 2
+     (uniquement des suites forcées, budget mesurable), puis des finales
+     Roi + Dame ou Roi + Tour contre Roi (une table de finales à trois
+     pièces se calcule en Python pur : professeur parfait), puis des
+     mini-échecs (5×5 ou 6×6), et seulement ensuite la partie complète.
+     Si les déplacements d'une case à une autre posent problème, les dames
+     sur petit plateau peuvent servir d'étape intermédiaire.
+8. **Plus tard : l'expérience.** Partir des apprentissages réussis (motifs,
    règles) d'un fils pour en élever un autre plus vite.
 
 ## Nettoyage et corrections de cette révision
