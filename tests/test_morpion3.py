@@ -1,11 +1,16 @@
-"""Morpion à trois joueurs (``Games/Morpion3.py``) et son professeur max^n."""
+"""Morpion à trois joueurs (``Games/Morpion3.py``), son professeur max^n, et l'éducation
+d'un fils à plus de deux joueurs."""
 
+import functools
 import random
 import unittest
 from pathlib import Path
 
 from Games.MaxnMorpion3 import best_move, maxn_morpion3_play
 from Games.Morpion3 import PLAYERS, Morpion3, build_lines, next_player
+from xander import concepts
+from xander.education import BUDGET, issue
+from xander.mother import Mother
 
 EMPTY = [str(i) for i in range(16)]
 EXAMPLE = Path(__file__).resolve().parent.parent / "res" / "exampleMorpion3.py"
@@ -196,6 +201,80 @@ class MaxnMorpion3Test(unittest.TestCase):
         while not game.win:
             self.assertIsNot(maxn_morpion3_play(game), False)
         self.assertEqual(game.win, "D")  # sans hasard, trois professeurs font nul
+
+
+@functools.lru_cache(maxsize=None)
+def education(nb_games: int = 0):
+    """Une éducation au Morpion à trois, partagée par les tests qui ne font que la regarder."""
+    return Mother().raise_son(EXAMPLE, maxn_morpion3_play, nb_games)
+
+
+class EducationMorpion3Test(unittest.TestCase):
+    """Rien n'est propre au Morpion à trois dans la mère : elle lit l'ordre des joueurs dans
+    l'exemple, et le Morpion à deux en est le cas particulier."""
+
+    def test_mother_reads_the_order_of_players(self):
+        teaching = education()
+        self.assertEqual(teaching.cycle(), ["X", "O", "Z"])  # un cycle de trois, pas une parité
+        self.assertEqual(teaching.n, 3)
+        self.assertEqual([teaching.seat(k) for k in range(7)], [0, 1, 2, 0, 1, 2, 0])
+        self.assertEqual(teaching.knowledge["marks"], ["X", "O", "Z"])  # le pion de chacun
+        self.assertEqual(teaching.knowledge["patterns"], [[6, 9, 12]])  # par contre-épreuve
+        self.assertEqual(teaching.records[0].result, "gagné par Z")
+
+    def test_position_seen_from_each_side(self):
+        """M : moi, A : le suivant, B : celui d'après ; chacun voit les deux autres autrement."""
+        mind = education().mind
+        board = board_with(X=[0], O=[1], Z=[2])
+        self.assertEqual(mind.cle(board, "X"), "MAB" + "." * 13)
+        self.assertEqual(mind.cle(board, "O"), "BMA" + "." * 13)
+        self.assertEqual(mind.cle(board, "Z"), "ABM" + "." * 13)
+        self.assertEqual([mind.suivant(p) for p in "XOZ"], ["O", "Z", "X"])
+
+    def test_son_finds_his_mark_on_the_board(self):
+        """Chacun joue à son tour : celui qui a le trait est le seul qui a posé moins de pions
+        que celui qui joue avant lui."""
+        son = education().son
+        self.assertEqual(son.qui_suis_je(list(EMPTY), {}), "X")  # comme dans l'exemple
+        self.assertEqual(son.qui_suis_je(board_with(X=[0]), {}), "O")
+        self.assertEqual(son.qui_suis_je(board_with(X=[0], O=[5]), {}), "Z")
+        self.assertEqual(son.qui_suis_je(board_with(X=[0, 3], O=[5], Z=[7]), {}), "O")
+
+    def test_parade_says_whom_it_parries(self):
+        """Le langage des concepts nomme chaque joueur par sa place après moi : parer le
+        suivant n'est pas parer celui d'après."""
+        teaching = education()
+        teaching.knowledge["patterns"] = [list(line) for line in build_lines(4, 3)]
+        teaching.rethink()
+        pensee = concepts.Pensee(teaching.mind)
+        lui, lui2 = concepts.joueurs(3)[1:]
+        parer = {qui: concepts.non(concepts.au_moins(1, qui, concepts.brique(concepts.GAGNE, qui)))
+                 for qui in (lui, lui2)}
+        board = board_with(X=[3, 15], O=[8, 9], Z=[12, 13])  # X a le trait ; O menace 10, Z 14
+        self.assertEqual(pensee.choix(parer[lui], board, "X"), {10})
+        self.assertEqual(pensee.choix(parer[lui2], board, "X"), {14})
+        self.assertIn("le 2e après moi", concepts.decrire_regle(parer[lui2]))
+        self.assertIn("lui2 = suivant(lui)", concepts.source("parer_loin", parer[lui2]))
+
+    def test_end_is_worth_something_for_each(self):
+        """Une victoire de l'un est une défaite pour les deux autres ; un nul vaut nul pour tous."""
+        self.assertEqual([issue(2, side) for side in range(3)], [-1, -1, 1])
+        self.assertEqual([issue(None, side) for side in range(3)], [0, 0, 0])
+
+    def test_education_at_every_seat(self):
+        """Le fils joue à chaque place, contre le professeur, le hasard et un adversaire mixte ;
+        la mère retrouve les 24 alignements et les 8 symétries du carré, sans coup impossible
+        après la 5e partie, dans le budget."""
+        teaching = education(9)
+        records = teaching.records[1:]
+        self.assertEqual({r.son_side for r in records}, {"X", "O", "Z"})
+        self.assertEqual({r.opponent for r in records}, {"professeur", "hasard", "mixte"})
+        self.assertEqual(sorted(map(sorted, teaching.knowledge["patterns"])),
+                         sorted(map(sorted, build_lines(4, 3))))
+        self.assertEqual(len(teaching.knowledge["symmetries"]) + 1, 8)
+        self.assertEqual([r.number for r in records if r.number > 5 and r.impossibles], [])
+        self.assertLessEqual(teaching.max_views, BUDGET)
+        self.assertTrue(teaching.knowledge["rules"])  # des règles qu'elle a construites
 
 
 if __name__ == "__main__":

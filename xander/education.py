@@ -26,7 +26,7 @@ Une fin sans motif est un match nul.
 
 **Comprendre une erreur.** Pour chaque décision du fils, la mère revient à la
 position, demande son coup au professeur, puis fait finir la partie au
-professeur des deux côtés, après le coup du fils et après celui du professeur.
+professeur de tous les côtés, après le coup du fils et après celui du professeur.
 Si le coup du professeur mène à un meilleur résultat, c'est une erreur.
 
 **Corriger cas par cas, puis refactoriser.** La mère part sans aucun concept.
@@ -62,12 +62,21 @@ contre-épreuve dans le labo, avec le joueur qu'elle fait gagner (celui qui
 vient de jouer, ou celui qui a le trait), lu dans l'exemple. Motifs décalés,
 symétries et petits motifs ne s'appliquent pas ; un souvenir retient l'action.
 
-Limites : jeux à deux joueurs qui jouent chacun leur tour ; état en tableau
-dont chaque action remplit une case, ou état qui est un nombre.
+**Deux joueurs ou plus.** La mère lit dans l'exemple l'ordre des joueurs : un
+cycle (X, O, Z, X, O, Z…), dont l'alternance de deux joueurs est le cas
+particulier. Le joueur qui joue un coup est donc sa place dans le cycle (le
+numéro du coup modulo le nombre de joueurs), et une position vue d'un côté
+distingue les adversaires par leur place après « moi » (A le suivant, B celui
+d'après…). Une fin vaut pour chacun : victoire pour le gagnant, défaite pour
+tous les autres, nul pour tous.
+
+Limites : jeux où les joueurs jouent chacun leur tour, dans un ordre fixe ;
+état en tableau dont chaque action remplit une case, ou état qui est un nombre.
 """
 
 from __future__ import annotations
 
+import functools
 import itertools
 import math
 import random
@@ -80,6 +89,12 @@ from xander import concepts, effets, son_writer, symmetries
 from xander.concepts import MOI
 
 RESULTS = {1: "victoire", 0: "nul", -1: "défaite"}
+
+
+def issue(winner: int | None, side: int) -> int:
+    """Ce que vaut une fin pour le joueur à la place ``side`` : la victoire de l'un est une
+    défaite pour tous les autres, un nul (``None``) vaut nul pour tous."""
+    return 0 if winner is None else (1 if winner == side else -1)
 
 #: Le fils pense comme un joueur humain : il reconnaît, il ne calcule pas tout.
 #: La mère refuse une règle qui lui ferait regarder plus de positions pour un coup.
@@ -101,7 +116,7 @@ CONTRE_EPREUVES = 3
 class Lesson:
     """Une erreur du fils, et ce que la mère en a tiré."""
 
-    position: str      # cle(etat, moi) de la position (M : fils, A : adversaire)
+    position: str      # cle(etat, moi) de la position (M : fils, A : le suivant, B : celui d'après…)
     son_cell: int
     son_reason: str
     teacher_cell: int
@@ -227,9 +242,9 @@ class Education:
         self.rng = random.Random(seed)
         self.knowledge = son_writer.empty_knowledge(model)
         self.knowledge["actions"] = self.discover_actions()
-        if not self.alternate():
-            raise LabError("dans l'exemple, deux joueurs ne jouent pas chacun leur tour : "
-                           "la mère ne sait encore éduquer un fils que pour ces jeux-là")
+        if self.cycle() is None:
+            raise LabError("dans l'exemple, les joueurs ne jouent pas chacun leur tour dans un "
+                           "ordre fixe : la mère ne sait encore éduquer un fils que pour ces jeux-là")
         self.endings: list[tuple] = []               # coups acceptés qui ont fini la partie (état avant, arguments)
         positions, seen = self.explore()
         self.positions = positions                   # positions vues en explorant (coups, état)
@@ -265,8 +280,8 @@ class Education:
         self._son = self._mind = None                # code du fils et espace de pensée, à réécrire
         self.max_views = 0                           # plus grand nombre de positions regardées par le fils
         self.impossibles: list[str] = []             # coups du fils refusés par le jeu (partie en cours)
-        self.marks: dict[int, object] = {}          # parité du coup -> pion posé
-        self.outcomes: dict[tuple, int | None] = {}  # position -> parité du gagnant (None : nul)
+        self.marks: dict[int, object] = {}          # place dans l'ordre des joueurs -> pion posé
+        self.outcomes: dict[tuple, int | None] = {}  # position -> place du gagnant (None : nul)
         self.teacher_moves: dict[tuple, tuple] = {}
         self.discovered: list[list[int]] = []
         self.records: list[GameRecord] = []
@@ -288,9 +303,9 @@ class Education:
         if not self.tableau:
             # Une valeur ne garde pas trace de qui a joué : les joueurs sont ceux de l'exemple,
             # dans l'ordre où ils y jouent (la position est [valeur, trait]).
-            owners = self.owners()
-            self.marks = {0: owners[0], 1: owners[1]}
-            self.knowledge["marks"] = [owners[0], owners[1]]
+            players = self.cycle()
+            self.marks = dict(enumerate(players))
+            self.knowledge["marks"] = list(players)
 
     # ------------------------------------------------------------------ #
     # Mettre à l'épreuve la description de l'action
@@ -386,15 +401,29 @@ class Education:
         """Une copie d'un état lu dans le jeu (un tableau se copie, une valeur non)."""
         return list(state) if isinstance(state, list) else state
 
+    @functools.cached_property
+    def n(self) -> int:
+        """Le nombre de joueurs qui jouent chacun leur tour (vu dans l'exemple)."""
+        return len(set(self.owners())) or 1
+
+    @property
+    def letters(self) -> str:
+        """Les lettres d'une position vue d'un côté : M moi, A le suivant, B celui d'après…"""
+        return son_writer.LETTRES[:self.n]
+
+    def seat(self, number: int) -> int:
+        """La place, dans l'ordre des joueurs, de celui qui joue le coup ``number`` (0 : le
+        premier coup) : elle a vu dans l'exemple que les joueurs jouent chacun leur tour."""
+        return number % self.n
+
     def position(self) -> list:
         """La position que voit la mère dans le labo. Un tableau dit qui a joué (les pions) ;
         une valeur non : la position est alors ``[valeur, trait]``, le trait étant le joueur
-        qui doit jouer (la parité du coup : elle a vu dans l'exemple que les joueurs
-        alternent)."""
+        qui doit jouer (sa place dans l'ordre des joueurs vu dans l'exemple)."""
         lab = self.lab
         if self.tableau:
             return list(lab.states[-1])
-        return [lab.states[-1], self.marks[len(lab.moves) % 2]]
+        return [lab.states[-1], self.marks[self.seat(len(lab.moves))]]
 
     def start_position(self) -> list:
         """La position du début de la partie, telle que la mère la voit."""
@@ -487,13 +516,20 @@ class Education:
                  for f in player.functions_used if f.name == name]
         return [owner for _, owner in sorted(zip(times, owners))]
 
-    def alternate(self) -> bool:
-        """Dans l'exemple, deux joueurs jouent-ils l'action chacun leur tour ?
+    def cycle(self) -> list | None:
+        """L'ordre des joueurs : dans l'exemple, les joueurs jouent-ils l'action chacun leur
+        tour, toujours dans le même ordre ? Renvoie cet ordre (le premier à jouer d'abord), ou
+        ``None``. À deux, c'est l'alternance ; à trois, X, O, Z, X, O, Z…
 
-        C'est ce qui permet ensuite de reconnaître le joueur à la parité du coup.
+        C'est ce qui permet ensuite de reconnaître qui joue un coup à sa place dans le cycle
+        (le numéro du coup modulo le nombre de joueurs).
         """
         owners = self.owners()
-        return len(set(owners)) == 2 and all(a != b for a, b in zip(owners, owners[1:]))
+        players = list(dict.fromkeys(owners))
+        n = len(players)
+        if n < 2 or any(owner != players[k % n] for k, owner in enumerate(owners)):
+            return None
+        return players
 
     def explore(self) -> tuple[list, list]:
         """La mère joue dans son labo pour voir ce que font les actions, par curiosité.
@@ -501,8 +537,8 @@ class Education:
         Elle rejoue d'abord l'exemple, puis :data:`PARTIES_D_ESSAI` parties où, à
         chaque coup, elle choisit l'action qu'elle a le moins vue agir (au hasard
         entre égales) ; si le jeu la refuse, la suivante. Elle note chaque coup
-        coup : l'état avant, l'action, l'état après et le joueur qui a joué (la
-        parité du coup : elle a vu dans l'exemple que les joueurs alternent). Un
+        coup : l'état avant, l'action, l'état après et le joueur qui a joué (sa
+        place dans l'ordre des joueurs vu dans l'exemple, :meth:`seat`). Un
         coup refusé est noté aussi, avec un état après égal à l'état avant : il
         montre quand une case ne peut pas être jouée. Rien ne lui dit qu'une
         action remplit une colonne : c'est ce qu'elle en déduira
@@ -539,7 +575,7 @@ class Education:
                 self.endings.append((self.copy(before), arguments))
             if outcome != "moved":
                 break
-            note(arguments, before, lab.states[-1], k % 2)
+            note(arguments, before, lab.states[-1], self.seat(k))
             positions.append((example[:k + 1], lab.states[-1]))
         for _ in range(PARTIES_D_ESSAI):
             lab.goto([])
@@ -553,7 +589,7 @@ class Education:
                     before = lab.states[-1]
                     outcome = lab.play(*arguments)
                     if outcome == "moved":
-                        note(arguments, before, lab.states[-1], len(moves) % 2)
+                        note(arguments, before, lab.states[-1], self.seat(len(moves)))
                         moves.append(arguments)
                         positions.append((list(moves), lab.states[-1]))
                         break
@@ -562,7 +598,7 @@ class Education:
                         self.endings.append((self.copy(before), arguments))
                         lab.undo()
                     else:  # refusé : rien n'a changé, c'est aussi une observation
-                        seen.append((effets.Cas(before, arguments, self.copy(before)), len(moves) % 2))
+                        seen.append((effets.Cas(before, arguments, self.copy(before)), self.seat(len(moves))))
                 else:
                     break  # aucun coup ne fait avancer la partie sans la finir
         lab.goto([])
@@ -586,12 +622,13 @@ class Education:
             return
         states = self.lab.states
         for k in range(len(states) - 1):
-            if k % 2 not in self.marks:
+            if self.seat(k) not in self.marks:
                 changed = [i for i, (a, b) in enumerate(zip(states[k], states[k + 1])) if a != b]
                 if len(changed) == 1:
-                    self.marks[k % 2] = states[k + 1][changed[0]]
-        if len(self.marks) == 2 and self.knowledge["marks"] != [self.marks[0], self.marks[1]]:
-            self.knowledge["marks"] = [self.marks[0], self.marks[1]]
+                    self.marks[self.seat(k)] = states[k + 1][changed[0]]
+        marks = [self.marks.get(seat) for seat in range(self.n)]
+        if len(self.marks) == self.n and self.knowledge["marks"] != marks:
+            self.knowledge["marks"] = marks
             self.rethink()
 
     def final_state(self) -> list:
@@ -599,7 +636,7 @@ class Education:
         lab = self.lab
         if not lab.ended:
             return self.position()
-        mover = (len(lab.moves) - 1) % 2
+        mover = self.seat(len(lab.moves) - 1)
         before = list(lab.states[-1]) if self.tableau else [lab.states[-1], self.marks[mover]]
         return self.mind.apres(before, self.action(lab.moves[-1]), self.marks[mover])
 
@@ -608,7 +645,8 @@ class Education:
     # ------------------------------------------------------------------ #
 
     def winner(self, full_board: bool = True) -> int | None:
-        """Parité du gagnant de la partie terminée du labo, ``None`` pour un nul.
+        """Place du gagnant (dans l'ordre des joueurs) de la partie terminée du labo, ``None``
+        pour un nul.
 
         Avec ``full_board=False`` (une partie que le professeur finit pour juger un coup), la
         mère ne cherche pas de nouveau motif quand plus aucune action n'est possible : c'est
@@ -619,7 +657,7 @@ class Education:
             return self.value_winner()
         lab = self.lab
         self.learn_marks()
-        mover = (len(lab.moves) - 1) % 2
+        mover = self.seat(len(lab.moves) - 1)
         final = self.final_state()
         last = self.cell(lab.states[-1], lab.moves[-1])
         mine = {i for i, v in enumerate(final) if v == self.marks[mover]}
@@ -638,17 +676,17 @@ class Education:
         return mover
 
     def value_winner(self) -> int | None:
-        """Parité du gagnant quand l'état est une valeur : la fin est une valeur que la mère a
-        comprise, avec le joueur qu'elle fait gagner (celui qui vient de jouer, ou l'autre).
-        Une fin à une valeur qu'elle n'a pas comprise : elle ne sait pas qui a gagné, elle le
-        note et la compte nulle (comme une fin sans motif au Morpion)."""
-        mover = (len(self.lab.moves) - 1) % 2
+        """Place du gagnant quand l'état est une valeur : la fin est une valeur que la mère a
+        comprise, avec le joueur qu'elle fait gagner (celui qui vient de jouer, ou celui qui a
+        le trait). Une fin à une valeur qu'elle n'a pas comprise : elle ne sait pas qui a
+        gagné, elle le note et la compte nulle (comme une fin sans motif au Morpion)."""
+        mover = self.seat(len(self.lab.moves) - 1)
         valeur = self.final_state()[0]
         who = self.knowledge["ends"].get(valeur)
         if who == "dernier":
             return mover
         if who == "trait":
-            return 1 - mover
+            return self.seat(mover + 1)
         if who is None and valeur not in self.unknown_ends:
             self.unknown_ends.append(valeur)
             self.discovered.append(f"fin à la valeur {valeur!r} : la mère ne sait pas qui l'a gagnée "
@@ -666,7 +704,7 @@ class Education:
         (:data:`CONTRE_EPREUVES` au plus), et qu'aucun coup n'y ait mené sans la finir. Sinon,
         elle ne comprend pas cette fin."""
         lab, mind = self.lab, self.mind
-        moves, mover = list(lab.moves), (len(lab.moves) - 1) % 2
+        moves, mover = list(lab.moves), self.seat(len(lab.moves) - 1)
         valeur = self.final_state()[0]
         sources = {avant for avant, arguments in self.endings if mind.valeur_apres(avant, arguments) == valeur}
         continued = [c for c in self.lab_cases if c.forme == effets.APRES and c.valeur_apres == valeur]
@@ -693,7 +731,7 @@ class Education:
             who = "nul"
         elif winner == self.marks[mover]:
             who = "dernier"
-        elif winner == self.marks[1 - mover]:
+        elif winner == self.marks[self.seat(mover + 1)]:
             who = "trait"
         else:
             return None
@@ -717,7 +755,9 @@ class Education:
         suite de coups : elle cherche ensuite une suite de coups qui y mène (avec
         la gravité, un pion ne se pose que sur un autre). Si aucune case libre ne
         convient (plateau plein, pion qui en soutient d'autres), elle échange le
-        pion avec un pion adverse : « et si cette case avait été la sienne ? ».
+        pion avec un pion d'un autre joueur : « et si cette case avait été la
+        sienne ? ». Chaque joueur garde ainsi autant de pions : la position reste
+        atteignable, chacun jouant à son tour.
 
         Un pion jugé inutile reste déplacé pour la suite des tests : si le
         dernier coup complétait deux motifs à la fois, on garde ainsi un motif
@@ -729,21 +769,31 @@ class Education:
         moves = list(lab.moves)
         last = self.cell(lab.states[-1], moves[-1])
         action = mind.action_pour(last)
-        mine = {i for i, v in enumerate(final) if v == self.marks[mover] and i != last}
-        his = {i for i, v in enumerate(final) if v == self.marks[1 - mover]}
-        free = [i for i in range(len(final)) if i not in mine | his and i != last]
+        # les pions de chaque joueur (par sa place), sans le dernier coup
+        owned = [{i for i, v in enumerate(final) if v == self.marks[seat] and i != last}
+                 for seat in range(self.n)]
+        others = {i: seat for seat in range(self.n) if seat != mover for i in owned[seat]}
+        free = [i for i in range(len(final)) if not any(i in o for o in owned) and i != last]
         needed: set[int] = set()
-        to_test, moved = sorted(mine), set()
+        to_test, moved = sorted(owned[mover]), set()
+
+        def moving(cell, place):  # le pion ``cell`` du joueur qui a fini, posé sur ``place``
+            new = [set(o) for o in owned]
+            new[mover] = new[mover] - {cell} | {place}
+            if place in others:  # un échange : sa case reçoit le pion de l'autre joueur
+                new[others[place]] = new[others[place]] - {place} | {cell}
+            return new
+
         try:
             while to_test:
                 cell = to_test.pop(0)
                 kept = None   # un déplacement après lequel la partie finit encore
                 tested = necessary = False
-                relocations = [(mine - {cell} | {f}, his, f) for f in free]
-                swaps = [(mine - {cell} | {h}, his - {h} | {cell}, h) for h in sorted(his)]
+                relocations = [(moving(cell, f), f) for f in free]
+                swaps = [(moving(cell, h), h) for h in sorted(others)]
                 for variants in (relocations, swaps):
-                    for new_mine, new_his, place in variants:
-                        if (not self.reach(new_mine, new_his, mover)
+                    for new, place in variants:
+                        if (not self.reach(new)
                                 or mind.case_jouee(list(lab.states[-1]), action) != last):
                             continue
                         tested = True
@@ -751,7 +801,7 @@ class Education:
                             necessary = True
                             break
                         if kept is None:
-                            kept = (new_mine, new_his, place)
+                            kept = (new, place)
                     if tested:
                         break
                 if not tested:
@@ -759,8 +809,10 @@ class Education:
                 if necessary:
                     needed.add(cell)
                 elif cell not in moved:
-                    mine, his, place = kept
-                    now = [i for i in range(len(final)) if i not in mine | his and i != last]
+                    owned, place = kept
+                    others = {i: seat for seat in range(self.n) if seat != mover for i in owned[seat]}
+                    now = [i for i in range(len(final))
+                           if not any(i in o for o in owned) and i != last]
                     free = [i for i in free if i in now] + [i for i in now if i not in free]
                     moved.add(place)
                     to_test.append(place)  # à retester à sa nouvelle place
@@ -770,12 +822,11 @@ class Education:
             return None
         return sorted(needed | {last})
 
-    def reach(self, mine: set, his: set, mover: int, attempts: int = 5) -> bool:
-        """Amène le labo à une position où ``mover`` a les pions ``mine`` et l'autre ``his``,
-        avant le coup de ``mover`` (une suite de coups qui y mène, s'il y en a une)."""
-        first, second = (mine, his) if mover == 0 else (his, mine)
+    def reach(self, owned: list[set], attempts: int = 5) -> bool:
+        """Amène le labo à une position où le joueur à la place ``seat`` a les pions
+        ``owned[seat]`` (une suite de coups qui y mène, chacun à son tour, s'il y en a une)."""
         for attempt in range(attempts):
-            moves = self.order(sorted(first), sorted(second), random.Random(attempt))
+            moves = self.order([sorted(cells) for cells in owned], random.Random(attempt))
             if moves is not None and self.lab.goto(moves) and not self.lab.ended:
                 return True
         return False
@@ -815,7 +866,7 @@ class Education:
         return done
 
     def play_pattern(self, cells: list[int], attempts: int = 10) -> list[int] | None:
-        """Le premier joueur occupe les cases ``cells``, l'autre joue ailleurs : si la partie
+        """Le premier joueur occupe les cases ``cells``, les autres jouent ailleurs : si la partie
         finit au dernier pion, la contre-épreuve dit quel motif l'a finie. Une case pas encore
         atteignable (avec la gravité, la case du dessous est libre) attend : chacun joue alors
         d'abord dessous."""
@@ -829,7 +880,7 @@ class Education:
                 landing = {mind.case_jouee(state, a): a for a in mind.possibles(state)}
                 elsewhere = [c for c in landing if c not in cells]
                 below = [c for c in elsewhere if any(mind.action_pour(c) == mind.action_pour(t) for t in todo)]
-                ready = [c for c in todo if c in landing] if len(lab.moves) % 2 == 0 else []
+                ready = [c for c in todo if c in landing] if self.seat(len(lab.moves)) == 0 else []
                 choices = ready or below or elsewhere
                 if not choices:
                     break
@@ -893,7 +944,7 @@ class Education:
     # ------------------------------------------------------------------ #
 
     def key(self) -> tuple:
-        return repr(self.lab.states[-1]), len(self.lab.moves) % 2
+        return repr(self.lab.states[-1]), self.seat(len(self.lab.moves))
 
     def teacher_move(self, moves: list[tuple]) -> tuple:
         self.lab.goto(moves)
@@ -904,7 +955,7 @@ class Education:
         return self.teacher_moves[key]
 
     def value(self, moves: list[tuple], side: int) -> int:
-        """Résultat pour ``side`` si le professeur finit la partie des deux côtés.
+        """Résultat pour ``side`` si le professeur finit la partie de tous les côtés.
 
         Le professeur joue toujours de la même façon : chaque position par laquelle il passe
         en finissant la partie a la même issue, et la mère retient aussi le coup qu'il y a
@@ -929,7 +980,7 @@ class Education:
                     self.outcomes[position] = winner
                 lab.goto(start)
             winner = self.outcomes[key]
-        return 0 if winner is None else (1 if winner == side else -1)
+        return issue(winner, side)
 
     def better(self, moves: list[tuple], teacher: tuple, action, side: int) -> bool:
         """Le coup du professeur mène-t-il à un meilleur résultat que ``action`` ? (Inutile de
@@ -953,7 +1004,7 @@ class Education:
         self.learn_marks()
         if not self.tableau:
             return self.first_lesson_value()
-        for k in range(len(lab.states) - 1 if len(self.marks) == 2 else 0):
+        for k in range(len(lab.states) - 1 if len(self.marks) == self.n else 0):
             before, after = lab.states[k], lab.states[k + 1]  # elle vérifie qu'elle a compris l'action
             changed = [i for i, (a, b) in enumerate(zip(before, after)) if a != b]
             expected = self.cell(before, lab.moves[k])
@@ -1031,7 +1082,7 @@ class Education:
         lab.goto([])
         decisions, self.impossibles = [], []
         while not lab.ended:
-            if len(lab.moves) % 2 == son_side:
+            if self.seat(len(lab.moves)) == son_side:
                 moves, state = list(lab.moves), self.position()
                 action, reason = self.son.choisir(list(state), self.marks[son_side])
                 self.max_views = max(self.max_views, self.son.VUES)
@@ -1042,7 +1093,7 @@ class Education:
             else:
                 lab.ask(opponent)
         winner = self.winner()
-        return (0 if winner is None else 1 if winner == son_side else -1), decisions
+        return issue(winner, son_side), decisions
 
     def impossible(self, state: list, action) -> str:
         """Le jeu a refusé le coup du fils. « Pourquoi ? » C'est sa perception qui se trompe :
@@ -1287,31 +1338,31 @@ class Education:
 
     def witness(self, chunk: str, kept: list[int], move: int, total: int, rng) -> list[tuple] | None:
         """Une position sans le petit motif, aussi chargée (``total`` pions) : une case du motif
-        prend une autre valeur (un pion devient l'autre pion ou une case libre ; une case
-        libre reçoit un pion), le reste est joué comme dans :meth:`imagine`. Le coup du motif
-        doit y rester jouable. Renvoie la suite de coups qui y mène (le labo y est), ou
+        prend une autre valeur (un pion devient celui d'un autre joueur ou une case libre ; une
+        case libre reçoit un pion), le reste est joué comme dans :meth:`imagine`. Le coup du
+        motif doit y rester jouable. Renvoie la suite de coups qui y mène (le labo y est), ou
         ``None``."""
-        action, side = self.mind.action_pour(move), total % 2
+        action, side = self.mind.action_pour(move), self.seat(total)
         for _ in range(5):
             cell = rng.choice(kept)
             broken = list(chunk)
-            broken[cell] = rng.choice([v for v in "MA." if v != chunk[cell]])
-            mine = total // 2 - broken.count("M")
-            his = total - total // 2 - broken.count("A")
-            if mine < 0 or his < 0:
+            broken[cell] = rng.choice([v for v in self.letters + "." if v != chunk[cell]])
+            extra = self.extra("".join(broken), total, side)
+            if extra is None:
                 continue
-            moves = self.grow("".join(broken), side, mine, his, rng)
+            moves = self.grow("".join(broken), side, extra, rng)
             if (moves is not None and self.lab.goto(moves) and not self.lab.ended
                     and self.mind.case_jouee(list(self.lab.states[-1]), action) == move):
                 return moves
         return None
 
-    def order(self, first: list[int], second: list[int], rng) -> list[tuple] | None:
-        """Une suite de coups qui pose les pions de chacun sur ses cases, chacun son tour (un
-        pion ne se pose que sur une case qu'une action remplit à ce moment-là), ou ``None``."""
-        mind, todo, state, moves = self.mind, [list(first), list(second)], list(self.lab.states[0]), []
-        while todo[0] or todo[1]:
-            turn = len(moves) % 2
+    def order(self, cells: list[list[int]], rng) -> list[tuple] | None:
+        """Une suite de coups qui pose les pions de chacun (``cells[place]``) sur ses cases,
+        chacun son tour (un pion ne se pose que sur une case qu'une action remplit à ce
+        moment-là), ou ``None``."""
+        mind, todo, state, moves = self.mind, [list(c) for c in cells], list(self.lab.states[0]), []
+        while any(todo):
+            turn = self.seat(len(moves))
             ready = [c for c in todo[turn] if mind.case_jouee(state, mind.action_pour(c)) == c]
             if not ready:
                 return None
@@ -1324,22 +1375,22 @@ class Education:
 
     def imagine(self, chunk: str, number: int = 20):
         """Des positions qui contiennent le petit motif, fabriquées dans le labo en jouant
-        (:meth:`grow`) : le fils peut être l'un ou l'autre joueur, et un nombre de pions tiré
+        (:meth:`grow`) : le fils peut être à n'importe quelle place, et un nombre de pions tiré
         au hasard occupe les cases « ? ». Une position où la partie est déjà finie est
         écartée. Chaque suite de coups est donnée quand le labo y est arrivé."""
         rng = random.Random(chunk)
-        cells = {v: [i for i, c in enumerate(chunk) if c == v] for v in "MA?"}
+        placed = sum(chunk.count(v) for v in self.letters)
+        free = chunk.count("?")
         found, seen = 0, set()
         for _ in range(number * 10):
             if found >= number:
                 break
-            side = rng.randrange(2)  # 0 : le fils joue en premier
-            total = len(cells["M"]) + len(cells["A"]) + rng.randint(0, len(cells["?"]))
-            mine = total // 2 - len(cells["M"])  # pions du fils à ajouter
-            his = total - total // 2 - len(cells["A"])
-            if total % 2 != side or mine < 0 or his < 0:
+            side = rng.randrange(self.n)  # la place du fils (0 : il joue en premier)
+            total = placed + rng.randint(0, free)
+            extra = self.extra(chunk, total, side)
+            if self.seat(total) != side or extra is None:
                 continue
-            moves = self.grow(chunk, side, mine, his, rng)
+            moves = self.grow(chunk, side, extra, rng)
             if moves is None or not self.lab.goto(moves) or self.lab.ended:
                 continue
             signature = tuple(self.lab.states[-1])
@@ -1349,19 +1400,30 @@ class Education:
             found += 1
             yield moves
 
-    def grow(self, chunk: str, side: int, mine: int, his: int, rng) -> list[tuple] | None:
+    def extra(self, chunk: str, total: int, side: int) -> list[int] | None:
+        """Les pions à ajouter hors du motif pour chaque joueur (0 : le fils, 1 : le suivant…),
+        dans une position à ``total`` pions où le fils, à la place ``side``, a le trait : chacun
+        a joué à son tour. ``None`` si le motif en a déjà trop pour l'un d'eux."""
+        extra = []
+        for d, letter in enumerate(self.letters):
+            seat = self.seat(side + d)
+            played = (total - seat + self.n - 1) // self.n  # coups joués par cette place
+            extra.append(played - chunk.count(letter))
+        return None if min(extra) < 0 else extra
+
+    def grow(self, chunk: str, side: int, extra: list[int], rng) -> list[tuple] | None:
         """Une suite de coups permis qui mène au motif : à son tour, chacun pose un de ses
-        pions du motif si une action le pose là, ou un pion de plus (il en a ``mine`` pour le
-        fils, ``his`` pour l'autre) sur une case « ? » qu'une action remplit. Comme dans une
+        pions du motif si une action le pose là, ou un pion de plus (il en a ``extra[d]``, d
+        étant sa place après le fils) sur une case « ? » qu'une action remplit. Comme dans une
         vraie partie, aucun pion n'arrive là où aucune action ne le pose. ``None`` si un
         joueur ne peut plus rien poser."""
         mind = self.mind
-        need = [[i for i, c in enumerate(chunk) if c == v] for v in "MA"]  # 0 : le fils
-        left = [mine, his]
+        need = [[i for i, c in enumerate(chunk) if c == v] for v in self.letters]  # 0 : le fils
+        left = list(extra)
         state, moves = list(self.lab.states[0]), []
-        while need[0] or need[1] or left[0] or left[1]:
-            turn = len(moves) % 2
-            who = turn if side == 0 else 1 - turn
+        while any(need) or any(left):
+            turn = self.seat(len(moves))
+            who = self.seat(turn - side)  # sa place après le fils
             actions = {}
             for action in mind.possibles(state):
                 actions.setdefault(mind.case_jouee(state, action), action)
@@ -1394,7 +1456,8 @@ class Education:
         """Les concepts que la mère sait former, du plus petit au plus grand."""
         if self._bank is None:
             positions = concepts.echantillon(self.mind, self.start_position(), self.knowledge["marks"])
-            self._bank = concepts.enumerer(self.pensee, positions, self.max_size, self.max_depth, self.counts)
+            self._bank = concepts.enumerer(self.pensee, positions, self.max_size, self.max_depth,
+                                           self.counts, tuple(concepts.joueurs(self.n)))
         return self._bank
 
     def rule(self, name: str) -> concepts.Concept:
@@ -1414,10 +1477,10 @@ class Education:
 
     def judge(self, moves: list[tuple], state, cell: int) -> bool:
         """Dans la position où mènent ``moves``, ``cell`` est-il aussi bon que le coup du
-        professeur ? Le professeur finit la partie des deux côtés après chacun des deux."""
+        professeur ? Le professeur finit la partie de tous les côtés après chacun des deux coups."""
         key = (repr(list(state)), cell)
         if key not in self._judged:
-            side, teacher = len(moves) % 2, self.teacher_move(moves)
+            side, teacher = self.seat(len(moves)), self.teacher_move(moves)
             self._judged[key] = self.action(teacher) == cell or not self.better(moves, teacher, cell, side)
         return self._judged[key]
 
@@ -1527,7 +1590,7 @@ class Education:
                 f"règles : {' > '.join(rules)} ; souvenirs : {len(self.knowledge['memories'])}")
 
     def train(self, nb_games: int, on_game=None) -> list[GameRecord]:
-        """Fait jouer et corrige le fils ``nb_games`` fois (professeur, hasard et mixte, des deux côtés).
+        """Fait jouer et corrige le fils ``nb_games`` fois (professeur, hasard et mixte, à chaque place).
 
         Après chaque partie, la mère revoit les coups du fils et ses réponses aux
         variantes, corrige chaque erreur par un souvenir, puis refactorise.
@@ -1536,13 +1599,13 @@ class Education:
             record = self.first_lesson()
             if on_game:
                 on_game(record)
-        if len(self.marks) < 2:
+        if len(self.marks) < self.n:
             raise LabError("la mère n'a pas compris quel pion pose chaque joueur")
         opponents = [("professeur", self.teacher), ("hasard", self.random_player(self.rng)),
                      ("mixte", mixed_player(self.teacher, self.rng, self.random_player(self.rng)))]
         for number in range(1, nb_games + 1):
-            name, opponent = opponents[(number - 1) // 2 % len(opponents)]
-            side = (number - 1) % 2
+            name, opponent = opponents[(number - 1) // self.n % len(opponents)]
+            side = self.seat(number - 1)
             # Motifs décalés, symétries, petits motifs : des cases. Une valeur n'en a pas.
             shifted = [] if self._shapes_known or not self.tableau else self.shift_patterns()
             symmetry = None if self._symmetries_known or not self.tableau else self.discover_symmetries()
@@ -1566,11 +1629,11 @@ class Education:
     def evaluate(self, nb_random: int = 100) -> dict[str, dict[str, int]]:
         """Fait jouer le fils sans le corriger : bilan par adversaire."""
         scores = {}
-        for name, opponent, games in (("professeur", self.teacher, 2),
+        for name, opponent, games in (("professeur", self.teacher, self.n),
                                       ("hasard", self.random_player(random.Random(1)), nb_random)):
             score = {"victoire": 0, "nul": 0, "défaite": 0}
             for number in range(games):
-                result, _ = self.play_game(opponent, number % 2)
+                result, _ = self.play_game(opponent, self.seat(number))
                 score[RESULTS[result]] += 1
             scores[name] = score
         self.discovered = []
