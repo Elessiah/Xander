@@ -347,6 +347,14 @@ de plus petit n'explique les cas), ce qui rejoint le jalon 2.
      but avec une limite de coups. La mère ne décrit pas encore l'action et
      l'éducation s'arrête avant la première partie (actions à un seul
      argument) ; détail dans `docs/jeux.md`.
+   - **Le compte est bon, version courte** (un joueur, 4 nombres et une
+     cible) : combiner des quantités pour atteindre un but, une action à
+     trois arguments `play(i, j, op)`. **Fait :** le jeu
+     (`Games/CompteEstBon.py`), son professeur exact
+     (`Games/SolveurCompteEstBon.py`) et `res/exampleCompteEstBon.py`. La
+     mère voit quelles places change un coup, pas ce qu'il calcule ;
+     l'éducation bloque parce qu'elle ne cherche que des actions à un
+     argument (voir `docs/jeux.md`).
    - **Mot mystère** (`Games/MotMystere.py`) : un joueur, un mot secret de
      5 lettres caché, 6 essais ; le professeur, qui ne lit pas le secret,
      trouve les 405 secrets en 2,99 essais. La mère voit le joueur seul,
