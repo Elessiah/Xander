@@ -54,7 +54,9 @@ hasard et contre un adversaire mixte, puis revient sur chacune de ses erreurs.
 Elle corrige d'abord **cas par cas** (un souvenir par erreur), puis
 **refactorise** : le plus petit concept qui explique au moins deux souvenirs,
 construit avec ses briques, devient une règle si tous les cas déjà vus restent
-bien joués. Chaque partie est affichée avec ses leçons et ses refactors (`-q`
+bien joués. Les souvenirs restants sont réduits à ce qui comptait, puis
+reconnus partout : ce sont des **petits motifs** (`MM.??????` → 2), vérifiés
+dans le labo. Chaque partie est affichée avec ses leçons et ses refactors (`-q`
 pour ne voir que le bilan), suivie de la courbe d'apprentissage et des
 concepts construits :
 

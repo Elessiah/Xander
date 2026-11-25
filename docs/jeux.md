@@ -55,9 +55,10 @@ blocage immédiat et bat toujours un joueur aléatoire, mais il n'est pas
 imbattable : au-delà de son horizon, un humain attentif peut le piéger.
 
 Exemple de partie : [`res/examplePuissance4.py`](../res/examplePuissance4.py).
-La mère n'y comprend pas encore `play`. À cause de la gravité, la case modifiée
-n'est la case `colonne` que pour la ligne du bas : il faudra une opération
-« premier emplacement libre d'une colonne ».
+À cause de la gravité, la case modifiée n'est la case `colonne` que pour la
+ligne du bas. L'Analyzer le comprend (`SEQUENCE_TARGET_INDEX` : la file
+*colonne* + 0, puis + 7, dont la première case libre change), et la mère peut
+y éduquer un fils.
 
 ## Jumper — `Games/Jumper.py`
 

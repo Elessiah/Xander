@@ -37,6 +37,8 @@ class FunctionOperation(Enum):
     QUANTITY_RM = 6            # variable -= <param>
     QUANTITY_ADD = 7           # variable += <param>
     CHECK_VICTORY = 8          # (réservé) la fonction signale une victoire
+    SEQUENCE_TARGET_INDEX = 9  # <param> désigne une file de cases (<param> + décalage, puis + pas…) :
+                               # la première case libre de la file change (gravité, pile…)
 
 
 VARIABLE_KINDS = ("array", "string", "integer", "bool", "game", "back")
@@ -70,10 +72,11 @@ class Operation:
 
     kind: FunctionOperation = FunctionOperation.UNKNOWN
     variable: Variable | None = None
+    parameters: tuple = ()   # ce que l'Analyzer a mesuré (SEQUENCE_TARGET_INDEX : décalage, pas)
 
     @property
-    def key(self) -> tuple[FunctionOperation, str]:
-        return self.kind, self.variable.name if self.variable else ""
+    def key(self) -> tuple:
+        return self.kind, self.variable.name if self.variable else "", self.parameters
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, Operation) and self.key == other.key
@@ -82,7 +85,8 @@ class Operation:
         return hash(self.key)
 
     def __repr__(self) -> str:
-        return f"Operation({self.kind.name}, {self.key[1]!r})"
+        extra = f", {self.parameters!r}" if self.parameters else ""
+        return f"Operation({self.kind.name}, {self.key[1]!r}{extra})"
 
 
 @dataclass(eq=False)

@@ -4,8 +4,9 @@ import unittest
 from pathlib import Path
 
 from Games.MinmaxMorpion import minmax_morpion_play
+from Games.MinmaxPuissance4 import WINDOWS, minmax_puissance4_play
 from Games.Morpion import LINES, Morpion, is_free, winner_of
-from xander.analyzer import guess_operation
+from xander.analyzer import guess_operation, test_sequence_target_index
 from xander.education import Education
 from xander.lab import Lab, LabError
 from xander.model import Function, FunctionOperation, Variable
@@ -75,6 +76,18 @@ class GuessOperationTest(unittest.TestCase):
         self.assertIs(guess_operation(10, 13, call(3)), FunctionOperation.QUANTITY_ADD)
         self.assertIs(guess_operation(10, 3, call(3)), FunctionOperation.QUANTITY_SET)
 
+    def test_sequence_target_index(self):
+        """Le paramètre désigne une file de cases ; la première libre change (gravité, pile…)."""
+        # 2 colonnes de 3 cases : case = ligne * 2 + colonne
+        self.assertTrue(test_sequence_target_index(
+            ["X", " ", " ", " ", " ", " "], ["X", " ", "O", " ", " ", " "], 0, 0, 2))  # sur le premier
+        self.assertFalse(test_sequence_target_index(
+            [" ", " ", " ", " ", " ", " "], [" ", " ", "O", " ", " ", " "], 0, 0, 2))  # il serait en bas
+        self.assertTrue(test_sequence_target_index(  # la même chose à l'envers : il tombe vers le haut
+            [" ", " ", " ", " ", "X", " "], [" ", " ", "O", " ", "X", " "], 0, 4, -2))
+        self.assertTrue(test_sequence_target_index(  # un tube : la file avance d'une case
+            ["X", "X", " ", " "], ["X", "X", "O", " "], 0, 0, 1))
+
     def test_nothing_matches(self):
         self.assertIsNone(guess_operation(["a", "b"], ["X", "X"], call(1)))
         self.assertIsNone(guess_operation(["a", "b"], True, call(1)))
@@ -98,7 +111,10 @@ class MotherTest(unittest.TestCase):
         self.assertEqual([op.kind for op in operations], [FunctionOperation.QUANTITY_RM])
 
     def test_learn_puissance4(self):
+        """La gravité : play(3) remplit 3, puis 10, 17… l'Analyzer mesure la file (+0, puis +7)."""
         model = Mother().learn(RES / "examplePuissance4.py")
+        self.assertEqual(model.target.kind, FunctionOperation.SEQUENCE_TARGET_INDEX)
+        self.assertEqual(model.target.parameters, (0, 7))
         self.assertEqual(model.nb_players, 2)
         self.assertEqual(model.turn_pattern, ["get_game_state", "play"])
         self.assertEqual(model.winner, "X")
@@ -161,6 +177,11 @@ def education(nb_games: int = 0) -> Education:
     if nb_games:
         return trained(nb_games)
     return Mother().raise_son(RES / "exampleMorpion.py", minmax_morpion_play, nb_games)
+
+
+def puissance4() -> Education:
+    """Une éducation au Puissance 4 qui n'a vu que l'exemple."""
+    return Mother().raise_son(RES / "examplePuissance4.py", minmax_puissance4_play, 0)
 
 
 @functools.lru_cache(maxsize=None)
@@ -343,6 +364,41 @@ class EducationTest(unittest.TestCase):
         corner = ["0", "1", "2", "3", "4", "5", "6", "7", "X"]  # le coin opposé : pas cette symétrie
         self.assertNotEqual(teaching.son.choisir(corner, "X")[1], "souvenir")
 
+    def lesson_at(self, teaching, moves, son_cell, reason, teacher_cell):
+        teaching.lab.goto(moves)
+        state = list(teaching.lab.states[-1])
+        return teaching.correct(state, teaching.marks[len(moves) % 2], son_cell, reason, teacher_cell, moves)
+
+    def test_memory_becomes_small_pattern_anywhere(self):
+        """« Qu'est-ce qui comptait ? » puis « et ailleurs ? » : seuls mes deux pions et la case
+        libre comptaient ; le motif décalé d'une rangée marche encore, pas d'une case."""
+        teaching = education()
+        teaching.knowledge["patterns"] = [list(line) for line in LINES]
+        teaching.rethink()
+        self.lesson_at(teaching, [(0,), (3,), (1,), (4,)], 5, "défaut", 2)  # X gagne en 2
+        self.assertEqual(teaching.knowledge["memories"], {"MM.AA....": 2})
+        done = teaching.generalize()
+        self.assertEqual(teaching.knowledge["memories"], {"MM.??????": 2, "???MM.???": 5, "??????MM.": 8})
+        self.assertEqual(len(done), 3, done)  # réduit, puis décalé de +3 et +6 (+1 : rejeté)
+        board = ["0", "O", "2", "X", "X", "5", "O", "7", "8"]  # mes deux pions au milieu
+        self.assertEqual(teaching.son.choisir(board, "X"), (5, "souvenir"))
+
+    def test_false_small_pattern_is_forgotten(self):
+        """Un petit motif démenti est oublié ; les cas qu'il couvrait redeviennent des souvenirs."""
+        teaching = education()
+        teaching.knowledge["patterns"] = [list(line) for line in LINES]
+        teaching.rethink()
+        self.lesson_at(teaching, [(4,), (0,), (8,), (1,)], 3, "défaut", 2)  # X doit parer en 2
+        teaching.knowledge["memories"] = {"AA.??????": 2}  # trop général : X peut gagner ailleurs
+        teaching.rewrite()
+        lesson = self.lesson_at(teaching, [(7,), (0,), (8,), (1,)], 2, "souvenir", 6)  # X gagne en 6
+        self.assertEqual(teaching.knowledge["memories"], {"AA..M...M": 2, "AA.....MM": 6})
+        self.assertIn("petit motif AA.?????? faux oublié", lesson.change)
+        # Une autre décision de la même partie venait du même petit motif : déjà oublié.
+        lesson = self.lesson_at(teaching, [(7,), (0,), (6,), (1,)], 2, "souvenir", 8)
+        self.assertEqual(lesson.change, "nouveau souvenir")
+        self.assertEqual(teaching.knowledge["memories"]["AA....MM."], 8)
+
     def test_mother_discovers_symmetries(self):
         teaching = education(200)
         self.assertEqual(len(teaching.knowledge["symmetries"]), 7)  # + l'identité : 8 façons de voir
@@ -452,6 +508,38 @@ class EducationTest(unittest.TestCase):
         # « aucun de ses coups ne le fait gagner » : à 5, seule la prise de 1 lui laisse
         # plus de 3 allumettes.
         self.assertEqual(pensee.choix(PARER, 5, 0), {1})
+
+    def test_puissance4_perception(self):
+        """La mère écrit pour le fils la gravité que l'Analyzer a comprise."""
+        teaching = puissance4()
+        self.assertEqual(teaching.knowledge["actions"], list(range(7)))  # essayées dans le labo
+        self.assertEqual(teaching.knowledge["patterns"], [[1, 2, 3, 4]])  # leçon de l'exemple
+        mind = teaching.mind
+        board = [" "] * 42
+        board[3], board[10] = "X", "O"
+        self.assertEqual(mind.case_jouee(board, 3), 17)  # au-dessus des deux jetons
+        self.assertEqual(mind.apres(board, 3, "X")[17], "X")
+        self.assertEqual(mind.action_pour(38), 3)
+        for row in range(6):
+            board[row * 7] = "X"
+        self.assertNotIn(0, mind.possibles(board))  # colonne pleine
+
+    def test_puissance4_pattern_needs_support(self):
+        """Un alignement de la 2e rangée ne s'atteint qu'en posant d'abord des jetons dessous ;
+        décalé d'une case de trop, il déborde sur la rangée suivante et ne finit rien."""
+        teaching = puissance4()
+        self.assertEqual(teaching.play_pattern([8, 9, 10, 11]), [8, 9, 10, 11])
+        self.assertIsNone(teaching.play_pattern([4, 5, 6, 7]))
+
+    def test_puissance4_symmetry(self):
+        """Avec les 69 alignements, 4 renumérotations les préservent ; la gravité n'en laisse
+        qu'une au labo : le miroir gauche-droite."""
+        teaching = puissance4()
+        teaching.knowledge["patterns"] = [list(w) for w in WINDOWS]
+        teaching.rethink()
+        teaching.discover_symmetries()
+        mirror = [row * 7 + 6 - column for row in range(6) for column in range(7)]
+        self.assertEqual(teaching.knowledge["symmetries"], [mirror])
 
     def test_unsupported_game(self):
         with self.assertRaisesRegex(LabError, "SINGLE_TARGET_INDEX"):

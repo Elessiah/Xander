@@ -78,6 +78,24 @@ première qui colle (`FunctionOperation`) :
 | tableaux | 1 | `SINGLE_TARGET_INDEX` (seule la case d'indice *p* change), puis `SINGLE_TARGET_NAME` (seules les cases valant *p* changent) |
 | tableaux | 2 | `SRC_DEST_TARGET_INDEX`, puis `SRC_DEST_TARGET_NAME` (deux cases changent : un déplacement) |
 | nombres | 1 | `QUANTITY_RM` (−*p*), `QUANTITY_ADD` (+*p*), `QUANTITY_SET` (= *p*) |
+| tableaux | 1 | sinon `SEQUENCE_TARGET_INDEX` : *p* désigne une **file** de cases (*p* + décalage, puis + pas…) et seule la première case libre de la file change |
+
+**Une file de cases (gravité).** Au Puissance 4, `play(3)` remplit la case 3,
+puis 10, puis 17 : la case changée n'est l'argument que sur la rangée du bas.
+L'Analyzer ne connaît ni la gravité ni la forme du plateau. Il mesure deux
+nombres sur tous les appels de la fonction :
+
+- les **décalages** essayés sont « case changée − argument » ;
+- les **pas** essayés sont l'écart entre les cases changées par deux appels
+  successifs de même argument (ici 10 − 3 = 7).
+
+Il garde la file qui explique le plus d'appels (puis le plus petit décalage et
+le plus petit pas). Une case libre est une case qui valait ce que valait la
+case changée : le jeton n'a pas pu s'arrêter avant. Sur l'exemple, la file
+« *p* + 0, puis + 7 » explique les 10 coups. La même hypothèse décrit une
+gravité vers le haut (décalage 35, pas −7), un tube qui se remplit case par
+case (pas 1) ou une pile. Elle n'est essayée que si l'argument ne désigne pas
+directement la case dans la majorité des appels.
 
 **Lissage.** Un coup particulier peut tromper une hypothèse (la fin de partie,
 une coïncidence de valeurs…). Pour chaque fonction, on ne garde que les
@@ -147,9 +165,12 @@ mère voit quel coup il a choisi sans rien savoir de son fonctionnement.
    comprend un nouveau motif, la mère l'essaie décalé partout, puis cherche
    les renumérotations des cases qui ne changent rien au jeu. Un souvenir
    vaut alors pour toutes les positions équivalentes.
+8. **Petits motifs** (section 7). Après le refactor, chaque nouveau souvenir
+   est réduit aux cases qui comptaient, puis essayé décalé. Le fils le
+   reconnaît partout où cette petite configuration apparaît.
 
-La mère part **sans aucun concept**. Au Morpion, en 200 parties (une dizaine
-de secondes) : les 8 alignements et les 8 symétries sont découverts, et elle
+La mère part **sans aucun concept**. Au Morpion, en 200 parties (quelques
+secondes) : les 8 alignements et les 8 symétries sont découverts, et elle
 construit seule ses règles. Le chemin dépend des parties rencontrées. Par
 exemple :
 
@@ -170,13 +191,18 @@ possibles : le fils ne peut plus perdre.
 | --- | --- | --- |
 | `AuMoins` avec k = 1 ou 2, sans symétries | 5 (8 à 800) | 10 à 46 |
 | k = 1 ou 2, symétries découvertes | 10 | 4 à 16 |
-| **k = 1 seulement** (« il existe »), symétries (par défaut) | 9 (la 10e perd encore 2 suites à 800) | 9 à 30 |
+| k = 1 seulement (« il existe »), symétries | 9 (la 10e perd encore 2 suites à 800) | 9 à 30 |
 | k = 1, 2 ou 3 | 1 sur 5 | 20 à 24 |
+| **k = 1, symétries, petits motifs (par défaut)** | 10 (8 dès 100 parties) | 5 à 7 |
 
 Lui donner moins (k = 1) marche presque aussi bien, deux fois plus vite : elle
 exprime la fourchette autrement (« il ne peut pas me menacer sans danger »).
 Lui donner plus (k jusqu'à 3) est pire : plus de concepts possibles, donc plus
 de coïncidences validées sur peu de cas.
+
+Avec les petits motifs, le fils fait environ 16 erreurs avant d'être parfait,
+contre 24 à 44 sans eux. L'éducation est aussi deux à trois fois plus rapide,
+car il y a moins de cas à revoir.
 
 ## 7. Motifs décalés et symétries — `xander/symmetries.py`
 
@@ -188,9 +214,21 @@ rien de la forme du plateau (l'état n'est qu'une liste de cases) : c'est le
 jeu qui dit qu'au Morpion la rangée du haut décalée de 3 est une rangée, et
 que décalée de 1 elle déborde sur la rangée suivante (la partie ne finit pas).
 Au Morpion, la colonne de l'exemple donne les deux autres avant la première
-partie. Au Puissance 4, les 69 alignements devraient venir de 4 formes
-décalées ; ce n'est pas encore essayé, car l'Analyzer ne comprend pas encore
-la gravité (l'éducation n'y est pas possible).
+partie. Au Puissance 4, un alignement de la 2e rangée ne s'atteint qu'en
+posant d'abord des jetons dessous : chacun y joue alors, puis le premier
+joueur occupe le motif.
+
+**Cases et actions.** La mère raisonne en cases (motifs, souvenirs, symétries)
+et joue des actions. Sa perception fait le lien : `case_jouee(etat, action)`
+donne la case que l'action remplit, et `action_pour(case)` l'action qui vise
+la file de cette case. Pour mettre le labo dans une position donnée, elle
+cherche une suite de coups qui y mène : avec la gravité, un pion ne se pose
+que sur une case qu'une action remplit à ce moment-là. La contre-épreuve
+raisonne aussi sur les positions. Elle imagine la même position avec le pion
+ailleurs, sans qu'aucun autre ne bouge. Si aucune case libre ne convient (un
+pion qui en soutient d'autres, un plateau plein), elle l'échange avec un pion
+adverse : « et si cette case avait été la sienne ? ». Sans cela, un jeton qui
+en soutient un autre semblerait faire partie de l'alignement.
 
 Au Morpion, une position tournée de 90° est la même situation ; au Puissance
 4, la gravité interdit de retourner le plateau. La mère ne le sait pas
@@ -203,11 +241,69 @@ coups, passer par les mêmes positions et finir au même moment. Quand elle ne
 connaît qu'un motif, 4 320 renumérotations le préservent ; le labo n'en garde
 que 4 (identité, deux miroirs, demi-tour), les seules qui ne changent vraiment
 rien au jeu. Avec les 8 motifs, elle en garde 8 (4 rotations, 4 miroirs).
+Au Puissance 4, les 69 alignements sont préservés par 4 renumérotations
+(miroirs gauche-droite et haut-bas, demi-tour). Le labo ne garde que le miroir
+gauche-droite : renversé, le jeu ne tombe plus au même endroit.
 
 Le fils reçoit la liste `SYMETRIES` : pour retrouver un souvenir, il regarde
 sa position sous chacune des 8 façons de la voir, et renumérote le coup
 retenu. Un refactor compte deux positions équivalentes comme un seul
 souvenir.
+
+### Petits motifs : ce qui comptait, reconnu partout
+
+Un maître d'échecs ne retient pas des positions entières : il reconnaît des
+configurations de quelques pièces (Chase et Simon). La mère fait de même avec
+ses souvenirs, en deux questions, toutes deux vérifiées dans le labo.
+
+**« Qu'est-ce qui comptait ? »** Un souvenir `MM.AA....` → 2 (`M` : mes pions,
+`A` : les siens, `.` : libre) devient un **petit motif** : les cases qui ne
+comptent pas deviennent `?`. Un petit motif tient si son coup est le bon
+partout où il apparaît. La mère le vérifie de deux façons :
+
+- dans tous les cas enregistrés, sous chaque façon de les voir : le coup doit
+  y être aussi bon que celui du professeur ;
+- dans 20 positions qu'elle imagine dans le labo. Les `?` y sont remplis au
+  hasard (pions de l'un, de l'autre, ou cases libres), le fils jouant en
+  premier ou en second. Elle écarte une position où la partie est déjà
+  finie, ou qu'aucune suite de coups n'atteint (avec la gravité, un pion ne
+  flotte pas). Elle demande son coup au professeur. S'il joue le coup du
+  motif, la position le **confirme**. S'il joue ailleurs, elle vérifie que le
+  coup du motif est aussi bon que le sien, en lui faisant finir la partie :
+  sinon le motif est **démenti**, sinon la position ne dit rien. Il faut
+  qu'au moins la moitié des positions le confirment.
+
+Pourquoi ne pas se contenter de « aussi bon » ? Au Morpion, un coup change
+souvent l'issue d'une partie. Au Puissance 4, presque jamais : finie par le
+professeur des deux côtés, une partie se termine de la même façon quel que
+soit le coup joué. « Aussi bon » laissait donc passer des motifs absurdes
+(« la case 3 est libre : y jouer »). Demander au professeur ce qu'il jouerait
+est plus exigeant, et bien moins cher (un coup au lieu de deux fins de
+partie).
+
+Elle cherche le **plus petit** motif qui tient : d'abord avec 0 case en plus
+de la case jouée, puis 1, 2 et 3 cases (`chunk_size`). Si aucun ne tient, elle
+oublie les cases une à une et garde chaque oubli qui tient (sur un grand
+plateau, les combinaisons seraient trop nombreuses). Ici, elle trouve
+`MM.??????` → 2 : mes deux pions et la case libre suffisent.
+
+**« Et ailleurs ? »** Comme un motif de fin, le petit motif est essayé décalé
+(chaque case + d) et vérifié de la même façon. `MM.??????` décalé de +3
+(`???MM.???` → 5) tient, comme décalé de +6. Décalé de +1 (`?MM.?????` → 3),
+il déborde sur la rangée suivante, et le labo le rejette. Un décalage
+équivalent par symétrie à un souvenir connu n'est pas ajouté.
+
+Le fils reconnaît un petit motif sous chacune des façons de voir sa position.
+S'il se trompe sur un petit motif, c'est que le labo n'avait pas imaginé
+cette position. La mère oublie alors ce petit motif. Les cas qu'il couvrait
+redeviennent des souvenirs entiers, qu'elle réduira de nouveau, avec ce
+nouveau cas comme test.
+
+Au Morpion, les petits motifs restent assez grands : 6 à 7 cases sur 9. Sur
+un plateau aussi petit, presque toutes les cases comptent pour la tactique.
+Un motif est parfois vrai d'une façon inattendue, par exemple parce que
+toutes les positions qui le contiennent sont perdues de toute façon. Aucun
+petit motif n'a été démenti sur 10 graines et 400 parties.
 
 ## 8. Les briques — `xander/concepts.py`
 
@@ -245,7 +341,9 @@ chaque correction, qui n'importe rien de Xander :
 
 1. **Perception** : `possibles`, `apres`, `gagne`, `adversaire`, écrites à
    partir de ce qu'elle a compris (pions observés, motifs, action
-   `SINGLE_TARGET_INDEX`), plus `VUES`, le compteur des positions regardées.
+   `SINGLE_TARGET_INDEX` ou file `SEQUENCE_TARGET_INDEX` avec les actions que
+   le jeu accepte au départ), plus `case_jouee`, `action_pour` et `VUES`, le
+   compteur des positions regardées.
 2. **Règles** : les concepts qu'elle a construits et appris au fils, **et
    seulement ceux-là** (avec les briques dont ils dépendent), traduits en
    Python, `REGLES` dans l'ordre appris, `SOUVENIRS` et `SYMETRIES`.
@@ -272,22 +370,23 @@ fils dans `output/sons/<nom>.py`.
   contient le texte `"n"`, `SINGLE_TARGET_INDEX` et `SINGLE_TARGET_NAME` sont
   toutes deux vraies, seule la première est retenue.
 - Le lissage majoritaire peut généraliser une coïncidence : au Puissance 4,
-  tant qu'on joue sur la rangée du bas, l'indice de la case vaut le numéro de
-  colonne, et `SINGLE_TARGET_INDEX` est retenu à tort. Des exemples variés
-  limitent ce risque.
+  un exemple qui ne joue que sur la rangée du bas ferait retenir
+  `SINGLE_TARGET_INDEX` (l'indice de la case y vaut le numéro de colonne).
+  L'exemple doit montrer au moins deux jetons dans une même colonne.
 - Découpage des tours : un getter de confirmation appelé juste après le coup
   (`get, play, get`) est rattaché au tour suivant.
 - Éducation : seulement pour deux joueurs qui alternent, un état en tableau et
-  une action qui désigne directement une case (`SINGLE_TARGET_INDEX`). Le
-  Puissance 4 (gravité) et les Allumettes (quantité) attendent que l'Analyzer
-  sache décrire leur action.
+  une action qui remplit une case, directement (`SINGLE_TARGET_INDEX`) ou par
+  une file (`SEQUENCE_TARGET_INDEX`). Les actions sont celles que le jeu
+  accepte au départ. Les Allumettes (quantité) attendent que la perception
+  sache décrire une quantité.
 - Les concepts sont construits par la mère, mais leur langage (les quatre
   sortes de nœuds) est fourni. Ses concepts sont parfois
   difficiles à lire : ils sont justes sur tous les cas vus, pas forcément
   élégants. Un concept validé sur peu de cas peut être une coïncidence ; il
   est corrigé quand une erreur le contredit.
 - Les symétries sont des renumérotations de cases : elles supposent qu'une
-  action désigne une case. Leur vérification par 20 parties au hasard est
+  action remplit une case. Leur vérification par 20 parties au hasard est
   une épreuve, pas une preuve.
 - Les concepts regardent au plus deux coups plus loin que la règle (deux
   niveaux de `AuMoins`) : assez pour le Morpion, pas pour un jeu dont les
@@ -296,7 +395,9 @@ fils dans `output/sons/<nom>.py`.
 - `gagne(etat, joueur)` ne sait pas encore dire qu'un coup fait **perdre**
   celui qui le joue (Allumettes « misère » : prendre la dernière perd). Il
   faudra que la perception sache qui a le trait.
-- Les motifs sont généralisés par décalage d'indice et vérifiés dans le labo,
-  mais pas encore les souvenirs : un souvenir reste une position entière (ou
-  équivalente). Reconnaître une petite configuration n'importe où sur le
-  plateau (un « chunk » de Chase et Simon) est la prochaine étape.
+- Les motifs de fin et les souvenirs (petits motifs) sont généralisés par
+  décalage d'indice. Les règles, elles, ne parlent pas encore de petits
+  motifs : un concept ne peut pas dire « je crée cette configuration ».
+- La vérification d'un petit motif par 20 positions imaginées est une
+  épreuve, pas une preuve : il faut que le professeur joue le coup du motif
+  dans au moins la moitié d'entre elles, et que ce coup ne soit pire dans aucune.

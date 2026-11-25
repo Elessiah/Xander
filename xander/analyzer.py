@@ -7,6 +7,11 @@ avant et juste après l'appel, puis on teste des hypothèses codées en dur
 * tableau + 1 paramètre  -> la case d'indice / de valeur <param> a changé ?
 * tableau + 2 paramètres -> les cases <p1> et <p2> ont changé ?
 * nombre  + 1 paramètre  -> nombre -= / += / = <param> ?
+* tableau + 1 paramètre, sinon -> le paramètre désigne une *file* de cases
+  (``<param> + décalage``, puis ``+ pas`` à chaque fois) et c'est la première
+  case libre de la file qui change ? (gravité du Puissance 4, une pile, un tube…)
+  Le décalage et le pas ne sont pas donnés : l'Analyzer les mesure sur tous les
+  appels de la fonction (les cases changées par deux appels de même argument).
 
 Les variables comparées sont la valeur de retour de l'appel (INOUT) et
 celles des getters appelés juste après lui. Une même fonction pouvant être
@@ -69,6 +74,27 @@ def test_src_dest_target_name(prev, nxt, function: Function) -> bool:
     targets = {i for i, element in enumerate(prev)
                if any(_same(element, p, a) for p, a in zip(function.parameters[:2], function.arguments[:2]))}
     return _changed_exactly(prev, nxt, targets)
+
+
+def test_sequence_target_index(prev, nxt, argument, offset: int, step: int) -> bool:
+    """Une seule case a changé, et c'est la première case libre de la file ``argument +
+    offset``, ``+ step``… Une case libre est une case qui valait ce que valait la case changée
+    (au Puissance 4, une case vide) : le jeton n'a pas pu s'arrêter avant elle."""
+    if (not isinstance(argument, int) or isinstance(argument, bool) or not step
+            or len(prev) != len(nxt)):
+        return False
+    changed = [i for i in range(len(prev)) if prev[i] != nxt[i]]
+    if len(changed) != 1:
+        return False
+    target, free = changed[0], prev[changed[0]]
+    cell = argument + offset
+    while 0 <= cell < len(prev):
+        if cell == target:
+            return True
+        if prev[cell] == free:
+            return False
+        cell += step
+    return False
 
 
 def test_quantity(prev, nxt, function: Function) -> FunctionOperation | None:
@@ -162,15 +188,68 @@ class Analyzer:
     def run(self) -> AnalysisReport:
         acting = [f for f in self.parsed.player_functions()
                   if f.kind in (FunctionKind.INPUT, FunctionKind.INOUT)]
-        unknown = []
         for function in acting:
             function.operations = self.raw_operations(function)
-            if not function.operations:
-                unknown.append(function)
+        self.fit_sequences(acting)
+        unknown = [function for function in acting if not function.operations]
 
         operations = self.uniform_operations(acting)
         variables = self.define_getters_setters(operations)
         return AnalysisReport(self.observations, variables, operations, unknown)
+
+    def fit_sequences(self, acting: list[Function]) -> None:
+        """Pour une fonction à un paramètre dont l'argument ne désigne pas directement la case
+        changée : cherche le décalage et le pas d'une file qui expliquent la majorité de ses
+        appels (``SEQUENCE_TARGET_INDEX``).
+
+        Décalages essayés : case changée - argument. Pas essayés : l'écart entre les cases
+        changées par deux appels successifs de même argument. On garde la file qui explique
+        le plus d'appels, puis le plus petit décalage et le plus petit pas.
+        """
+        calls = Counter(function.name for function in acting)
+        for name in calls:
+            functions = [f for f in acting if f.name == name and len(f.parameters) == 1]
+            direct = sum(any(op.kind is FunctionOperation.SINGLE_TARGET_INDEX for op in f.operations)
+                         for f in functions)
+            if not functions or direct >= calls[name] * MAJORITY:
+                continue
+            seen: dict[str, list] = {}   # variable -> (appel, variable, avant, après, case changée)
+            for function in functions:
+                for variable, prev, nxt in self.compared_values(function):
+                    if not (isinstance(prev, list) and isinstance(nxt, list) and len(prev) == len(nxt)):
+                        continue
+                    changed = [i for i in range(len(prev)) if prev[i] != nxt[i]]
+                    observations = seen.setdefault(variable.name, [])
+                    if len(changed) == 1 and all(o[0] is not function for o in observations):
+                        observations.append((function, variable, prev, nxt, changed[0]))
+            for observations in seen.values():
+                self.fit_sequence(observations, calls[name])
+
+    @staticmethod
+    def fit_sequence(observations: list, nb_calls: int) -> None:
+        offsets = {cell - f.arguments[0] for f, _, _, _, cell in observations
+                   if isinstance(f.arguments[0], int) and not isinstance(f.arguments[0], bool)}
+        steps, last = set(), {}
+        for f, _, _, _, cell in observations:
+            argument = f.arguments[0]
+            if argument in last and last[argument] != cell:
+                steps.add(cell - last[argument])
+            last[argument] = cell
+        best = None
+        for offset in sorted(offsets):
+            for step in sorted(steps):
+                explained = [o for o in observations
+                             if test_sequence_target_index(o[2], o[3], o[0].arguments[0], offset, step)]
+                score = (-len(explained), abs(offset), abs(step))
+                if explained and (best is None or score < best[0]):
+                    best = (score, offset, step, explained)
+        if best is None or len(best[3]) < nb_calls * MAJORITY:
+            return
+        _, offset, step, explained = best
+        for function, variable, _, _, _ in explained:
+            operation = Operation(FunctionOperation.SEQUENCE_TARGET_INDEX, variable, (offset, step))
+            if operation not in function.operations:
+                function.operations.append(operation)
 
     @staticmethod
     def uniform_operations(acting: list[Function]) -> dict[str, list[Operation]]:
