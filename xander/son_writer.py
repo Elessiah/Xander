@@ -414,3 +414,112 @@ def load(source: str, name: str = "fils") -> types.ModuleType:
 def mind(knowledge: dict) -> types.ModuleType:
     """L'espace où la mère pense : sa perception du jeu (les quatre notions)."""
     return load(perception_source(knowledge), "mere")
+
+
+# --------------------------------------------------------------------------- #
+# Un fils qui joue seul (voir xander/un_joueur.py)
+# --------------------------------------------------------------------------- #
+
+def state_key(state):
+    """La clé d'un souvenir : l'état exact (une liste devient un tuple)."""
+    return tuple(state) if isinstance(state, list) else state
+
+
+def contains(state: list, motif: dict) -> bool:
+    """L'état contient-il ce petit motif ({case: valeur}) ?"""
+    return all(0 <= i < len(state) and state[i] == v for i, v in motif.items())
+
+
+def motif_text(motif: dict) -> str:
+    return "{" + ", ".join(f"{i}: {v!r}" for i, v in sorted(motif.items())) + "}"
+
+
+def solo_source(name: str, knowledge: dict, nb_games: int = 0) -> str:
+    """Le fils d'un jeu à un joueur : il lit l'état, reconnaît un souvenir ou un petit motif,
+    sinon joue le coup par défaut. Il ne regarde aucune position à l'avance (``VUES`` reste 0)."""
+    effect = knowledge["effect"]
+    valeur = effect is not None and effect.forme == effets.APRES
+    if valeur and knowledge["free"][0] != "toujours":
+        permises = f"""{effets.source(effect)}
+
+{permise_source(knowledge["free"])}
+
+def possibles(etat):
+    return [action for action in ACTIONS if permise(valeur_apres(etat, (action,)))]
+"""
+    else:
+        permises = f'''def possibles(etat):
+    """Les actions permises : {knowledge["free"]!r}, vu dans le labo."""
+    return list(ACTIONS)
+'''
+    motifs = "".join(f"    ({motif_text(m)}, {a!r}),\n" for m, a in knowledge.get("motifs", []))
+    return f'''"""Fils « {name} », écrit par la logique mère de Xander (jeu à un joueur).
+
+Leçon de l'exemple, puis {nb_games} partie(s) corrigée(s). Ce fichier ne contient
+que ce que la mère lui a appris ; il l'exécute sans jamais revenir en arrière.
+"""
+
+
+# --- Perception (écrite par la mère) -------------------------------------
+# L'action : {effect!r}
+# (décrite par la mère ; le fils ne s'en sert pas : il reconnaît, il ne prévoit pas).
+# Fin de partie : {knowledge.get("fin")} ; un coup est jugé sur {knowledge.get("horizon")} coup(s).
+
+ACTIONS = {knowledge["actions"]!r}  # acceptées par le jeu (essayées dans le labo)
+VUES = 0  # positions regardées à l'avance pendant le coup en cours (aucune)
+
+
+{permises}
+
+def contient(etat, motif):
+    """L'état contient-il ce petit motif ({{case: valeur}}) ?"""
+    return all(0 <= i < len(etat) and etat[i] == v for i, v in motif.items())
+
+
+# --- Ce que la mère lui a appris -------------------------------------------
+
+SOUVENIRS = {pformat(knowledge["memories"], width=100)}  # état exact -> coup
+
+MOTIFS = [
+{motifs}]  # petits motifs ({{case: valeur}}, coup), dans l'ordre appris
+
+
+def motif_de(etat):
+    """Le premier petit motif que contient l'état (None s'il n'y en a pas)."""
+    if not isinstance(etat, list):
+        return None
+    return next((motif for motif, _ in MOTIFS if contient(etat, motif)), None)
+
+
+# --- Squelette (écrit par la mère à la naissance) -----------------------
+
+GETTER, ACTION, FIN = {knowledge["getter"]!r}, {knowledge["action"]!r}, {knowledge["end_signal"]!r}
+HABITUEL = {knowledge.get("usual")!r}  # ce que l'action renvoie quand le coup est joué (vu dans l'exemple)
+
+
+def choisir(etat, moi=None):
+    """Mon coup et sa raison : souvenir, sinon petit motif, sinon défaut (la plus petite action)."""
+    global VUES
+    VUES = 0
+    cle = tuple(etat) if isinstance(etat, list) else etat
+    if cle in SOUVENIRS and SOUVENIRS[cle] in possibles(etat):
+        return SOUVENIRS[cle], "souvenir"
+    if isinstance(etat, list):
+        for motif, coup in MOTIFS:
+            if contient(etat, motif) and coup in possibles(etat):
+                return coup, "petit motif"
+    return min(possibles(etat)), "défaut"
+
+
+def play(game):
+    """Joue un tour : lit l'état, choisit, joue. Jamais de retour en arrière, et un seul
+    essai : essayer d'autres actions jusqu'à ce que le jeu en accepte une, ce serait tricher."""
+    etat = getattr(game, GETTER)()
+    coup, _ = choisir(etat)
+    resultat = getattr(game, ACTION)(coup)
+    if type(resultat) is type(FIN) and resultat == FIN:
+        return resultat
+    if type(resultat).__name__ != HABITUEL and getattr(game, GETTER)() == etat:
+        raise RuntimeError(f"coup impossible : le jeu a refusé {{coup!r}}")  # rien n'a changé
+    return resultat
+'''

@@ -18,6 +18,7 @@ from pathlib import Path
 
 from xander.analyzer import analyse
 from xander.education import Education
+from xander.un_joueur import Solo
 from xander.game_model import GameModel
 from xander.parser import parse_example
 from xander.rebuilder import PROJECT_ROOT, replay
@@ -50,14 +51,17 @@ class Mother:
                   seed: int = 0, on_game=None) -> Education:
         """Fait naître un fils (il ne sait rien), lui montre l'exemple, puis le corrige.
 
-        Sans ``teacher``, le fils ne reçoit que la leçon de l'exemple.
+        Sans ``teacher``, le fils ne reçoit que la leçon de l'exemple. Un jeu à un seul joueur
+        n'a pas de professeur : la mère juge chaque coup par ce qui arrive, dans son labo
+        (voir :mod:`xander.un_joueur`).
         """
         parsed, model = self.understand(example_path)
-        education = Education(parsed, model, teacher, seed)
+        solo = model.nb_players == 1
+        education = Solo(parsed, model, seed) if solo else Education(parsed, model, teacher, seed)
         lesson = education.first_lesson()
         if on_game:
             on_game(lesson)
-        if teacher is not None and nb_games:
+        if (solo or teacher is not None) and nb_games:
             education.train(nb_games, on_game)
         return education
 

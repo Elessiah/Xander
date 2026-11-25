@@ -313,9 +313,17 @@ class EffectExperimentTest(unittest.TestCase):
         self.assertEqual(puissance4.knowledge["actions"], list(range(7)))
 
     def test_unknown_action_is_an_error(self):
-        """Jumper : rien n'explique l'action, même avec le labo ; la mère le dit."""
+        """Une action qui mélange l'état : rien ne l'explique, même avec le labo ; la mère le dit.
+        (Jumper est maintenant décrit par un défilement : voir tests/test_un_joueur.py.)"""
+        turns = "".join("# player seul\nboard = game.get_game_state()  # array 8\n"
+                        f"board = game.play({k})  # array 8\n\n" for k in (1, 2, 1, 2, 1))
+        text = ("# include\nfrom tests.jeu_melange import Melange\n\n# init\ngame = Melange()  # game\n"
+                "board = game.init()  # array 8\n\n# back\nboard = game.back()  # array 8\n\n" + turns)
+        parsed, model = understood(text)
+        self.assertEqual(model.report.operations["game.play"], [])
+        from xander.un_joueur import Solo
         with self.assertRaises(LabError):
-            Mother().raise_son(RES / "exampleJumper.py")
+            Solo(parsed, model)
 
 
 class MotherTest(unittest.TestCase):
@@ -385,7 +393,7 @@ class MotherTest(unittest.TestCase):
 
     def test_turns_on_examples(self):
         for name, nb_turns in (("exampleMorpion.py", 5), ("exampleAllumettes.py", 5), ("examplePuissance4.py", 11),
-                                ("exampleJumper.py", 17)):
+                                ("exampleJumper.py", 73)):
             with self.subTest(name):
                 from xander.game_model import split_turns
                 turns = split_turns(parse_example(RES / name))

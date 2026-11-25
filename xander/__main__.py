@@ -5,6 +5,10 @@
 ``python -m xander res/exampleMorpion.py --prof Games.MinmaxMorpion:minmax_morpion_play --son morpion`` :
 la mère élève un fils en le corrigeant à chaque erreur, affiche sa courbe
 d'apprentissage et l'écrit dans ``output/sons/morpion.py``.
+
+``python -m xander res/exampleJumper.py --son jumper --parties 30`` : un jeu à un
+joueur n'a pas de professeur ; la mère juge chaque coup par ce qui arrive, dans
+son labo.
 """
 
 import argparse
@@ -16,6 +20,7 @@ from xander.lab import LabError
 from xander.mother import OUTPUT_DIR, Mother
 from xander.parser import ExampleSyntaxError
 from xander.rebuilder import ReplayError
+from xander.un_joueur import Solo
 
 
 def load_teacher(path: str):
@@ -35,6 +40,27 @@ def print_curve(records) -> None:
         block = games[start:start + 10]
         errors = sum(len(r.lessons) for r in block)
         print(f"  parties {block[0].number:>3}-{block[-1].number:<3} {'#' * errors:<20} {errors}")
+
+
+def print_solo(education: Solo, args) -> None:
+    """Le bilan d'une éducation à un joueur : fin, horizon, souvenirs et petits motifs."""
+    from xander.mother import render_son
+    from xander import son_writer
+    knowledge = education.knowledge
+    print(f"Actions : {knowledge['actions']} ({knowledge['free']}, vu dans le labo)")
+    print(f"Fin : {knowledge['fin']} (lu dans l'exemple) ; un coup est jugé sur {education.horizon} coup(s) "
+          f"(durées d'effet vues : {education.durations or 'aucune'})")
+    memories, motifs = knowledge["memories"], knowledge["motifs"]
+    print(f"Souvenirs (états exacts) : {len(memories)} ; petits motifs : {len(motifs)}")
+    for motif, move in motifs:
+        print(f"  {son_writer.motif_text(motif)} -> {move!r}")
+    print(f"Réflexion : au plus {education.max_views} position(s) regardée(s) à l'avance pour un coup")
+    print(f"Bilan sans correction : {education.evaluate()}")
+    if args.son:
+        path = OUTPUT_DIR / "sons" / f"{args.son}.py"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(render_son(args.son, education), encoding="utf-8")
+        print(f"\nFils écrit dans {path}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -63,6 +89,9 @@ def main(argv: list[str] | None = None) -> int:
         print_curve(education.records)
         knowledge = education.knowledge
         print(f"\nAction : {education.trials.describe()}")
+        if isinstance(education, Solo):
+            print_solo(education, args)
+            return 0
         if education.tableau:
             print(f"Motifs compris : {knowledge['patterns']}")
             print(f"Symétries : {len(knowledge['symmetries']) + 1} façon(s) de voir une position "
