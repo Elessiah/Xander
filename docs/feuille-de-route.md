@@ -122,7 +122,7 @@ le score n° 1 n'est pas comparable à ceux des examens suivants.
 | Un état qui est un nombre (Allumettes, misère) | fait : fin comprise par contre-épreuve, position qui porte le trait |
 | Un joueur seul (Jumper, Partition) | fait : juger un coup par ce qui arrive, état qui défile |
 | Actions à plusieurs arguments et valeur écrite (Nim, Hanoï, Compte est bon) | fait : action en tuple, valeur écrite par un petit programme, coup permis par des comparaisons |
-| Plus de deux joueurs (Morpion à trois) | **en cours** : PR de la branche `feature/plus-de-deux-joueurs` (voir « Reprendre le travail ») |
+| Plus de deux joueurs (Morpion à trois) | fait : ordre des joueurs lu dans l'exemple, `suivant(joueur)` au lieu d'`adversaire`, positions `M` / `A` / `B` |
 | Information cachée (Mastermind, Mot mystère) | à faire : bloc de cases écrites, hypothèses sur le secret |
 | Bulletin du fils (qualité, pas seulement victoire) | à faire : conçu ci-dessous, « Le bulletin du fils » |
 | Problèmes qui ne sont pas des jeux (une entrée, une sortie) | fait, première forme : 18 briques listées ; entraînement 52/55 (53 en deux essais), lot jamais vu 25/34 (jalon 1) |
@@ -175,7 +175,7 @@ après la PR #20).
 | Jumper, Partition | 1 | jusqu'au plafond sur 50 graines jamais vues, un petit motif | des règles pour un joueur seul |
 | Tours de Hanoï | 1 | range la pile en 7 coups dès la 5e partie | il a retenu un chemin : 15 positions de départ sur 27 seulement |
 | Le compte est bon | 1 | gagne le tirage du labo | 3 tirages jamais vus sur 100 : le labo rejoue un seul tirage, pas de « configuration » |
-| Morpion à trois | 3 | **en cours** (`feature/plus-de-deux-joueurs`) | voir la PR |
+| Morpion à trois | 3 | 24 alignements, 8 symétries, 4 règles construites (gagner, parer chacun des deux autres, menacer) ; 60 situations de mesure tenues sur 60 face au professeur à sa place | 304 souvenirs (surtout des ouvertures), environ 29 minutes pour 200 parties ; pas de fourchette propre à trois |
 | Mastermind, Mot mystère | 1 | trouve les actions, pas leur effet | un bloc de cases écrites, une information cachée |
 | Pylos 3×3 | 2 | décrit les trois actions | tour de longueur variable, plusieurs sortes d'actions, défaite « plus de coup » |
 | Problèmes entrée → sortie | 0 | lot jamais vu 25/34 | programmes plus grands (jalon 2), notions absentes |
@@ -188,9 +188,11 @@ l'éducation bloque) est dans `docs/jeux.md`. Commandes :
 
 ### Priorités pour la suite, dans l'ordre
 
-1. **Fusionner le Morpion à trois** : la branche `feature/plus-de-deux-joueurs`
-   a sa PR ou l'aura ; la relire comme ci-dessus, intégrer `main`, vérifier
-   la CI, fusionner, et reporter ses chiffres dans le tableau ci-dessus.
+1. **Vérifier le Morpion à trois après la fusion** (PR #22) : la mesure de
+   200 parties a été faite avant l'intégration de la PR #20 (60 sur 60),
+   celle d'après interrompue à 80 parties ; la comparaison avant / après du
+   Puissance 4 n'est pas faite ; le temps (environ 29 minutes) frôle la
+   limite d'un examen. Voir l'étape 6, « Reste à faire ».
 2. **Le bulletin du fils** (section suivante), d'abord comme mesure seule.
    C'est lui qui dira si les fils actuels ont compris ou seulement retenu.
 3. **Généraliser au lieu de retenir** : Hanoï depuis toute position, Le
