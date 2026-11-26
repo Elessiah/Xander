@@ -461,8 +461,8 @@ joué. Avant, le labo le prenait pour un refus et se désynchronisait du jeu.
    brique une fois : la complexité ne se cache pas dans une brique), cases
    fixées par les souvenirs et les petits motifs (les « ? » ne coûtent rien),
    et un coup par souvenir ou petit motif (un souvenir dit « ici » *et*
-   « jouer ce coup »). Un refactor est gardé s'il libère au moins un
-   souvenir et ne rallonge pas le fils, en comptant les règles qu'il rend
+   « jouer ce coup »). Un refactor est gardé s'il libère au moins **deux**
+   souvenirs et ne rallonge pas le fils, en comptant les règles qu'il rend
    inutiles (elles seront retirées) ; à taille égale, la règle est gardée :
    le rasoir ne départage pas, et une règle qui explique plusieurs cas dit
    quelque chose des positions jamais vues, un souvenir rien. Le concept doit
