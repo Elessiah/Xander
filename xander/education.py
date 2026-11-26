@@ -2055,11 +2055,6 @@ class Education:
             adopted = self.try_rules(parts, names, covering)
             if adopted is not None:
                 return adopted
-        parts = concepts.parties_et(concept)
-        if len(parts) > 1:  # « a et b » : sinon a, sinon b
-            adopted = self.try_rules([concept] + parts, names, covering)
-            if adopted is not None:
-                return adopted
         return self.try_rules([concept], names, covering)
 
     def try_rules(self, block: list, names: dict, covering: dict) -> str | None:
@@ -2070,13 +2065,7 @@ class Education:
         n'y a rien à parer, accepte tous les coups, donc ne choisit rien, et la victoire passe.
         Séparée en « a » puis « b », la première parle dès qu'elle peut. C'est pourquoi la mère
         essaie d'abord les parties d'un « ou » (:func:`concepts.parties_ou`), la plus immédiate
-        en premier.
-
-        **Une règle « a et b » se tait quand aucun coup ne fait les deux** : au Puissance 4,
-        « après mon coup, il n'a pas de menace et je n'en ai pas », quand une de mes menaces
-        reste quoi que je joue, ne choisit rien, et la parade passe. « a et b, sinon a, sinon b »
-        (:func:`concepts.parties_et`) parle dès qu'elle peut ; la mère l'essaie avant « a et b »
-        seule. Les cas restent les tests : si une partie fait mal jouer un cas, c'est refusé."""
+        en premier."""
         definitions = self.knowledge["concepts"]
         chosen, added = [], []
         for concept in block:

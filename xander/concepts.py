@@ -134,16 +134,6 @@ def parties_ou(c: Concept) -> list[Concept]:
     return sorted(trouvees, key=lambda x: (x.depth, x.size)) if len(trouvees) > 1 else trouvees
 
 
-def parties_et(c: Concept) -> list[Concept]:
-    """Les parties d'un « et » (``et(a, et(b, c))`` : a, b, c), rangées comme celles d'un « ou »
-    (:func:`parties_ou`) : du plus immédiat au plus lointain. Un concept qui n'en est pas un est
-    sa seule partie."""
-    def parties(x: Concept) -> list[Concept]:
-        return parties(x.args[0]) + parties(x.args[1]) if x.kind == "et" else [x]
-    trouvees = list(dict.fromkeys(parties(c)))
-    return sorted(trouvees, key=lambda x: (x.depth, x.size)) if len(trouvees) > 1 else trouvees
-
-
 # ---------------------------------------------------------------------- #
 # Évaluer un concept avec les quatre notions
 # ---------------------------------------------------------------------- #
