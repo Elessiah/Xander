@@ -25,6 +25,7 @@ from pathlib import Path
 
 from xander import examen
 from xander.rebuilder import PROJECT_ROOT
+from tests import lent
 
 RES = PROJECT_ROOT / "res"
 PETIT = examen.Budget(parties=2, graines=2, facteur=5000)
@@ -371,6 +372,7 @@ class TestMesure(DossierTemporaire):
                 examen.jouer(arbitre, examen.Situation(0, 0, "professeur"), examen.joueur_fils(fils), professeur)
 
 
+@lent
 class TestExamen(DossierTemporaire):
     """L'examen complet, dans des sous-processus, sur des problèmes d'essai."""
 

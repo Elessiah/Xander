@@ -200,7 +200,11 @@ de logiques pré-induites.
 - Claude répond **toujours en français** dans ce projet, même si on lui écrit
   dans une autre langue.
 - Python 3.10+, aucune dépendance.
-- Tests : `python -m unittest discover -s tests -t .`
+- CI locale (pas de CI GitHub) : `python ci.py`, environ 40 s, tout en
+  parallèle ; `python ci.py --complet` ajoute les tests lents (`@lent`, de
+  `tests/__init__.py`). Elle doit être verte avant chaque fusion. Un test
+  dont le temps ne vaut pas ce qu'il protège est marqué `@lent` ou retiré :
+  la CI rapide doit le rester.
 - Apprendre un exemple : `python -m xander res/exampleMorpion.py`
 - Doc : `docs/architecture.md` (fonctionnement), `docs/feuille-de-route.md`
   (état et prochaines étapes), `docs/format-exemple.md` (format des exemples).

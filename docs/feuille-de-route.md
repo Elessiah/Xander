@@ -139,7 +139,7 @@ après la PR #20), mis à jour le 2026-11-26.
 
 - **Une branche, une PR, puis fusion.** Jamais de push direct sur `main`.
   Claude fusionne lui-même ses PR et celles de ses sous-agents, sans demander,
-  **après relecture et CI verte** (`gh pr merge N --merge`) : c'est une
+  **après relecture et CI locale verte** (`python ci.py`, puis `gh pr merge N --merge`) : c'est une
   décision de l'utilisateur. Avant de pousser, fusionner `origin/main` dans
   la branche (merge, jamais rebase ni force-push).
 - **Des agents en parallèle, sur des fichiers disjoints.** Écrire un jeu
@@ -152,8 +152,9 @@ après la PR #20), mis à jour le 2026-11-26.
 - **Relire une PR** : aucun nom ni cas de jeu dans le code de `xander/` (les
   commentaires d'exemple sont permis), ce qui reste fourni à la main est
   listé, tout nouveau réglage est dans le tableau « Réglages fixés à la
-  main » avec son origine, toute la suite passe (environ 90 s, « Morpion
-  parfait à 200 parties » compris), et les chiffres annoncés sont mesurés.
+  main » avec son origine, `python ci.py` passe (environ 40 s, « Morpion
+  parfait à 200 parties » compris ; `--complet` si la PR touche à l'éducation
+  à plusieurs joueurs ou à l'examen), et les chiffres annoncés sont mesurés.
 - **Le fils ne triche jamais** (`CLAUDE.md`) : après ses 5 premières
   parties, aucun coup impossible, dans toute éducation et tout banc.
 - **Les examens blancs** se passent sur un dossier sous scellé **hors du
