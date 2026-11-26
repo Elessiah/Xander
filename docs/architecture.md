@@ -443,11 +443,31 @@ joué. Avant, le labo le prenait pour un refus et se désynchronisait du jeu.
    (section 8) vrai après le coup du professeur et faux après celui du fils
    dans **au moins deux** souvenirs. Elle l'essaie comme règle à chaque rang
    de priorité, du plus bas au plus haut. Le refactor est gardé si le fils
-   joue encore bien dans **tous** les cas (vérifié dans le labo), si au moins
-   deux souvenirs deviennent inutiles (ils sont oubliés) et si le fils reste
-   dans son budget de réflexion. Le concept devient une **brique** pour les
+   joue encore bien dans **tous** les cas (vérifié dans le labo), s'il libère
+   des souvenirs (ils sont oubliés) et devient **plus court** (le rasoir
+   d'Ockham, voir ci-dessous), et si le fils reste dans son budget de
+   réflexion. Le concept devient une **brique** pour les
    suivants. Enfin, elle retire les règles devenues inutiles (sans elles,
    tous les cas restent bien joués). Puis elle **réécrit le code du fils**.
+
+   **Le rasoir d'Ockham** — `xander/taille.py`. Entre deux fils qui jouent
+   aussi bien tous les cas enregistrés, la mère garde le plus court. La
+   taille est une longueur de description, la même que celle du bulletin
+   (§ 12) : nœuds des règles **et des briques dont elles dépendent** (chaque
+   brique une fois : la complexité ne se cache pas dans une brique), cases
+   fixées par les souvenirs et les petits motifs (les « ? » ne coûtent rien),
+   et un coup par souvenir ou petit motif (un souvenir dit « ici » *et*
+   « jouer ce coup »). Un refactor est gardé s'il libère au moins un
+   souvenir et ne rallonge pas le fils, en comptant les règles qu'il rend
+   inutiles (elles seront retirées) ; à taille égale, la règle est gardée :
+   le rasoir ne départage pas, et une règle qui explique plusieurs cas dit
+   quelque chose des positions jamais vues, un souvenir rien. Le concept doit
+   toujours expliquer au moins deux souvenirs (un seul cas peut être une
+   coïncidence). Une réduction en petit motif est toujours plus courte (elle
+   ne garde que les cases qui comptent) et ne fait rater aucun cas (`holds`
+   les rejoue) ; retirer une règle inutile ne rallonge jamais le fils. La
+   mère n'a jamais accès à la généralisation du bulletin, qui reste le juge
+   de ce critère (`docs/feuille-de-route.md`, « Le bulletin dans la mère »).
 7. **Motifs décalés, situations équivalentes** (section 7). Dès qu'elle
    comprend un nouveau motif, la mère l'essaie décalé partout, puis cherche
    les renumérotations des cases qui ne changent rien au jeu. Un souvenir
@@ -685,13 +705,17 @@ partie finit au même coup) :
    lui. Un coup qui vaut moins qu'un autre est une **erreur** : faire une
    erreur, revenir en arrière, voir que l'autre action survit. Chaque position
    revue devient un **cas** (avec la valeur de chaque coup).
-3. **Souvenir.** Dans cet état exact, jouer le meilleur coup (le plus petit à
-   égalité). Un petit motif qui avait décidé un mauvais coup est oublié.
+3. **Souvenir.** Dans cet état exact, jouer le meilleur coup. À issue égale,
+   celui qui donne la description la plus courte (`Solo.shortest` : celui qui
+   rejoint d'autres souvenirs dans un petit motif), puis le plus petit. Un
+   petit motif qui avait décidé un mauvais coup est oublié.
 4. **Petit motif.** Quand deux souvenirs (au moins) demandent le même coup, la
    mère cherche les cases (avec leur valeur) qu'ils ont en commun et qui
    suffisent : 1 case, puis 2 (au plus 20 000 essais), sinon elle oublie les
    cases une à une. Un motif tient si, partout où il apparaît dans les cas, le
-   coup est l'un des meilleurs, et s'il couvre au moins deux souvenirs. À
+   coup est l'un des meilleurs, s'il couvre au moins deux souvenirs et si le
+   fils devient plus court (`xander/taille.py` ; un motif commun à plusieurs
+   souvenirs l'est toujours). À
    taille égale, elle garde celui dont la présence annonce le mieux que le
    coup est nécessaire (la plus grande part des cas où il apparaît qui le
    confirment, comme le groupe témoin des jeux à deux). Puis elle vérifie que
@@ -1431,7 +1455,7 @@ vérifie que ce que sait la mère n'a pas changé. Rien ne revient vers elle.
 
 | Mesure | Calcul |
 |---|---|
-| Taille | nœuds des règles et des briques dont elles dépendent (chaque brique une fois) + cases fixées par les souvenirs (une position entière : toutes ses cases ; un petit motif : celles qui comptent ; une valeur : 1, un tuple : ses termes) |
+| Taille | `xander/taille.py`, la mesure de la mère : nœuds des règles et des briques dont elles dépendent (chaque brique une fois) + cases fixées par les souvenirs (une position entière : toutes ses cases ; un petit motif : celles qui comptent ; une valeur : 1, un tuple : ses termes) + un coup par souvenir ou petit motif |
 | Compression | cas enregistrés que le fils joue bien ÷ taille |
 | Origine des coups | sur des parties sans correction (à chaque place : une contre le professeur, dix contre le hasard ; seul : dix parties du labo), la part décidée par chaque règle, un petit motif, un souvenir, le coup par défaut |
 | Généralisation | jusqu'à 50 positions atteignables **jamais enregistrées** (à symétrie près), où le joueur au trait a le choix, tirées par le bulletin (en largeur depuis le début, au plus 2 000 positions, puis par des coups au hasard) ; à plusieurs, le coup du fils est-il aussi bon que celui du professeur (le professeur finit la partie de tous les côtés) ; seul, le fils joue jusqu'à la fin depuis la position et fait-il au moins aussi bien que le calcul de la mère (une victoire vaut plus que tout, plus tôt vaut mieux ; sinon la durée) |
