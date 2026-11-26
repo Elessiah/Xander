@@ -916,6 +916,21 @@ def think(possibles, apres, gagne, adversaire) -> dict:
 class ConceptsGenerauxTest(unittest.TestCase):
     """Le vocabulaire de la mère vaut pour d'autres jeux (gravité, quantité, Puissance 4)."""
 
+    def test_rules_filter_one_after_another(self):
+        """Une règle propose, elle ne tranche pas seule : la suivante choisit parmi les coups
+        qu'elle laisse (ici A garde 0 et 1, B garde 1 et 2 : il reste 1, pas le plus petit de A)."""
+        from types import SimpleNamespace
+        notions = SimpleNamespace(
+            possibles=lambda etat: [i for i in range(4) if etat[i] == "."],
+            apres=lambda etat, a, joueur: tuple("X" if i == a else v for i, v in enumerate(etat)),
+            gagne=lambda etat, joueur: any(etat[i] == "X" for i in ((0, 1) if joueur == "X" else (1, 2))),
+            suivant=lambda joueur: "O" if joueur == "X" else "X")
+        pensee = concepts.Pensee(notions)
+        a, b = concepts.brique("gagne", concepts.MOI), concepts.brique("gagne", concepts.LUI)
+        self.assertEqual(pensee.decision([a, b], tuple("...."), "X"), ({1}, 1))
+        self.assertEqual(pensee.decision([a], tuple("...."), "X"), ({0, 1}, 0))
+        self.assertEqual(pensee.decision([], tuple("...."), "X"), ({0, 1, 2, 3}, None))
+
     def test_concepts_are_general_gravity(self):
         """Le même texte vaut avec la gravité : un mini Puissance 4 (4 x 4, aligner 3)."""
         size = 4
