@@ -325,23 +325,40 @@ def echantillon(notions, depart, joueurs, nombre: int = 120, graine: int = 0) ->
     return resultat
 
 
-def cout(c: Concept, coups: float, definitions: dict, memo: dict | None = None) -> float:
-    """Au plus combien de positions le fils regarde pour savoir si ``c`` est vrai, quand chaque
-    position offre ``coups`` coups : rien pour ce qu'il voit (``gagne``, une perception), chacun
-    de ses coups et ce qui suit pour « au moins k de ses coups » (sans compter qu'il s'arrête au
-    premier faux, ou dès ses ``k`` coups). Se lit sur l'arbre du concept, sans rien imaginer."""
+def cout(c: Concept, coups: float, definitions: dict, memo: dict | None = None,
+         parts: dict | None = None) -> float:
+    """Combien de positions le fils regarde, en moyenne, pour savoir si ``c`` est vrai, quand
+    chaque position offre ``coups`` coups. Rien pour ce qu'il voit (``gagne``, une perception) ;
+    « au moins k de ses coups » : il examine ses coups jusqu'à en trouver ``k`` (environ ``k / p``
+    s'il est vrai après une part ``p`` des coups, au plus tous), et chacun coûte ce qui suit ;
+    « a et b » : il ne regarde b que si a est vrai. ``parts`` : la part des positions de
+    l'échantillon où chaque concept est vrai (ce que la mère sait déjà de lui ; une moitié si
+    elle ne le sait pas). Se lit sur l'arbre du concept, sans rien imaginer."""
     memo = {} if memo is None else memo
+    parts = {} if parts is None else parts
+
+    def part(x: Concept) -> float:
+        if x.id in parts:
+            return parts[x.id]
+        if x.kind == "non":
+            return 1 - part(x.args[0])
+        return 0.5
+
     if c.id not in memo:
         kind, args = c.kind, c.args
         if kind == "brique":
             nom = args[0]
-            valeur = cout(definitions[nom], coups, definitions, memo) if nom in definitions else 0.0
+            valeur = cout(definitions[nom], coups, definitions, memo, parts) if nom in definitions else 0.0
         elif kind == "non":
-            valeur = cout(args[0], coups, definitions, memo)
+            valeur = cout(args[0], coups, definitions, memo, parts)
         elif kind == "et":
-            valeur = cout(args[0], coups, definitions, memo) + cout(args[1], coups, definitions, memo)
+            valeur = (cout(args[0], coups, definitions, memo, parts)
+                      + part(args[0]) * cout(args[1], coups, definitions, memo, parts))
         else:
-            valeur = coups * (1 + cout(args[2], coups, definitions, memo))
+            k, _, x = args
+            p = part(x)
+            examines = min(coups, k / p) if p > 0 else coups
+            valeur = examines * (1 + cout(x, coups, definitions, memo, parts))
         memo[c.id] = valeur
     return memo[c.id]
 
@@ -358,24 +375,27 @@ def enumerer(pensee: Pensee, positions: list[tuple], taille_max: int = 5,
     **Ne pas penser à ce que le fils ne pourrait pas se permettre.** Avec un ``budget`` (les
     positions que le fils peut regarder par coup), la mère n'imagine même pas une règle qui lui
     coûterait en moyenne davantage : chacun de ses coups, puis le concept (:func:`cout`, avec le
-    nombre moyen de coups des ``positions``). C'est le budget qui dit jusqu'où penser, pas une
+    nombre moyen de coups des ``positions`` et la part des positions où chaque concept déjà
+    formé est vrai). C'est le budget qui dit jusqu'où penser, pas une
     profondeur : loin dans un jeu à trois coups par position, à peine au-delà d'un coup quand
     il y en a seize.
     """
     par_taille: dict[int, list[Concept]] = {t: [] for t in range(1, taille_max + 1)}
     signatures = set()
     couts: dict = {}
+    parts: dict = {}  # concept -> part des positions où il est vrai
     coups = sum(len(pensee.enfants(etat, moi)) for etat, moi in positions) / max(len(positions), 1)
 
     def essayer(c: Concept) -> None:
         if c.size > taille_max or c.depth > profondeur_max:
             return
-        if budget is not None and coups * (1 + cout(c, coups, pensee.definitions, couts)) > budget:
+        if budget is not None and coups * (1 + cout(c, coups, pensee.definitions, couts, parts)) > budget:
             return  # trop cher pour le fils : elle n'y pense pas
         signature = tuple(pensee.vrai(c, etat, moi) for etat, moi in positions)
         if signature in signatures or all(signature) or not any(signature):
             return
         signatures.add(signature)
+        parts[c.id] = sum(signature) / len(signature)
         par_taille[c.size].append(c)
 
     for nom in [GAGNE] + pensee.perceptions + list(pensee.definitions):
