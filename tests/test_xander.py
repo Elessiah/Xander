@@ -613,6 +613,68 @@ class EducationTest(unittest.TestCase):
                          sorted(s for s in true if sorted(s[c] for c in (1, 4, 7)) == [1, 4, 7]))
         self.assertEqual(len(teaching.knowledge["symmetries"]), 3)  # deux miroirs et le demi-tour
 
+    def test_explanation_of_a_case(self):
+        """« Pourquoi le coup du professeur valait-il mieux ? » L'explication d'un cas : des
+        concepts vrais après son coup et faux après celui du fils, les plus petits d'abord. Avec
+        une marge de 0, seulement ceux de la plus petite taille ; une marge plus grande les
+        allonge sans rien perdre (la mère reprend où elle s'était arrêtée). Un coup bien joué n'a
+        rien à expliquer."""
+        teaching = trained(200)
+        errors = [c for c in teaching.cases.values() if c.son_cell != c.teacher_cell]
+        pensee = teaching.pensee
+        teaching._explanations = {}
+        try:
+            explained = 0
+            for case in errors[:20]:
+                short = teaching.explanation(case, 0)
+                self.assertLessEqual(len({c.size for c in short}), 1)  # une seule taille
+                longer = teaching.explanation(case, 1)
+                self.assertEqual(longer[:len(short)], short)          # rien de perdu
+                everything = teaching.explanation(case)
+                self.assertEqual(everything[:len(longer)], longer)
+                for concept in everything:
+                    cells = pensee.choix(concept, case.state, case.me)
+                    self.assertIn(case.teacher_cell, cells)
+                    self.assertNotIn(case.son_cell, cells)
+                explained += bool(short)
+            self.assertGreater(explained, 0)
+            good = next(c for c in teaching.cases.values() if c.son_cell == c.teacher_cell)
+            self.assertEqual(teaching.explanation(good), [])
+        finally:
+            teaching._explanations = {}
+
+    def test_or_rule_is_split_most_immediate_first(self):
+        """« gagner ou parer » se lit non(et(non gagne(moi), il a un coup gagnant)) : ses parties,
+        la plus immédiate d'abord (gagner : aucun coup plus loin ; parer : un coup plus loin)."""
+        gagner = concepts.brique(concepts.GAGNE, MOI)
+        menace = concepts.au_moins(1, LUI, concepts.brique(concepts.GAGNE, LUI))
+        ou = concepts.non(concepts.et(concepts.non(gagner), menace))
+        self.assertEqual(concepts.parties_ou(ou), [gagner, concepts.non(menace)])
+        self.assertEqual(concepts.parties_ou(menace), [menace])  # pas un « ou » : une seule partie
+
+    def test_redundant_memory_is_forgotten(self):
+        """Un souvenir qui joue ce que les règles joueraient de toute façon est oublié ; celui sans
+        lequel un cas serait mal joué est gardé."""
+        teaching = trained(200)
+        memories, rules = teaching.knowledge["memories"], teaching.knowledge["rules"]
+        avant = dict(memories)
+        covering = teaching.covering()
+        case = next(c for c in teaching.cases.values() if covering[c.key] is None
+                    and teaching.good(c, teaching.decide(c.state, c.me, rules)))
+        memories[case.key] = teaching.decide(case.state, case.me, rules)  # redondant
+        teaching.rewrite()
+        try:
+            done = teaching.forget()
+            self.assertNotIn(case.key, memories)
+            self.assertTrue(any(case.key in d for d in done), done)
+            son = teaching.son  # …et chaque cas reste bien joué sans ce qui a été oublié
+            self.assertTrue(all(teaching.good(c, son.choisir(list(c.state), c.me)[0])
+                                for c in teaching.cases.values()))
+        finally:
+            memories.clear()
+            memories.update(avant)
+            teaching.rewrite()
+
     def test_views_counted_without_compiling(self):
         """La mère compte les positions que regarderait le fils avec sa pensée, sans écrire ni
         compiler un fils d'essai : le même nombre que le fils compilé, pour chaque ordre de règles."""

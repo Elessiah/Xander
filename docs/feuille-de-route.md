@@ -188,6 +188,13 @@ l'éducation bloque) est dans `docs/jeux.md`. Commandes :
 
 ### Priorités pour la suite, dans l'ordre
 
+**Fait (2026-11-26) : l'hypothèse vient de l'explication** (architecture,
+§ 6, « L'hypothèse vient de l'explication ») : explication par cas à marge
+croissante, élargissement des bornes, séparation des « ou », contre-exemples,
+oubli du redondant, budget tenu en partie. Reste : le souvenir qui passe
+avant « gagner », les défaites contre le professeur du Puissance 4, le coût
+de l'élargissement au Morpion à trois.
+
 1. ~~Vérifier le Morpion à trois après la fusion~~ : **fait** (2026-11-26).
    Morpion à trois et Puissance 4 identiques leçon pour leçon avant et après
    les PR #20 et #22 ; 200 parties de Morpion à trois en 340 s (voir
@@ -458,6 +465,9 @@ comparant des résultats.
 | Constantes retenues de chaque sorte | 8 | `effets.MAX_CONSTANTES` | a priori |
 | Expériences pour réfuter l'effet / parties d'exploration / nouvelles recherches / refus avant d'arrêter d'explorer | 40 / 8 / 3 / 2 | `EXPERIENCES`, `PARTIES_D_ESSAI`, `REPRISES`, `PATIENCE` | a priori |
 | Taille et profondeur d'un concept | 6 nœuds, 2 `AuMoins` | `Education.max_size`, `max_depth` | réglé au Morpion |
+| Élargissement des bornes quand un cas reste sans explication | 2 crans (chaque cran : un nœud et un niveau de plus) | `ELARGISSEMENTS`, `Education.wider` | a priori (un nœud et un niveau ensemble, pour ne pas choisir l'un d'après nos jeux) |
+| Contre-exemples rejoués d'abord | 20 | `CONTRE_EXEMPLES`, `Education.check` | sans effet sur ce qu'elle apprend (l'ordre de la vérification seulement) |
+| Parties d'un « ou » : la plus immédiate d'abord | profondeur croissante, puis taille | `concepts.parties_ou` | principe fourni à la main (régler d'abord ce qui arrive le plus tôt) |
 | k dans `AuMoins(k, …)` | 1 seulement | `Education.counts` | réglé au Morpion (tableau de `docs/architecture.md`, § 6) |
 | Positions imaginées pour départager des concepts | 120 | `concepts.echantillon` | a priori |
 | Autres coups adverses revus (variantes) | tous | `Education.variants` | réglé au Morpion (toute autre valeur y est pire) |
