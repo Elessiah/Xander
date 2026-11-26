@@ -23,7 +23,9 @@ suivant est l'adversaire. À trois, une parade peut dire **qui** elle pare : le
 suivant, qui joue juste après moi, ou ``lui2``, qui joue après lui.
 
 Une **règle** se lit « jouer une action après laquelle le concept est vrai ».
-Une règle qui accepte toutes les actions ne choisit rien : elle est ignorée.
+Une règle qui accepte toutes les actions ne choisit rien : elle est ignorée. Une règle propose,
+elle ne tranche pas seule : elle écarte des coups, et la suivante choisit parmi ceux qui restent
+(:meth:`Pensee.decision`).
 
 Exemples (que la mère doit trouver seule, ils ne sont écrits nulle part) :
 « jouer là où je gagne » est ``Brique(gagne, moi)`` ; « jouer là où il n'a plus

@@ -1161,7 +1161,16 @@ fait aussi le professeur à trois : il ne compte pas sur le suivant pour parer
 le troisième.
 
 Une règle se lit « jouer une action après laquelle le concept est vrai » ;
-une règle qui accepte toutes les actions ne choisit rien et est ignorée. La
+une règle qui accepte toutes les actions ne choisit rien et est ignorée.
+**Une règle propose, elle ne tranche pas seule** (jeux à plusieurs) : elle
+écarte des coups, et la suivante choisit parmi ceux qui restent
+(`Pensee.decision`) ; un seul coup restant, le fils ne regarde plus rien.
+Avant, la première règle qui écartait un coup décidait seule, par le plus
+petit numéro : au Puissance 4, « ne pas lui donner de gain » gardait 5 coups
+sur 7 et le fils jouait le premier, sans consulter ses autres règles. Au
+Morpion (200 parties) : taille 55 → 35, 4 → 2 souvenirs, 752 → 311 positions
+regardées, généralisation 46 → 48/50. Le fils à un joueur (`un_joueur`)
+garde l'ancien ordre. La
 mère énumère les arbres par taille croissante (jusqu'à 6 nœuds, 2 niveaux de
 `AuMoins`), et confond deux arbres qui disent la même chose sur un
 échantillon de positions imaginées : on garde le plus petit. Chaque concept
@@ -1208,8 +1217,9 @@ chaque correction, qui n'importe rien de Xander :
 2. **Règles** : les concepts qu'elle a construits et appris au fils, **et
    seulement ceux-là** (avec les briques dont ils dépendent), traduits en
    Python, `REGLES` dans l'ordre appris, `SOUVENIRS` et `SYMETRIES`.
-3. **Squelette** : `choisir` (souvenir, sinon première règle qui choisit,
-   sinon première action possible) et `play(game)`. C'est ici qu'on pourra
+3. **Squelette** : `choisir` (souvenir, sinon ses règles l'une après l'autre,
+   chacune filtrant les coups que laissent les précédentes, puis le plus petit
+   coup qui reste) et `play(game)`. C'est ici qu'on pourra
    plus tard transmettre l'expérience de ses frères.
 
 Le fils exécute son code bêtement : il ne simule que ce que ses règles
