@@ -1745,7 +1745,7 @@ class Education:
         if self._bank is None:
             self._bank_positions = concepts.echantillon(self.mind, self.start_position(), self.knowledge["marks"])
             self._bank = concepts.enumerer(self.pensee, self._bank_positions, self.max_size, self.max_depth,
-                                           self.counts, tuple(concepts.joueurs(self.n)))
+                                           self.counts, tuple(concepts.joueurs(self.n)), BUDGET)
         return self._bank
 
     def wider(self, level: int) -> list:
@@ -1761,7 +1761,7 @@ class Education:
             k = len(levels) + 1
             seen = {c.id for c in bank}.union(c.id for lower in levels for c in lower)
             found = concepts.enumerer(self.pensee, self._bank_positions, self.max_size + k, self.max_depth + k,
-                                      self.counts, tuple(concepts.joueurs(self.n)))
+                                      self.counts, tuple(concepts.joueurs(self.n)), BUDGET)
             levels.append([c for c in found if c.id not in seen])
         return levels[level - 1]
 

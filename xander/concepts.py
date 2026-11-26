@@ -322,21 +322,53 @@ def echantillon(notions, depart, joueurs, nombre: int = 120, graine: int = 0) ->
     return resultat
 
 
+def cout(c: Concept, coups: float, definitions: dict, memo: dict | None = None) -> float:
+    """Au plus combien de positions le fils regarde pour savoir si ``c`` est vrai, quand chaque
+    position offre ``coups`` coups : rien pour ce qu'il voit (``gagne``, une perception), chacun
+    de ses coups et ce qui suit pour « au moins k de ses coups » (sans compter qu'il s'arrête au
+    premier faux, ou dès ses ``k`` coups). Se lit sur l'arbre du concept, sans rien imaginer."""
+    memo = {} if memo is None else memo
+    if c.id not in memo:
+        kind, args = c.kind, c.args
+        if kind == "brique":
+            nom = args[0]
+            valeur = cout(definitions[nom], coups, definitions, memo) if nom in definitions else 0.0
+        elif kind == "non":
+            valeur = cout(args[0], coups, definitions, memo)
+        elif kind == "et":
+            valeur = cout(args[0], coups, definitions, memo) + cout(args[1], coups, definitions, memo)
+        else:
+            valeur = coups * (1 + cout(args[2], coups, definitions, memo))
+        memo[c.id] = valeur
+    return memo[c.id]
+
+
 def enumerer(pensee: Pensee, positions: list[tuple], taille_max: int = 5,
              profondeur_max: int = 2, comptes: tuple = (1, 2),
-             qui: tuple = (MOI, LUI)) -> list[Concept]:
+             qui: tuple = (MOI, LUI), budget: int | None = None) -> list[Concept]:
     """Les concepts distincts, du plus petit au plus grand. ``qui`` : les joueurs dont ils
     peuvent parler (voir :func:`joueurs`).
 
     Un concept qui dit la même chose qu'un plus petit sur ``positions``, ou qui
     y est toujours vrai (ou toujours faux), n'est pas gardé.
+
+    **Ne pas penser à ce que le fils ne pourrait pas se permettre.** Avec un ``budget`` (les
+    positions que le fils peut regarder par coup), la mère n'imagine même pas une règle qui lui
+    coûterait en moyenne davantage : chacun de ses coups, puis le concept (:func:`cout`, avec le
+    nombre moyen de coups des ``positions``). C'est le budget qui dit jusqu'où penser, pas une
+    profondeur : loin dans un jeu à trois coups par position, à peine au-delà d'un coup quand
+    il y en a seize.
     """
     par_taille: dict[int, list[Concept]] = {t: [] for t in range(1, taille_max + 1)}
     signatures = set()
+    couts: dict = {}
+    coups = sum(len(pensee.enfants(etat, moi)) for etat, moi in positions) / max(len(positions), 1)
 
     def essayer(c: Concept) -> None:
         if c.size > taille_max or c.depth > profondeur_max:
             return
+        if budget is not None and coups * (1 + cout(c, coups, pensee.definitions, couts)) > budget:
+            return  # trop cher pour le fils : elle n'y pense pas
         signature = tuple(pensee.vrai(c, etat, moi) for etat, moi in positions)
         if signature in signatures or all(signature) or not any(signature):
             return
