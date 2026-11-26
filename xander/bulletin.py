@@ -40,7 +40,7 @@ import random
 from dataclasses import dataclass, field
 
 from xander import son_writer, taille
-from xander.education import Education
+from xander.education import Education, par_defaut
 from xander.un_joueur import Solo
 
 #: Positions jamais vues tirées pour mesurer la généralisation ; coups au hasard au plus pour y
@@ -68,6 +68,7 @@ class Bulletin:
     cas: int = 0                       # cas enregistrés pendant l'éducation
     cas_bien_joues: int = 0
     origine: dict = field(default_factory=dict)       # raison -> coups
+    victoires_par_defaut: tuple = (0, 0)  # (victoires par défaut, victoires) des parties sans correction
     generalisation: tuple = (0, 0)     # (tenues, positions jamais vues)
     victoires: tuple | None = None     # un casse-tête : (gagnées par le fils, par la référence)
     solidite: dict = field(default_factory=dict)      # règle -> {"choisit", "bon", "decide"}
@@ -101,6 +102,10 @@ class Bulletin:
             parts = ", ".join(f"{raison} {n * 100 / total:.0f} %" for raison, n in
                               sorted(self.origine.items(), key=lambda x: (-x[1], x[0])))
             lignes.append(f"  Origine des coups ({total} coups sans correction) : {parts}")
+        par_defaut, gagnees = self.victoires_par_defaut
+        if gagnees:
+            lignes.append(f"  Victoires par défaut : {par_defaut} sur {gagnees} victoire(s) sans correction "
+                          f"(plus de la moitié des coups du fils joués par défaut : gagnées sans savoir pourquoi)")
         if vues:
             lignes.append(f"  Généralisation : {tenues} position(s) jamais vue(s) tenue(s) sur {vues} "
                           f"({tenues * 100 / vues:.0f} %)")
@@ -265,7 +270,10 @@ def bulletin_plusieurs(education: Education, nom: str, graine: int, positions: i
         for _, adversaire, nombre in adversaires:
             for place in range(education.n):
                 for _ in range(nombre):
-                    _, decisions = education.play_game(adversaire, place)
+                    issue_, decisions = education.play_game(adversaire, place)
+                    if issue_ == 1:
+                        n, g = b.victoires_par_defaut
+                        b.victoires_par_defaut = (n + par_defaut(decisions), g + 1)
                     moi = education.marks[place]
                     for _, etat, _, raison in decisions:
                         r = raison_du_fils(education, etat, moi, raison)

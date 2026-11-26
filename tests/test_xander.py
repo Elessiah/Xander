@@ -675,6 +675,34 @@ class EducationTest(unittest.TestCase):
             memories.update(avant)
             teaching.rewrite()
 
+    def test_victoire_par_defaut_mise_a_part(self):
+        """Une victoire où plus de la moitié des coups du fils sont des coups par défaut est
+        comptée à part, et ces coups par défaut ne deviennent pas des cas « bien joués »."""
+        from xander import education as module
+        defaut = [([], [], 0, "défaut")] * 3 + [([], [], 0, "concept_1")] * 2
+        moitie = [([], [], 0, "défaut")] * 2 + [([], [], 0, "concept_1")] * 2
+        self.assertEqual(module.resultat(1, defaut), module.PAR_DEFAUT)
+        self.assertEqual(module.resultat(1, moitie), "victoire")  # la moitié : pas plus
+        self.assertEqual(module.resultat(-1, defaut), "défaite")
+        teaching = trained(0)
+        teaching.lab.goto([])
+        state, me = teaching.position(), teaching.marks[0]
+        cell = min(teaching.mind.possibles(list(state)))
+        decisions = [([], list(state), cell, "défaut")]
+        avant = dict(teaching.cases)
+        try:
+            teaching.cases.clear()
+            self.assertEqual(teaching.review(decisions, 0, untrusted={()}), [])  # pas une erreur…
+            self.assertEqual(teaching.cases, {})  # …mais pas un cas bien joué non plus
+            teaching.cases.clear()
+            self.assertEqual(teaching.review(decisions, 0), [])
+            self.assertEqual(len(teaching.cases), 1)  # sans la garde, c'est un cas bien joué
+        finally:
+            teaching.cases.clear()
+            teaching.cases.update(avant)
+        score = teaching.evaluate(nb_random=2)
+        self.assertEqual(set(score["hasard"]), {"victoire", module.PAR_DEFAUT, "nul", "défaite"})
+
     def test_views_counted_without_compiling(self):
         """La mère compte les positions que regarderait le fils avec sa pensée, sans écrire ni
         compiler un fils d'essai : le même nombre que le fils compilé, pour chaque ordre de règles."""
