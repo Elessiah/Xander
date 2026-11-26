@@ -549,6 +549,22 @@ plus `ELARGISSEMENTS` = 2 crans). C'est là qu'elle trouve, au Puissance 4,
 « après mon coup, aucun de ses coups ne m'empêche de parer » : se garder des
 fourchettes.
 
+**Ne pas penser à ce que le fils ne pourrait pas se permettre.** La recherche
+de concepts est bornée par le **budget du fils**, pas seulement par une
+profondeur (`concepts.cout`, `enumerer(…, budget)`) : une règle qui lui
+coûterait en moyenne plus que tout son budget (chacun de ses coups, puis le
+concept ; « au moins k de ses coups » multiplie par le nombre moyen de coups
+des positions de l'échantillon) n'est même pas imaginée. Le coût se lit sur
+l'arbre du concept, sans rien calculer. Ainsi la profondeur dépend du jeu :
+loin au Nim (trois coups par position), à peine au-delà d'un coup au Morpion
+à trois (seize cases). Sans cette borne, l'élargissement au Morpion à trois
+(taille 8, profondeur 4 : jusqu'à 16⁴ positions imaginées pour chacune des
+120 positions de l'échantillon) a rempli 31 Go : la mère pensait des
+concepts que le fils n'aurait jamais eu le droit d'utiliser. Sa mémoire de
+travail est aussi plafonnée (`concepts.MEMOIRE_MAX`, un cache vidé quand il
+est plein), comme garde-fou, mais c'est la borne par le budget qui règle le
+problème.
+
 **Séparer les « ou ».** Une règle « a ou b » se tait quand b est vrai
 partout : « gagner ou parer », quand il n'y a rien à parer, accepte tous les
 coups, donc ne choisit rien, et la victoire passe (41 victoires ratées sur
