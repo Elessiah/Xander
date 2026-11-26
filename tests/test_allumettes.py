@@ -166,7 +166,7 @@ class AllumettesTest(unittest.TestCase):
         self.assertEqual(faults, [])
         self.assertEqual(defeats, {"X": 0, "O": 1})
         score = teaching.evaluate(20)
-        self.assertEqual(score["professeur"], {"victoire": 1, "nul": 0, "défaite": 1})
+        self.assertEqual(score["professeur"], {"victoire": 1, "victoire par défaut": 0, "nul": 0, "défaite": 1})
         self.assertLessEqual(teaching.max_views, BUDGET)
 
     def test_no_impossible_move_after_five_games(self):

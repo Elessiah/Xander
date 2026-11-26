@@ -439,6 +439,16 @@ joué. Avant, le labo le prenait pour un refus et se désynchronisait du jeu.
    position, jouer le coup du professeur). Chaque position revue devient un
    **cas** : les cas sont les tests des refactors (une position bien jouée est
    un test de non-régression).
+   **Garde-fou : une victoire par défaut.** Une partie gagnée où plus de la
+   moitié des coups du fils sont des coups par défaut (aucune règle ni aucun
+   souvenir ne les a choisis, `PART_DEFAUT`) est notée « victoire par
+   défaut », à part des vraies victoires (journal, `evaluate`, bulletin) ; ses
+   coups par défaut ne deviennent pas des cas bien joués : il a gagné sans
+   savoir pourquoi, ce n'est pas une preuve.
+   Mesuré (graine 0) : contre le hasard, 59 des 94 victoires du Puissance 4
+   (10 parties) sont des victoires par défaut, 25 sur 97 aux Allumettes,
+   33 sur 97 aux Allumettes misère ; ce que la mère apprend ne change pas
+   (Morpion, Allumettes, Nim, Puissance 4 : mêmes règles, souvenirs, taille).
 6. **Refactoriser.** Après chaque partie, la mère cherche le plus petit concept
    (section 8) vrai après le coup du professeur et faux après celui du fils
    dans **au moins deux** souvenirs (le détail : « L'hypothèse vient de
@@ -1603,6 +1613,7 @@ vérifie que ce que sait la mère n'a pas changé. Rien ne revient vers elle.
 | Compression | cas enregistrés que le fils joue bien ÷ taille |
 | Origine des coups | sur des parties sans correction (à chaque place : une contre le professeur, dix contre le hasard ; seul : dix parties du labo), la part décidée par chaque règle, un petit motif, un souvenir, le coup par défaut |
 | Généralisation | jusqu'à 50 positions atteignables **jamais enregistrées** (à symétrie près), où le joueur au trait a le choix, tirées par le bulletin (en largeur depuis le début, au plus 2 000 positions, puis par des coups au hasard) ; à plusieurs, le coup du fils est-il aussi bon que celui du professeur (le professeur finit la partie de tous les côtés) ; seul, le fils joue jusqu'à la fin depuis la position et fait-il au moins aussi bien que le calcul de la mère (une victoire vaut plus que tout, plus tôt vaut mieux ; sinon la durée) |
+| Victoires par défaut | parmi les victoires de ces parties, celles où plus de la moitié des coups du fils sont des coups par défaut |
 | Solidité des règles | pour chaque règle, les cas où elle choisirait (pas tous les coups), ceux où son coup est bon, ceux où elle décide chez le fils |
 | Budget | positions regardées au plus pour un coup (mesuré par l'éducation) |
 | Stabilité | `stabilite(eleve, graines)` : les règles trouvées selon la graine de l'éducation (à part : coûte une éducation par graine) |

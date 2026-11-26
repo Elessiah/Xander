@@ -93,6 +93,29 @@ from xander.concepts import MOI
 
 RESULTS = {1: "victoire", 0: "nul", -1: "défaite"}
 
+# Une victoire où plus de cette part des coups du fils sont des coups par défaut (aucune règle ni
+# aucun souvenir ne les a choisis) ne prouve rien : il a gagné sans savoir pourquoi. Elle est
+# comptée à part (« victoire par défaut ») et ses coups par défaut ne deviennent pas des cas
+# « bien joués » (consigne : une victoire par défaut ne doit pas être un bon entraînement).
+PART_DEFAUT = 0.5
+PAR_DEFAUT = "victoire par défaut"
+
+
+def coups_par_defaut(decisions: list) -> int:
+    """Combien de coups du fils sont des coups par défaut (``decisions`` : (coups, état, action,
+    raison))."""
+    return sum(1 for *_, reason in decisions if reason == "défaut")
+
+
+def par_defaut(decisions: list) -> bool:
+    """Plus de :data:`PART_DEFAUT` des coups du fils sont des coups par défaut ?"""
+    return bool(decisions) and coups_par_defaut(decisions) > PART_DEFAUT * len(decisions)
+
+
+def resultat(result: int, decisions: list) -> str:
+    """Le nom du résultat d'une partie : une victoire par défaut est mise à part."""
+    return PAR_DEFAUT if result == 1 and par_defaut(decisions) else RESULTS[result]
+
 
 def issue(winner: int | None, side: int) -> int:
     """Ce que vaut une fin pour le joueur à la place ``side`` : la victoire de l'un est une
@@ -180,10 +203,14 @@ class GameRecord:
     refactors: list[str] = field(default_factory=list)       # souvenirs remplacés par une règle
     impossibles: list[str] = field(default_factory=list)     # coups du fils refusés par le jeu
     over_budget: int = 0                                     # positions où il a trop calculé (à reconnaître)
+    defaults: int = 0                                        # coups du fils joués par défaut
+    son_moves: int = 0                                       # coups du fils dans la partie
 
     def __str__(self) -> str:
         text = f"partie {self.number:>3} | fils {self.son_side} contre {self.opponent:<10} : {self.result:<8}"
         text += f" | {len(self.lessons)} erreur(s)"
+        if self.defaults:
+            text += f" | {self.defaults}/{self.son_moves} coup(s) par défaut"
         if self.impossibles:
             text += f" | {len(self.impossibles)} coup(s) impossible(s)"
         if self.over_budget:
@@ -1384,7 +1411,11 @@ class Education:
         else:
             self.max_views = max(self.max_views, self.son.VUES)
 
-    def review(self, decisions: list, son_side: int) -> list[Lesson]:
+    def review(self, decisions: list, son_side: int, untrusted: set | None = None) -> list[Lesson]:
+        """Revoit chaque coup du fils contre celui du professeur : une erreur devient un souvenir,
+        un bon coup un cas (un test des refactors). Les coups de ``untrusted`` (les coups par
+        défaut d'une victoire par défaut) ne deviennent pas des cas : gagner sans savoir pourquoi
+        ne prouve pas que le coup était compris."""
         lessons = []
         me = self.marks[son_side]
         for moves, state, son_cell, reason in decisions:
@@ -1396,6 +1427,8 @@ class Education:
                 continue
             if teacher_cell == son_cell or not self.better(moves, teacher, son_cell, son_side):
                 key = self.mind.cle(list(state), me)
+                if untrusted and tuple(map(tuple, moves)) in untrusted:
+                    continue
                 if key not in self.cases:  # bien joué : la position reste un test pour les refactors
                     self.cases[key] = Case(list(moves), list(state), me, key, son_cell, teacher_cell)
                 continue
@@ -2159,7 +2192,10 @@ class Education:
             shifted = [] if self._shapes_known or not self.tableau else self.shift_patterns()
             symmetry = None if self._symmetries_known or not self.tableau else self.discover_symmetries()
             result, decisions = self.play_game(opponent, side)
-            record = GameRecord(len(self.records), name, str(self.marks[side]), RESULTS[result])
+            record = GameRecord(len(self.records), name, str(self.marks[side]), resultat(result, decisions))
+            record.defaults, record.son_moves = coups_par_defaut(decisions), len(decisions)
+            untrusted = ({tuple(map(tuple, m)) for m, _, _, reason in decisions if reason == "défaut"}
+                         if record.result == PAR_DEFAUT else None)
             record.impossibles = self.impossibles
             record.refactors += shifted
             if symmetry:
@@ -2167,7 +2203,7 @@ class Education:
             imagined = self.variations(decisions, side)
             record.over_budget = len(self.over_budget)
             record.refactors += self.economize()  # trop calculé : une façon moins chère de penser ?
-            record.lessons = self.review(decisions + imagined, side)
+            record.lessons = self.review(decisions + imagined, side, untrusted)
             self.over_budget = {}
             if record.lessons:
                 record.refactors += self.refactor()
@@ -2186,10 +2222,10 @@ class Education:
         scores = {}
         for name, opponent, games in (("professeur", self.teacher, self.n),
                                       ("hasard", self.random_player(random.Random(1)), nb_random)):
-            score = {"victoire": 0, "nul": 0, "défaite": 0}
+            score = {"victoire": 0, PAR_DEFAUT: 0, "nul": 0, "défaite": 0}
             for number in range(games):
-                result, _ = self.play_game(opponent, self.seat(number))
-                score[RESULTS[result]] += 1
+                result, decisions = self.play_game(opponent, self.seat(number))
+                score[resultat(result, decisions)] += 1
             scores[name] = score
         self.discovered = []
         return scores
