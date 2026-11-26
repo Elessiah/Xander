@@ -55,9 +55,13 @@ class TailleTest(unittest.TestCase):
         self.assertEqual(B.bulletin(e, "misère").taille, T.taille(e.knowledge))
         # Rien de plus court que ce qu'elle sait, à cas égaux : rien à libérer, pas de nouvelle règle
         self.assertFalse(e.shorter(list(e.knowledge["rules"]), []))  # un refactor libère des souvenirs
-        # Libérer un souvenir sans rien ajouter raccourcit toujours le fils
-        if e.knowledge["memories"]:
-            self.assertTrue(e.shorter(list(e.knowledge["rules"]), list(e.knowledge["memories"])[:1]))
+        # Libérer des souvenirs sans rien ajouter raccourcit toujours le fils ; un seul ne suffit
+        # pas (une règle remplace plusieurs souvenirs, sinon une coïncidence)
+        memories = list(e.knowledge["memories"])
+        if memories:
+            self.assertFalse(e.shorter(list(e.knowledge["rules"]), memories[:1]))
+        if len(memories) >= 2:
+            self.assertTrue(e.shorter(list(e.knowledge["rules"]), memories[:2]))
 
 
 if __name__ == "__main__":
