@@ -276,6 +276,18 @@ class EducationMorpion3Test(unittest.TestCase):
         self.assertLessEqual(teaching.max_views, BUDGET)
         self.assertTrue(teaching.knowledge["rules"])  # des règles qu'elle a construites
 
+    def test_every_case_still_well_played(self):
+        """« Les souvenirs sont les tests » : à trois, le professeur départage ses coups dans un
+        ordre fixe de cases, si bien que deux positions symétriques n'ont pas toujours la même
+        issue. La mère revérifie les cas après chaque correction : le fils joue bien chacun."""
+        from xander.bulletin import intact
+        teaching = education(9)
+        son = teaching.son
+        with intact(teaching):
+            mauvais = [c.key for c in teaching.cases.values()
+                       if not teaching.good(c, son.choisir(list(c.state), c.me)[0])]
+        self.assertEqual(mauvais, [])
+
 
 if __name__ == "__main__":
     unittest.main()

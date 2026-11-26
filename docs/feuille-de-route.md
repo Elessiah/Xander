@@ -254,18 +254,22 @@ bien joués par le fils final. Cause trouvée : chacun est décidé par le
 souvenir d'une position **symétrique**, enregistré plus tard, et à trois les
 positions symétriques n'ont pas la même valeur quand le professeur finit la
 partie (max^n départage dans un ordre fixe de cases, qui n'est pas
-symétrique : dans l'une, un coup gagne ; dans l'autre, aucun). Une correction
-ajoute un souvenir sans revérifier les cas qu'il couvre par symétrie (seuls
-les refactors revérifient tout) ; et au Compte est bon, la généralisation ne veut
-rien dire tant que le labo rejoue un seul tirage.
+symétrique : dans l'une, un coup gagne ; dans l'autre, aucun). **Réglé** (2026-11-26) : après les
+corrections de chaque partie, la mère revérifie chaque cas que décide un
+souvenir (`Education.recheck`) ; un souvenir démenti par un cas laisse à ce
+cas son propre souvenir (architecture, § 7). L'autre piste (ne garder une
+symétrie que si le professeur la respecte) a été mesurée et écartée : sur 37
+positions de sonde, max^n dément chacune des 7 symétries de 1 à 7 fois, la
+mère les perdrait toutes. Après le changement : Morpion à trois 3 143 cas
+bien joués sur 3 143 (333 leçons au lieu de 337, 306 souvenirs au lieu de
+302, généralisation inchangée 41/50, 442 s) ; Morpion et Puissance 4
+identiques (la revérification n'y trouve rien). Et au Compte est bon, la
+généralisation ne veut rien dire tant que le labo rejoue un seul tirage.
 
 **Reste à faire** : l'écrire dans le rapport du lanceur d'examen ; la
-stabilité en ligne de commande ; **décider** pour les 4 cas cassés du Morpion
-à trois (à l'utilisateur) : revérifier, après chaque correction, les cas que
-couvre le nouveau souvenir (« les souvenirs sont les tests »), et s'ils se
-contredisent, ne pas étendre ce souvenir par symétrie ; ou ne garder une
-symétrie que si le professeur la respecte aussi (à deux, le minimax la
-respecte ; à trois, max^n non).
+stabilité en ligne de commande ; au Puissance 4 (10 parties), 1 cas sur 499
+est mal joué par le fils final, décidé par une règle ou le coup par défaut
+et non par un souvenir (déjà avant la revérification) : à comprendre.
 
 Conception d'origine :
 

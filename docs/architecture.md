@@ -846,6 +846,23 @@ sa position sous chacune des 8 façons de la voir, et renumérote le coup
 retenu. Un refactor compte deux positions équivalentes comme un seul
 souvenir.
 
+**Une symétrie du jeu n'est pas toujours une symétrie du professeur.** Le
+labo vérifie que le jeu se joue de la même façon renuméroté, pas que le
+professeur y joue de la même façon. À trois, max^n départage les coups
+d'égale valeur dans un ordre fixe de cases : deux positions symétriques
+n'ont pas toujours la même issue quand il finit la partie (mesuré sur 37
+positions de sonde : chacune des 7 symétries est démentie de 1 à 7 fois).
+Ne garder que les symétries qu'il respecte ferait perdre toutes celles du
+carré. La mère garde donc la symétrie comme règle générale et note les
+exceptions : après les corrections de chaque partie, elle **revérifie**
+(`Education.recheck`) chaque cas enregistré que décide un souvenir (une
+position équivalente ou un petit motif) ; si ce souvenir y fait mal jouer, le
+cas devient son propre souvenir, que le fils trouve avant les images des
+autres (il regarde d'abord la position telle quelle). C'est la règle « les
+souvenirs sont les tests », appliquée à chaque correction et non plus
+seulement aux refactors. À deux, le minimax respecte les symétries du
+Morpion et la revérification ne trouve rien.
+
 ### Petits motifs : ce qui comptait, reconnu partout
 
 Un maître d'échecs ne retient pas des positions entières : il reconnaît des
