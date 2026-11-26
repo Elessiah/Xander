@@ -738,9 +738,9 @@ dans le cycle (voir `docs/architecture.md`, § 6 et § 8). Rien n'est propre à
 ce jeu dans `xander/`.
 
 **Éducation** (`--prof Games.MaxnMorpion3:maxn_morpion3_play --son morpion3
---parties 200`, graine 0, mesurée avant la fusion des actions à plusieurs
-arguments ; après la fusion, les 80 premières parties suivent le même
-rythme, la mesure complète n'a pas été refaite) :
+--parties 200`, graine 0 ; mesurée avant la fusion des actions à plusieurs
+arguments, puis refaite sur `main` après la fusion des PR #20 et #22 : les
+200 parties sont identiques leçon pour leçon, ainsi que la mesure) :
 
 - Leçon de l'exemple : pions `X`, `O`, `Z` et le motif `[6, 9, 12]` par
   contre-épreuve. Dans les toutes premières parties (moins de 10), motifs
@@ -765,10 +765,16 @@ rythme, la mesure complète n'a pas été refaite) :
   chacun des deux autres peut boucher).
 - 0 coup impossible (ni avant, ni après la 5e partie).
 - Au plus **784 positions** regardées pour un coup (budget : 1 000).
-- Durée : **1 717 s** (environ 29 minutes) pour 200 parties, dont deux tiers
-  dans les refactors (`refactor_once` : `views` et `check` rejouent tous les
-  cas, qui grossissent avec les souvenirs). C'est à la limite de temps d'un
-  examen blanc (environ 30 minutes, mesure comprise).
+- Durée : **340 s** (moins de 6 minutes) pour 200 parties sur `main`, seule
+  sur une machine où la tâche de référence de l'examen prend 45 ms (limite
+  d'un problème : 20 000 fois, soit 15 minutes). La première mesure, 1 717 s
+  (environ 29 minutes), avait été prise sur l'ancienne machine (tâche de
+  référence d'environ 90 ms) pendant que d'autres éducations tournaient : en
+  unités de la tâche de référence, environ 7 500 aujourd'hui contre 19 000
+  alors. Lors de la première mesure, deux tiers du temps étaient dans les
+  refactors (`refactor_once` : `views` et `check` rejouent tous les cas, qui
+  grossissent avec les souvenirs) : c'est ce qui coûtera quand les souvenirs
+  s'accumuleront.
 
 **Mesure** (protocole de `xander/examen.py` : 10 graines par place et par
 sorte d'adversaires, chaque situation jouée par le fils puis par le
@@ -790,4 +796,4 @@ servi au développement.
 d'ouverture (petits motifs qui tiennent rarement sur 16 cases) et une
 tactique propre à trois (fourchette qui résiste aux deux autres) ; des
 variantes qui revoient aussi le coup de l'avant-dernier joueur ; et le temps
-(les refactors coûtent cher quand les souvenirs s'accumulent).
+des refactors, qui croît avec les souvenirs.

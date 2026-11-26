@@ -133,7 +133,7 @@ le score n° 1 n'est pas comparable à ceux des examens suivants.
 ## Reprendre le travail
 
 Pour l'agent qui prend la relève. État au soir du 2026-11-25 (`main`
-après la PR #20).
+après la PR #20), mis à jour le 2026-11-26.
 
 ### Méthode de travail
 
@@ -175,7 +175,7 @@ après la PR #20).
 | Jumper, Partition | 1 | jusqu'au plafond sur 50 graines jamais vues, un petit motif | des règles pour un joueur seul |
 | Tours de Hanoï | 1 | range la pile en 7 coups dès la 5e partie | il a retenu un chemin : 15 positions de départ sur 27 seulement |
 | Le compte est bon | 1 | gagne le tirage du labo | 3 tirages jamais vus sur 100 : le labo rejoue un seul tirage, pas de « configuration » |
-| Morpion à trois | 3 | 24 alignements, 8 symétries, 4 règles construites (gagner, parer chacun des deux autres, menacer) ; 60 situations de mesure tenues sur 60 face au professeur à sa place | 304 souvenirs (surtout des ouvertures), environ 29 minutes pour 200 parties ; pas de fourchette propre à trois |
+| Morpion à trois | 3 | 24 alignements, 8 symétries, 4 règles construites (gagner, parer chacun des deux autres, menacer) ; 60 situations de mesure tenues sur 60 face au professeur à sa place | 304 souvenirs (surtout des ouvertures), 340 s pour 200 parties ; pas de fourchette propre à trois |
 | Mastermind, Mot mystère | 1 | trouve les actions, pas leur effet | un bloc de cases écrites, une information cachée |
 | Pylos 3×3 | 2 | décrit les trois actions | tour de longueur variable, plusieurs sortes d'actions, défaite « plus de coup » |
 | Problèmes entrée → sortie | 0 | lot jamais vu 25/34 | programmes plus grands (jalon 2), notions absentes |
@@ -188,13 +188,12 @@ l'éducation bloque) est dans `docs/jeux.md`. Commandes :
 
 ### Priorités pour la suite, dans l'ordre
 
-1. **Vérifier le Morpion à trois après la fusion** (PR #22) : la mesure de
-   200 parties a été faite avant l'intégration de la PR #20 (60 sur 60),
-   celle d'après interrompue à 80 parties ; la comparaison avant / après du
-   Puissance 4 n'est pas faite ; le temps (environ 29 minutes) frôle la
-   limite d'un examen. Voir l'étape 6, « Reste à faire ».
-2. **Le bulletin du fils** (section suivante), d'abord comme mesure seule.
-   C'est lui qui dira si les fils actuels ont compris ou seulement retenu.
+1. ~~Vérifier le Morpion à trois après la fusion~~ : **fait** (2026-11-26).
+   Morpion à trois et Puissance 4 identiques leçon pour leçon avant et après
+   les PR #20 et #22 ; 200 parties de Morpion à trois en 340 s (voir
+   l'étape 6).
+2. ~~Le bulletin du fils, comme mesure seule~~ : **fait** (2026-11-26, section
+   suivante). Il confirme que Hanoï a retenu et que le Morpion a compris.
 3. **Généraliser au lieu de retenir** : Hanoï depuis toute position, Le
    compte est bon sur des tirages jamais vus. Il faut que le labo varie
    l'état de départ (d'autres tirages, d'autres positions) et que la mère
@@ -225,7 +224,50 @@ logique qui explique tous les cas (le refactor), des configurations
 reconnues plutôt que des positions entières (Chase et Simon). Un bulletin
 automatique dit, pour chaque fils, s'il a compris ou s'il a retenu.
 
-### 1. Le bulletin, une mesure pour nous (à faire d'abord)
+### 1. Le bulletin, une mesure pour nous : **fait** (2026-11-26)
+
+`xander/bulletin.py`, `--bulletin` en ligne de commande, tests dans
+`tests/test_bulletin.py` ; fonctionnement dans `docs/architecture.md`, § 12.
+Premiers bulletins (graine 0 ; « général. » : positions jamais vues tenues) :
+
+| Jeu (parties) | Taille (nœuds + cases) | Compression | Coups décidés par une règle / un motif ou souvenir / le défaut | Général. |
+|---|---|---|---|---|
+| Morpion (200) | 81 (10 + 71) | 3,84 | 64 % / 23 % / 13 % | 49/50 |
+| Morpion à trois (200) | 4 865 (7 + 4 858) | 0,65 | 61 % / 21 % / 17 % | 41/50 |
+| Allumettes (200) | 5 (5 + 0) | 1,80 | 48 % / 0 % / 52 % | toutes vues |
+| Allumettes misère (200) | 6 (4 + 2) | 1,67 | 15 % / 25 % / 61 % | toutes vues |
+| Nim (200) | 104 (11 + 93) | 0,81 | 38 % / 32 % / 29 % | 19/35 |
+| Nim misère (200) | 118 (10 + 108) | 0,72 | 30 % / 51 % / 19 % | 17/34 |
+| Jumper (30) | 1 (0 + 1) | 322 | 0 % / 12 % / 88 % | 4/4 |
+| Partition (30) | 1 (0 + 1) | 300 | 0 % / 38 % / 62 % | toutes vues |
+| Hanoï (30) | 21 (0 + 21) | 2,19 | 0 % / 57 % / 43 % | 3/15 (la mère gagne depuis les 15) |
+| Le compte est bon (30) | 15 (0 + 15) | 0,40 | 0 % / 100 % / 0 % | 50/50, mais personne ne gagne depuis ces positions |
+
+Ce qu'il dit : le Morpion a **compris** (règles qui décident, 98 % de
+positions jamais vues tenues) ; Hanoï a **retenu** un chemin (rien que des
+souvenirs et le coup par défaut, 3 positions jamais vues sur 15 alors que la
+mère sait gagner depuis les 15) ; au Nim, la moitié des positions nouvelles
+sont ratées (la somme de Nim manque) ; le Morpion à trois tient 82 % des
+positions nouvelles mais sa taille est faite de 302 souvenirs entiers. Deux
+découvertes : au Morpion à trois, 4 des 3 143 cas enregistrés ne sont plus
+bien joués par le fils final. Cause trouvée : chacun est décidé par le
+souvenir d'une position **symétrique**, enregistré plus tard, et à trois les
+positions symétriques n'ont pas la même valeur quand le professeur finit la
+partie (max^n départage dans un ordre fixe de cases, qui n'est pas
+symétrique : dans l'une, un coup gagne ; dans l'autre, aucun). Une correction
+ajoute un souvenir sans revérifier les cas qu'il couvre par symétrie (seuls
+les refactors revérifient tout) ; et au Compte est bon, la généralisation ne veut
+rien dire tant que le labo rejoue un seul tirage.
+
+**Reste à faire** : l'écrire dans le rapport du lanceur d'examen ; la
+stabilité en ligne de commande ; **décider** pour les 4 cas cassés du Morpion
+à trois (à l'utilisateur) : revérifier, après chaque correction, les cas que
+couvre le nouveau souvenir (« les souvenirs sont les tests »), et s'ils se
+contredisent, ne pas étendre ce souvenir par symétrie ; ou ne garder une
+symétrie que si le professeur la respecte aussi (à deux, le minimax la
+respecte ; à trois, max^n non).
+
+Conception d'origine :
 
 Un module `xander/bulletin.py`, qui ne modifie rien. Il lit une éducation
 finie (`Education` ou `Solo` : `knowledge["memories"]`, `["patterns"]`,
@@ -598,16 +640,17 @@ de plus petit n'explique les cas), ce qui rejoint le jalon 2.
      composition, se créer une menace), 0 coup impossible, au plus 784
      positions par coup, et 60 situations sur 60 tenues face au professeur à
      sa place (détail dans `docs/jeux.md`).
-     **Reste à faire** (pour l'agent qui reprend) :
-     - refaire la mesure complète de 200 parties **après** la fusion des
-       actions à plusieurs arguments (interrompue à 80 parties, même rythme ;
-       script : l'éducation avec `Mother().raise_son`, puis
-       `examen.situations` / `examen.jouer` place par place) ;
-     - vérifier le Puissance 4 avant / après sur quelques parties (non
-       mesuré : trop lent dans le temps imparti ; la suite de tests passe) ;
-     - le temps : 200 parties prennent environ 29 minutes, à la limite d'un
-       examen blanc ; les refactors (`views`, `check`) rejouent tous les cas,
-       et 304 souvenirs s'accumulent (surtout des ouvertures) ;
+     **Vérifié après la fusion des PR #20 et #22** (`main` 90859b1) : les 200
+     parties du Morpion à trois sont identiques leçon pour leçon à la mesure
+     d'avant (337 erreurs, 304 souvenirs, 60 situations sur 60), en 340 s
+     seulement (les 29 minutes d'avant venaient d'une machine plus lente et
+     chargée) ; le Puissance 4 (graine 0, 10 parties) donne les mêmes leçons,
+     les mêmes règles et le même bilan avant la PR #20 (65147a4) et après
+     (139 souvenirs, 3 règles, 518 positions au plus, 0 coup impossible,
+     environ 87 s par partie).
+     **Reste à faire** :
+     - le temps des refactors (`views`, `check` rejouent tous les cas), qui
+       croît avec les souvenirs (304 ici, surtout des ouvertures) ;
      - des règles pour ces souvenirs (une fourchette à trois, des petits
        motifs d'ouverture) ; des variantes sur le coup de l'avant-dernier
        joueur ; une fin à classement ou une victoire partagée.

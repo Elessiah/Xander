@@ -641,7 +641,8 @@ parer le suivant, `concept_1(lui)` : la parade vue du côté du suivant, donc
 parer le 2e après moi, et se créer une menace), 0 coup impossible, au plus
 784 positions regardées par coup, et le fils fait au moins aussi bien que le
 professeur à sa place dans les 60 situations de mesure. Restent 304
-souvenirs (surtout des ouvertures) et environ 29 minutes d'éducation.
+souvenirs (surtout des ouvertures) ; l'éducation prend moins de 6 minutes
+(340 s, mesurée seule après la fusion des PR #20 et #22).
 Détail et chiffres : `docs/jeux.md`.
 
 ### Un seul joueur : juger un coup par ce qui arrive — `xander/un_joueur.py`
@@ -1419,6 +1420,32 @@ contre le joueur au hasard de la mère ; 30 minutes par problème). Ce barème a
 emprunté à la mère, fin lue dans la mère, « ne jamais perdre » sans sens pour
 un jeu sans nul ou à un joueur, deux parties seulement contre le professeur,
 limite dépendant de la machine), pas à cause du score.
+
+## 12. Le bulletin du fils — `xander/bulletin.py`
+
+Une mesure pour nous, qui ne modifie rien : le bulletin lit une éducation finie
+et dit si le fils a **compris** ou **retenu**. Tout ce qu'il fait jouer dans le
+labo est effacé ensuite (mémoires de calcul de la mère comprises), et il
+vérifie que ce que sait la mère n'a pas changé. Rien ne revient vers elle.
+`python -m xander res/exampleX.py [--prof …] --parties N --bulletin`.
+
+| Mesure | Calcul |
+|---|---|
+| Taille | nœuds des règles et des briques dont elles dépendent (chaque brique une fois) + cases fixées par les souvenirs (une position entière : toutes ses cases ; un petit motif : celles qui comptent ; une valeur : 1, un tuple : ses termes) |
+| Compression | cas enregistrés que le fils joue bien ÷ taille |
+| Origine des coups | sur des parties sans correction (à chaque place : une contre le professeur, dix contre le hasard ; seul : dix parties du labo), la part décidée par chaque règle, un petit motif, un souvenir, le coup par défaut |
+| Généralisation | jusqu'à 50 positions atteignables **jamais enregistrées** (à symétrie près), où le joueur au trait a le choix, tirées par le bulletin (en largeur depuis le début, au plus 2 000 positions, puis par des coups au hasard) ; à plusieurs, le coup du fils est-il aussi bon que celui du professeur (le professeur finit la partie de tous les côtés) ; seul, le fils joue jusqu'à la fin depuis la position et fait-il au moins aussi bien que le calcul de la mère (une victoire vaut plus que tout, plus tôt vaut mieux ; sinon la durée) |
+| Solidité des règles | pour chaque règle, les cas où elle choisirait (pas tous les coups), ceux où son coup est bon, ceux où elle décide chez le fils |
+| Budget | positions regardées au plus pour un coup (mesuré par l'éducation) |
+| Stabilité | `stabilite(eleve, graines)` : les règles trouvées selon la graine de l'éducation (à part : coûte une éducation par graine) |
+
+Les seuils d'interprétation ne sont pas fixés : on compare les nombres d'un
+fils à l'autre (voir `docs/feuille-de-route.md`, « Le bulletin du fils »).
+Limites : un jeu dont le labo rejoue toujours le même tirage (Le compte est
+bon, Mastermind) n'offre que des positions de ce tirage ; un tirage nouveau
+demande que le labo sache varier l'état de départ (priorité suivante). Pour un
+casse-tête, le bulletin dit aussi depuis combien de ces positions la mère et le
+fils gagnent : une égalité sans victoire compte comme tenue.
 
 ## Limites connues
 
