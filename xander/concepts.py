@@ -139,7 +139,8 @@ class Pensee:
     (``possibles``, ``apres``, ``gagne``, ``suivant``).
 
     Les positions déjà regardées sont mémorisées : c'est la mère qui pense, pas
-    le fils (lui exécute son code sans mémoire et compte ce qu'il regarde).
+    le fils (lui exécute son code, ne retient que pendant un coup ce qu'il a déjà
+    regardé, et compte les positions distinctes qu'il regarde).
     """
 
     def __init__(self, notions, definitions: dict[str, Concept] | None = None):
