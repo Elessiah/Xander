@@ -574,18 +574,23 @@ MEMOIRE = {{}}
 
 
 def choisir(etat, moi):
-    """Mon coup et sa raison : souvenir, sinon première règle qui s'applique, sinon défaut."""
+    """Mon coup et sa raison : souvenir, sinon mes règles l'une après l'autre (chacune écarte des
+    coups parmi ceux que laissent les précédentes ; la raison : la dernière qui en a écarté),
+    sinon défaut."""
     global VUES
     VUES = 0
     DEJA.clear()  # un nouveau coup : rien n'est encore regardé
     _, coup = rappel(etat, moi, SOUVENIRS)
     if coup is not None and coup in possibles(etat):
         return coup, "souvenir"
+    candidats, raison = list(possibles(etat)), "défaut"
     for regle in REGLES:
-        coups = [a for a in possibles(etat) if regle(apres(etat, a, moi), moi)]
-        if coups and len(coups) < len(possibles(etat)):  # une règle qui accepte tout ne choisit rien
-            return min(coups), regle.__name__
-    return min(possibles(etat)), "défaut"
+        if len(candidats) <= 1:
+            break  # un seul coup reste : plus rien à regarder
+        coups = [a for a in candidats if regle(apres(etat, a, moi), moi)]
+        if coups and len(coups) < len(candidats):  # une règle qui garde tout (ou rien) se tait
+            candidats, raison = coups, regle.__name__
+    return min(candidats), raison
 '''
     if est_valeur(knowledge):
         return source + PLAY_VALEUR

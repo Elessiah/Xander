@@ -183,6 +183,7 @@ class Pensee:
         self._enfants: dict = {}
         self._gagne: dict = {}
         self._choix: dict = {}
+        self._coups: dict = {}
 
     @property
     def perceptions(self) -> list[str]:
@@ -280,11 +281,14 @@ class Pensee:
                     if compte >= k:
                         break
 
-    def regle_regardees(self, regle: Concept, etat, moi, vues: set, faits: set) -> None:
-        """Les positions que regarde le fils pour appliquer la règle ici : chaque coup possible,
-        puis le concept après lui (voir :meth:`regardees`)."""
+    def regle_regardees(self, regle: Concept, etat, moi, vues: set, faits: set,
+                        candidats: set | None = None) -> None:
+        """Les positions que regarde le fils pour appliquer la règle ici : chaque coup encore
+        candidat (tous, sans ``candidats``), puis le concept après lui (voir :meth:`regardees`)."""
         etat = _key(etat)
         for action, suite in self.enfants(etat, moi):
+            if candidats is not None and action not in candidats:
+                continue
             vues.add((etat, action, moi))
             self.regardees(regle, suite, moi, vues, faits)
 
@@ -297,6 +301,32 @@ class Pensee:
     def coups(self, concept: Concept, etat, moi) -> set:
         """La règle : les actions après lesquelles le concept est vrai."""
         return {a for a, suite in self.enfants(_key(etat), moi) if self.vrai(concept, suite, moi)}
+
+    def filtre(self, regle: Concept, etat, moi, candidats: set) -> set:
+        """Les candidats que garde la règle : ceux après lesquels le concept est vrai, si elle en
+        écarte (sinon elle se tait, et tous restent). **Une règle propose, elle ne tranche pas
+        seule** : elle écarte des coups, et la suivante choisit parmi ceux qui restent."""
+        etat = _key(etat)
+        cle = (regle.id, etat, moi)
+        acceptes = self._coups.get(cle)
+        if acceptes is None:
+            acceptes = _retenir(self._coups, cle, frozenset(self.coups(regle, etat, moi)))
+        gardes = candidats & acceptes
+        return gardes if gardes and len(gardes) < len(candidats) else candidats
+
+    def decision(self, regles: list[Concept], etat, moi) -> tuple[set, int | None]:
+        """Les coups qui restent après les règles, dans l'ordre (chacune filtre ce que laissent les
+        précédentes ; un seul coup restant, il n'y a plus rien à regarder), et le rang de la
+        dernière règle qui a écarté des coups (``None`` : aucune, le coup est par défaut)."""
+        etat = _key(etat)
+        candidats, rang = {a for a, _ in self.enfants(etat, moi)}, None
+        for i, regle in enumerate(regles):
+            if len(candidats) <= 1:
+                break
+            gardes = self.filtre(regle, etat, moi, candidats)
+            if gardes is not candidats:
+                candidats, rang = gardes, i
+        return candidats, rang
 
     def choix(self, regle: Concept, etat, moi) -> set:
         """Les coups proposés par la règle ; vide si elle n'en écarte aucun (elle ne choisit rien)."""

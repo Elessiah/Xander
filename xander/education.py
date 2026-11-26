@@ -1769,12 +1769,10 @@ class Education:
         return self.knowledge["concepts"][name]  # l'arbre lui-même : un nom essayé peut être abandonné
 
     def decide(self, state, me, rules: list[str]) -> int:
-        """Le coup que jouerait le fils avec ces règles, sans souvenir (comme son squelette)."""
-        for name in rules:
-            cells = self.pensee.choix(self.rule(name), state, me)
-            if cells:
-                return min(cells)
-        return min(self.mind.possibles(list(state)))
+        """Le coup que jouerait le fils avec ces règles, sans souvenir (comme son squelette) :
+        chaque règle filtre les coups que laissent les précédentes, et il joue le plus petit."""
+        candidats, _ = self.pensee.decision([self.rule(name) for name in rules], state, me)
+        return min(candidats)
 
     def good(self, case: Case, cell: int) -> bool:
         """Le coup est-il aussi bon que celui du professeur ? (vérifié dans le labo)"""
@@ -1848,11 +1846,13 @@ class Education:
         if cell is not None and cell in mind.possibles(state):
             return 0  # un souvenir : il ne regarde rien à l'avance
         seen, done = set(), set()  # il ne calcule pas deux fois la même chose pendant un coup
+        candidats = {a for a, _ in pensee.enfants(concepts._key(state), me)}
         for name in rules:
-            rule = self.rule(name)
-            pensee.regle_regardees(rule, state, me, seen, done)
-            if pensee.choix(rule, state, me):
+            if len(candidats) <= 1:
                 break
+            rule = self.rule(name)
+            pensee.regle_regardees(rule, state, me, seen, done, candidats)
+            candidats = pensee.filtre(rule, state, me, candidats)
         return len(seen)
 
     def economize(self) -> list[str]:
