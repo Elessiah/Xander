@@ -52,8 +52,8 @@ from __future__ import annotations
 import itertools
 import random
 
-from xander import effets, son_writer, taille
-from xander.education import Education, GameRecord, Lesson, gele
+from xander import concepts, effets, son_writer, taille
+from xander.education import BUDGET, Education, GameRecord, Lesson, gele
 from xander.game_model import GameModel
 from xander.lab import Lab, LabError
 from xander.parser import ParsedExample
@@ -84,6 +84,28 @@ class SoloRecord(GameRecord):
         if self.impossibles:
             head += f" | {len(self.impossibles)} coup(s) impossible(s)"
         return head + ("\n" + rest if rest else "")
+
+
+class SoloNotions:
+    """Les quatre notions d'un jeu à un joueur, du côté de la mère, pour former des concepts :
+    ``possibles`` (les actions dont elle prévoit l'état d'après), ``apres`` (cet état),
+    ``gagne`` (l'état est une fin gagnée comprise) et ``suivant`` (seul, je joue après moi)."""
+
+    def __init__(self, mind, actions: list, fins: dict):
+        self.mind, self.actions, self.fins = mind, actions, fins
+
+    def apres(self, etat, action, joueur=None):
+        suite = self.mind.valeur_apres(list(etat), self.mind.arguments(action))
+        return list(suite) if isinstance(suite, (list, tuple)) else suite
+
+    def possibles(self, etat) -> list:
+        return [a for a in self.actions if self.mind.valeur_apres(list(etat), self.mind.arguments(a)) is not None]
+
+    def gagne(self, etat, joueur=None) -> bool:
+        return self.fins.get(gele(list(etat))) == "gagnée"
+
+    def suivant(self, joueur):
+        return joueur
 
 
 class Solo(Education):
@@ -160,6 +182,9 @@ class Solo(Education):
         self.cases: dict[tuple, dict] = {}   # coups -> {"state", "values", "moves"}
         self._values: dict = {}               # (coups ou état, profondeur) -> valeur au mieux
         self.discovered: list = []
+        # règles (comme à deux) : mêmes bornes de recherche et même budget de positions regardées
+        self.max_size, self.max_depth, self.counts, self.budget = 6, 2, (1,), BUDGET
+        self._concepts = None                 # (perception, pensée, concepts formables)
 
     # ------------------------------------------------------------------ #
     # Le résultat d'une partie à un joueur
@@ -625,6 +650,145 @@ class Solo(Education):
 
     # ------------------------------------------------------------------ #
 
+    # ------------------------------------------------------------------ #
+    # Des règles pour un joueur seul : atteindre le but
+    # ------------------------------------------------------------------ #
+
+    def notions(self) -> SoloNotions | None:
+        """Les quatre notions, si la mère peut s'en servir : elle prévoit l'état d'après en entier
+        et elle a compris une fin **gagnée** (un but). Sinon (une fin perdue seulement : durer), le
+        langage des concepts n'a encore rien à dire : ``gagne`` n'y est jamais vrai."""
+        if not (self.liste and "gagnée" in self.knowledge["fins"].values()):
+            return None
+        return SoloNotions(self.mind, self.knowledge["actions"], self.knowledge["fins"])
+
+    def concept_bank(self) -> tuple | None:
+        """La pensée de la mère et les concepts qu'elle sait former (du plus petit au plus grand),
+        tant que sa perception et les positions vues ne changent pas : ``(pensée, concepts)``, ou
+        ``None``. (Des positions de plus peuvent séparer deux concepts qu'elle confondait.)"""
+        key = repr((self.knowledge["free"], self.knowledge["fins"], len(self.cases)))
+        if self._concepts is None or self._concepts[0] != key:
+            notions = self.notions()
+            if notions is None:
+                self._concepts = (key, None, None)
+            else:
+                pensee = concepts.Pensee(notions, self.knowledge["concepts"])
+                positions = self.imagined(notions)
+                bank = concepts.enumerer(pensee, positions, self.max_size, self.max_depth,
+                                         self.counts, (concepts.MOI,))
+                self._concepts = (key, pensee, bank)
+        _, pensee, bank = self._concepts
+        return None if bank is None else (pensee, bank)
+
+    def imagined(self, notions: SoloNotions, nombre: int = 120) -> list[tuple]:
+        """Des positions imaginées avec ``apres`` (pour confondre deux concepts qui disent la même
+        chose) : en largeur depuis le départ et depuis les positions que les parties ont montrées
+        (celles qui mènent au but en font partie), au plus ``nombre``. Seul, il n'y a pas de tours
+        à alterner ; une partie au hasard repasse sans fin par les mêmes positions d'un petit jeu."""
+        queue = list(dict.fromkeys([concepts._key(self.knowledge["start"])]
+                                   + [concepts._key(c["state"]) for c in self.cases.values()]))[:nombre]
+        seen = set(queue)
+        for etat in queue:
+            if len(seen) >= nombre:
+                break
+            if notions.gagne(etat):
+                continue
+            for action in notions.possibles(etat):
+                suite = concepts._key(notions.apres(etat, action))
+                if suite not in seen and len(seen) < nombre:
+                    seen.add(suite)
+                    queue.append(suite)
+        return [(etat, None) for etat in queue]
+
+    def views_of(self, knowledge: dict) -> int:
+        """Positions regardées au plus par le fils écrit avec ``knowledge``, sur les cas enregistrés."""
+        son, most = son_writer.load(son_writer.solo_source("essai", knowledge)), 0
+        for case in self.cases.values():
+            son.choisir(case["state"])
+            most = max(most, son.VUES)
+            if most > self.budget:
+                break
+        return most
+
+    def with_rules(self, rules: list[str]):
+        """Le fils avec ces règles, et seulement les souvenirs dont un cas a encore besoin :
+        ``(connaissance d'essai, souvenirs libérés)``, ou ``None`` s'il en libère moins de deux, rate un
+        cas, n'est pas plus court (le rasoir, :mod:`xander.taille`) ou dépasse le budget."""
+        memories = self.knowledge["memories"]
+        son = son_writer.load(son_writer.solo_source("essai", dict(self.knowledge, rules=rules, memories={})))
+        tested, needed = set(), set()
+        for case in self.cases.values():
+            key = son_writer.state_key(case["state"])
+            if key not in memories:
+                continue
+            tested.add(key)
+            worth = case["values"]
+            if worth and worth.get(son.choisir(case["state"])[0], -1) < max(worth.values()):
+                needed.add(key)
+        freed = sorted(tested - needed, key=repr)  # un souvenir sans cas n'est jamais libéré à l'aveugle
+        if len(freed) < effets.MIN_CAS:  # une règle explique plusieurs cas : un seul, une coïncidence
+            return None
+        trial = dict(self.knowledge, rules=rules,
+                     memories={k: a for k, a in memories.items() if k not in freed})
+        if not taille.plus_court(self.knowledge, trial, egalite=True) or not self.plays_well(trial):
+            return None
+        if self.views_of(trial) > self.budget:
+            return None
+        return trial, freed
+
+    def refactor(self) -> list[str]:
+        """Comme à deux : remplace des souvenirs par une règle tant que c'est possible, puis retire
+        les règles devenues inutiles."""
+        done = []
+        while True:
+            message = self.refactor_once()
+            if message is None:
+                break
+            done.append(message)
+        if done:
+            done += self.prune()
+        return done
+
+    def refactor_once(self) -> str | None:
+        """Le plus petit concept qui, comme règle (à chaque rang, du moins prioritaire au plus
+        prioritaire), libère au moins deux souvenirs sans rater un cas et rend le fils plus court."""
+        found = self.concept_bank()
+        if found is None or not self.knowledge["memories"]:
+            return None
+        _, bank = found
+        definitions, current = self.knowledge["concepts"], self.knowledge["rules"]
+        names = {c.id: name for name, c in definitions.items()}
+        for concept in bank:
+            known = concept.id in names
+            name = names[concept.id] if known else f"concept_{len(definitions) + 1}"
+            if name in current:
+                continue
+            if not known:
+                definitions[name] = concept
+            for rank in range(len(current), -1, -1):
+                adopted = self.with_rules(current[:rank] + [name] + current[rank:])
+                if adopted is not None:
+                    trial, freed = adopted
+                    self.knowledge["rules"], self.knowledge["memories"] = trial["rules"], trial["memories"]
+                    self.rewrite()
+                    return (f"{len(freed)} souvenir(s) -> {name} (règle « {concepts.decrire_regle(concept)} ») ; "
+                            f"règles : {' > '.join(trial['rules'])} ; souvenirs : {len(trial['memories'])}")
+            if not known:
+                del definitions[name]
+        return None
+
+    def prune(self) -> list[str]:
+        """Retire chaque règle sans laquelle tous les cas restent bien joués (du code mort)."""
+        done = []
+        for name in list(reversed(self.knowledge["rules"])):
+            trial = dict(self.knowledge, rules=[r for r in self.knowledge["rules"] if r != name])
+            if self.plays_well(trial):
+                self.knowledge["rules"] = trial["rules"]
+                self.rewrite()
+                done.append(f"{name} retirée (inutile) ; règles : {' > '.join(trial['rules']) or 'aucune'}")
+        return done
+
+
     def train(self, nb_games: int, on_game=None) -> list[GameRecord]:
         """Fait jouer le fils ``nb_games`` fois dans le labo et le corrige après chaque partie."""
         if not self.records:
@@ -638,6 +802,7 @@ class Solo(Education):
             record.impossibles = self.impossibles
             record.lessons = self.review(decisions)
             if record.lessons:
+                record.refactors += self.refactor()  # des règles d'abord : elles disent le pourquoi
                 record.refactors += self.generalize()
             self.records.append(record)
             if on_game:

@@ -205,8 +205,14 @@ l'éducation bloque) est dans `docs/jeux.md`. Commandes :
    celui du labo (qui rejoue toujours la même graine).
 5. **Pylos 3×3** : tours de longueur variable, plusieurs sortes d'actions
    par tour, défaite quand on ne peut plus jouer.
-6. **Des règles pour un joueur seul** : les concepts parlent de `gagne` et
-   d'`adversaire` ; il faut une forme pour « atteindre le but » ou « durer ».
+6. **Des règles pour un joueur seul** : « atteindre le but » **fait**
+   (2026-11-26) : quand la mère prévoit l'état et a compris une fin gagnée,
+   les quatre notions existent seul (`suivant(moi)` = moi) et elle trouve
+   « jouer un coup après lequel j'ai gagné » à Hanoï (taille 28 → 21 ;
+   architecture, § 6). Le compte est bon n'en garde aucune : un seul tirage,
+   donc un seul cas par règle. La généralisation ne bouge pas (Hanoï 3/15) :
+   ces règles ne voient le but que de près. Reste « durer » (fin perdue : Jumper) et
+   des sous-buts à reconnaître, ce qui rejoint la priorité 3.
 7. **Un moteur commun** pour `effets.py` et `transformations.py` (énumérer
    par taille, confondre par les valeurs) : premier pas vers le jalon 2.
 8. **Examen blanc n° 2**, quand plusieurs de ces points sont faits : un
@@ -241,6 +247,7 @@ Premiers bulletins (graine 0 ; « général. » : positions jamais vues tenues) 
 | Jumper (30) | 1 (0 + 1) | 322 | 0 % / 12 % / 88 % | 4/4 |
 | Partition (30) | 1 (0 + 1) | 300 | 0 % / 38 % / 62 % | toutes vues |
 | Hanoï (30) | 21 (0 + 21) | 2,19 | 0 % / 57 % / 43 % | 3/15 (la mère gagne depuis les 15) |
+| Hanoï (30), avec les règles à un joueur | 21 (1 + 20) | 2,19 | 14 % / 43 % / 43 % | 3/15 |
 | Le compte est bon (30) | 15 (0 + 15) | 0,40 | 0 % / 100 % / 0 % | 50/50, mais personne ne gagne depuis ces positions |
 
 (Tailles à la première mesure, sans le coup demandé par chaque souvenir ;

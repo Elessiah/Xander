@@ -236,6 +236,22 @@ class HanoiTest(unittest.TestCase):
             coups += 1
         self.assertEqual((jeu.win, coups), ("J", 7))  # le minimum
 
+    def test_regles_pour_un_joueur_seul(self):
+        """Seul, les quatre notions existent encore : ``apres`` (l'état prévu), ``gagne`` (la fin
+        gagnée comprise), ``possibles`` et ``suivant`` (moi). La mère y trouve « jouer un coup après
+        lequel j'ai gagné » : il remplace les souvenirs des derniers coups (le rasoir)."""
+        from xander import concepts
+        education = eleve("exampleHanoi.py", 30)
+        k = education.knowledge
+        regles = [concepts.decrire_regle(k["concepts"][r]) for r in k["rules"]]
+        self.assertIn("jouer un coup après lequel j'ai gagné", regles)
+        self.assertLess(len(k["memories"]), 7)  # sans règle, 7 souvenirs : tout le chemin
+        self.assertLessEqual(education.max_views, education.budget)
+        fils = son_writer.load(render_son("hanoi", education))
+        regle = k["rules"][regles.index("jouer un coup après lequel j'ai gagné")]
+        self.assertEqual(fils.choisir([1, 2, 2]), ((1, 2), regle))  # le petit disque, et c'est rangé
+        self.assertTrue(education.plays_well(k))  # les cas restent les tests
+
     def test_jamais_sur_un_plus_petit(self):
         """Le fils ne propose que des coups permis, depuis chacune des 27 positions. (Il peut en
         ignorer : la portée d'une action vient de ce que la mère a vu, et le labo n'a pas montré

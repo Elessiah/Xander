@@ -68,8 +68,9 @@ class BulletinMorpionTest(unittest.TestCase):
 
 
 class BulletinHanoiTest(unittest.TestCase):
-    """À Hanoï, le fils a retenu un chemin : le bulletin doit le dire (rien que des souvenirs et le
-    coup par défaut, et une mauvaise généralisation)."""
+    """À Hanoï, le fils a retenu un chemin : le bulletin doit le dire (surtout des souvenirs et le
+    coup par défaut, des règles qui ne voient le but qu'à deux coups, et une mauvaise
+    généralisation)."""
 
     @classmethod
     def setUpClass(cls):
@@ -78,8 +79,13 @@ class BulletinHanoiTest(unittest.TestCase):
 
     def test_retenu(self):
         b = self.bulletin
-        self.assertEqual(b.noeuds, 0)
-        self.assertEqual(set(b.origine), {"souvenir", "défaut"})
+        self.assertLessEqual(b.noeuds, 4)  # « gagner maintenant », « gagner au coup d'après »
+        self.assertEqual(b.cas_bien_joues, b.cas)
+        regles = {r for r in b.origine if r.startswith("règle ")}
+        self.assertEqual({r for r in b.origine if r not in regles}, {"souvenir", "défaut"})
+        self.assertGreater(sum(b.origine[r] for r in regles), 0)
+        for regle, s in b.solidite.items():
+            self.assertGreater(s["decide"], 0, regle)
         tenues, vues = b.generalisation
         self.assertGreater(vues, 10)          # Hanoï à 3 disques : 27 positions, toutes énumérées
         self.assertLess(tenues / vues, 0.5)
