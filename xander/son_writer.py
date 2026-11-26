@@ -302,6 +302,7 @@ for _i, _motif in enumerate(MOTIFS):
         PAR_CASE.setdefault(_case, []).append(_i)
 TABLEAUX = {}  # position -> l'état de chaque construction
 DERNIER = []  # la dernière position dont je connais le tableau
+VU = {}  # (position, joueur) -> ce que j'en ai déjà vu (les cases qui finiraient ses constructions)
 
 
 def construction(etat, i):
@@ -329,6 +330,7 @@ def constructions(etat):
             tableau = [construction(cle, i) for i in range(len(MOTIFS))]
         if len(TABLEAUX) > 20000:
             TABLEAUX.clear()
+            VU.clear()
         TABLEAUX[cle] = tableau
     DERNIER[:] = [(cle, tableau)]
     return tableau
@@ -340,16 +342,21 @@ def jouables(etat):
 
 
 def completions(etat, joueur):
-    """Les cases jouables qui finiraient une de ses constructions (toutes, si une est finie)."""
-    ici = jouables(etat)
-    fins = set()
-    for c in constructions(etat):
-        if c is not None and c[0] == joueur:
-            if not c[1]:
-                return ici
-            if len(c[1]) == 1 and c[1][0] in ici:
-                fins.add(c[1][0])
-    return fins
+    """Les cases jouables qui finiraient une de ses constructions (toutes, si une est finie).
+    Une position déjà vue n'est pas regardée deux fois."""
+    cle = (tuple(etat), joueur)
+    if cle not in VU:
+        tableau, ici, fins = constructions(etat), None, set()
+        for c in tableau:
+            if c is not None and c[0] == joueur and len(c[1]) <= 1:
+                ici = jouables(etat) if ici is None else ici
+                if not c[1]:
+                    fins = ici
+                    break
+                if c[1][0] in ici:
+                    fins.add(c[1][0])
+        VU[cle] = fins
+    return VU[cle]
 
 
 def menace(etat, joueur):
