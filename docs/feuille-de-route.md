@@ -477,7 +477,7 @@ comparant des résultats.
 | Rasoir d'Ockham : taille d'un fils | nœuds des règles et de leurs briques + cases fixées + 1 coup par souvenir ou petit motif | `xander/taille.py` | principe (longueur de description minimale) ; le « + 1 coup » réglé aux Allumettes misère (sans lui, quatre valeurs retenues battaient la règle) |
 | Rasoir d'Ockham : quand un refactor est gardé | au moins 1 souvenir libéré, pas plus long (règles rendues inutiles retirées) ; à taille égale, la règle | `Education.shorter` | principe (Ockham) ; avant : « au moins 2 souvenirs libérés ». L'égalité réglée aux Allumettes misère ; « au moins 1 » imposé par une boucle sans fin au Nim |
 | Un joueur : coup retenu à issue égale | le plus court après petit motif, puis le plus petit | `Solo.shortest` | principe (Ockham) ; ne change rien aujourd'hui (Hanoï, Jumper) |
-| Positions regardées par le fils pour un coup | 1 000 | `education.BUDGET` | principe (budget mesurable) ; valeur a priori, loin du minimax complet (500 000) |
+| Positions (distinctes) regardées par le fils pour un coup | 1 000 | `education.BUDGET` | principe (budget mesurable) ; valeur a priori, loin du minimax complet (500 000) |
 | Taille d'un programme d'effet | 5 nœuds | `effets.MAX_TAILLE` | a priori ; suffit pour la gravité (5 nœuds) |
 | Constantes retenues de chaque sorte | 8 | `effets.MAX_CONSTANTES` | a priori |
 | Expériences pour réfuter l'effet / parties d'exploration / nouvelles recherches / refus avant d'arrêter d'explorer | 40 / 8 / 3 / 2 | `EXPERIENCES`, `PARTIES_D_ESSAI`, `REPRISES`, `PATIENCE` | a priori |
