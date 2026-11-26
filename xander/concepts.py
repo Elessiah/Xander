@@ -107,6 +107,25 @@ def au_moins(k: int, joueur: str, x: Concept) -> Concept:
     return Concept("au_moins", k, joueur, x)
 
 
+def negation(x: Concept) -> Concept:
+    """Le contraire de ``x`` (sans double négation)."""
+    return x.args[0] if x.kind == "non" else non(x)
+
+
+def parties_ou(c: Concept) -> list[Concept]:
+    """Les parties d'un « ou » : ``non(et(non a, non b))`` se lit « a ou b ». Un concept qui n'en
+    est pas un est sa seule partie. Les parties sont rangées **du plus immédiat au plus lointain**
+    (profondeur croissante : combien de fois on regarde un coup plus loin), puis du plus petit au
+    plus grand : on règle d'abord ce qui arrive le plus tôt."""
+    def parties(x: Concept) -> list[Concept]:
+        if x.kind == "non" and x.args[0].kind == "et":
+            a, b = x.args[0].args
+            return parties(negation(a)) + parties(negation(b))
+        return [x]
+    trouvees = list(dict.fromkeys(parties(c)))
+    return sorted(trouvees, key=lambda x: (x.depth, x.size)) if len(trouvees) > 1 else trouvees
+
+
 # ---------------------------------------------------------------------- #
 # Évaluer un concept avec les quatre notions
 # ---------------------------------------------------------------------- #

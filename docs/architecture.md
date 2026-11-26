@@ -441,7 +441,8 @@ joué. Avant, le labo le prenait pour un refus et se désynchronisait du jeu.
    un test de non-régression).
 6. **Refactoriser.** Après chaque partie, la mère cherche le plus petit concept
    (section 8) vrai après le coup du professeur et faux après celui du fils
-   dans **au moins deux** souvenirs. Elle l'essaie comme règle à chaque rang
+   dans **au moins deux** souvenirs (le détail : « L'hypothèse vient de
+   l'explication », ci-dessous). Elle l'essaie comme règle à chaque rang
    de priorité, du plus bas au plus haut. Le refactor est gardé si le fils
    joue encore bien dans **tous** les cas (vérifié dans le labo), s'il libère
    des souvenirs (ils sont oubliés) et devient **plus court** (le rasoir
@@ -516,6 +517,70 @@ parfait, contre 24 à 44 sans eux. L'écart vient de l'ordre dans lequel la mèr
 apprend : en faisant finir des parties au professeur pour juger un motif, elle
 découvre parfois un motif de fin, et ses règles changent plus tôt ou plus tard. L'éducation est aussi deux à trois fois plus rapide,
 car il y a moins de cas à revoir.
+
+### L'hypothèse vient de l'explication
+
+**Expliquer d'abord.** Pour chaque erreur, la mère se demande « pourquoi le
+coup du professeur valait-il mieux ? » : les concepts vrais après son coup et
+faux après celui du fils, du plus petit au plus grand (`explanation`). Une
+hypothèse de règle est une explication que partagent au moins deux
+souvenirs. Elle ne prend d'abord que les plus courtes explications de chaque
+cas (marge 0), et ne les allonge (marge 1, 2…) que si aucune hypothèse n'a
+été adoptée, en reprenant où elle s'était arrêtée : au pire, elle voit tout
+ce qu'elle voyait avant (mesuré : éducations identiques partie par partie au
+Morpion et au Morpion à trois). Aucune marge n'est fixée : une marge fixe
+réglée sur nos jeux couperait la vision sur un problème plus riche.
+
+**Chercher plus loin quand rien n'explique.** Si aucun concept qu'elle sait
+former n'explique un cas (la moitié des souvenirs au Morpion, au Nim, au
+Morpion à trois et au Puissance 4), elle élargit ses bornes pour ce cas
+seulement (`wider` : un nœud et un niveau d'imbrication de plus par cran, au
+plus `ELARGISSEMENTS` = 2 crans). C'est là qu'elle trouve, au Puissance 4,
+« après mon coup, aucun de ses coups ne m'empêche de parer » : se garder des
+fourchettes.
+
+**Séparer les « ou ».** Une règle « a ou b » se tait quand b est vrai
+partout : « gagner ou parer », quand il n'y a rien à parer, accepte tous les
+coups, donc ne choisit rien, et la victoire passe (41 victoires ratées sur
+100 parties au Puissance 4). La mère essaie donc d'abord les parties d'un
+« ou » comme des règles qui se suivent (`concepts.parties_ou`), **la plus
+immédiate en premier** (profondeur croissante : combien de fois on regarde
+un coup plus loin). C'est un principe fourni à la main, général : on règle
+d'abord ce qui arrive le plus tôt.
+
+**Vérifier vite.** Une hypothèse est rejouée sur tous les cas (`check`) ; la
+mère rejoue d'abord ses contre-exemples (les cas qui ont fait tomber une
+hypothèse) : le résultat ne change pas, seulement le temps de le trouver.
+
+**Oublier le redondant.** Après chaque partie, un souvenir sans lequel chaque
+cas qu'il décide reste bien joué (par les règles ou un autre souvenir), et
+sans que le fils dépasse son budget, est oublié (`forget`), comme une règle
+inutile.
+
+**Tenir le budget en partie.** Le budget n'était vérifié que sur les cas
+enregistrés : sur une position nouvelle, le fils pouvait regarder bien plus.
+Quand il dépasse son budget en partie, la mère cherche d'abord une façon
+moins chère de penser la même chose (`economize` : un concept qui choisit
+exactement les mêmes coups que la règle dans chaque cas, en regardant moins
+de positions là où il a trop calculé) ; sinon, la position devient un
+souvenir : il la reconnaîtra au lieu de la calculer (CLAUDE.md : « apprendre
+à reconnaître une nouvelle configuration, pas calculer davantage »).
+
+Mesures (graine 0) :
+
+| | Avant | Après |
+|---|---|---|
+| Morpion (200) | taille 90, 3 règles, 9 souvenirs, 49/50 | taille 52, 4 règles, 4 souvenirs, 48/50, parfait |
+| Nim (200) | taille 135, 19/35 | taille 126, 22/35 |
+| Nim misère (200) | taille 154, 17/34 | taille 107, 22/34 |
+| Puissance 4 (10), contre le hasard | 79 / 9 / 12 (41 victoires ratées) | 94 / 2 / 4 (2 victoires ratées, aucune fourchette évitable laissée) |
+| Puissance 4 (10), contre le professeur | 2 nuls | 2 défaites |
+| Puissance 4, budget | 518 (mais dépassé en partie hors des cas) | 993, tenu |
+
+Limites : les 2 victoires ratées au Puissance 4 viennent d'un souvenir qui
+passe avant « gagner » (le fils consulte ses souvenirs avant ses règles) ;
+contre le professeur (6 demi-coups), le fils perd ses deux parties ;
+l'élargissement coûte cher là où il ne trouve rien (Morpion à trois).
 
 ### Un état qui n'est pas un tableau : une valeur (les Allumettes)
 
