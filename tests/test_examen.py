@@ -244,7 +244,7 @@ class DossierTemporaire(unittest.TestCase):
 class TestPlomberie(DossierTemporaire):
     def test_budget_fixe_avant_l_examen(self):
         self.assertEqual(examen.BUDGET, examen.Budget(parties=200, graine=0, graines=10, rodage=5,
-                                                      facteur=20_000))
+                                                      facteur=20_000, facteur_bulletin=10_000))
 
     def test_le_dossier_du_probleme_est_importable_jusque_dans_le_rejeu(self):
         probleme = ecrire_probleme(self.dossier, "a")
@@ -395,6 +395,12 @@ class TestExamen(DossierTemporaire):
                         "budget réduit", "Problème 1 : ", "score relatif", "(2 joueurs", "(1 joueur,",
                         "Score : ", "score relatif moyen"):
             self.assertIn(attendu, texte)
+        # le bulletin de chaque fils, lu après le score, en annexe
+        self.assertTrue(all(r.bulletin and "Taille" in r.bulletin for r in resultats))
+        annexe = texte[texte.index("Bulletins des fils"):]
+        for attendu in ("Problème 1 : Bulletin du fils", "Problème 3 : ", "Compression", "Généralisation"):
+            self.assertIn(attendu, annexe)
+        self.assertLess(texte.index("Score : "), texte.index("Bulletins des fils"))
         for nom in ("morpion", "partition", "allumette"):  # rien sur le contenu des problèmes
             self.assertNotIn(nom, texte.lower())
         self.assertEqual(sortie[-1], f"Rapport écrit dans {rapport}")
