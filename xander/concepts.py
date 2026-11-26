@@ -44,6 +44,14 @@ import random
 
 MOI, LUI = "moi", "lui"
 GAGNE = "gagne"
+#: Ce que le joueur **voit** sans rien imaginer, dans un jeu dont la fin est un motif de cases :
+#: une menace (une de ses constructions n'attend plus qu'une case, et cette case est jouable) et
+#: une fourchette (deux cases jouables différentes qui en complètent chacune une). Ce sont des
+#: briques de départ, comme ``gagne``, quand la perception du jeu les fournit
+#: (:func:`xander.son_writer.constructions_source`) ; la mère ne garde, entre deux concepts qui
+#: disent la même chose sur ses positions, que le plus petit : une menace reconnue (un nœud)
+#: remplace « un de ses coups donne « il a gagné » » (deux nœuds, un coup imaginé par action).
+PERCEPTIONS = ("menace", "fourchette")
 
 
 def joueurs(n: int = 2) -> list[str]:
@@ -151,6 +159,11 @@ class Pensee:
         self._gagne: dict = {}
         self._choix: dict = {}
 
+    @property
+    def perceptions(self) -> list[str]:
+        """Les briques de perception que fournit la perception de ce jeu (voir :data:`PERCEPTIONS`)."""
+        return [nom for nom in PERCEPTIONS if callable(getattr(self.notions, nom, None))]
+
     def enfants(self, etat, joueur) -> list:
         cle = (etat, joueur)
         if cle not in self._enfants:
@@ -180,7 +193,12 @@ class Pensee:
         if kind == "brique":
             nom, qui = args
             joueur = self.joueur(moi, qui)
-            valeur = self.gagne(etat, joueur) if nom == GAGNE else self.vrai(self.definitions[nom], etat, joueur)
+            if nom == GAGNE:
+                valeur = self.gagne(etat, joueur)
+            elif nom in PERCEPTIONS:
+                valeur = bool(getattr(self.notions, nom)(etat, joueur))  # vu, pas imaginé
+            else:
+                valeur = self.vrai(self.definitions[nom], etat, joueur)
         elif kind == "non":
             valeur = not self.vrai(args[0], etat, moi)
         elif kind == "et":
@@ -214,7 +232,7 @@ class Pensee:
         kind, args = concept.kind, concept.args
         if kind == "brique":
             nom, qui = args
-            if nom != GAGNE:
+            if nom != GAGNE and nom not in PERCEPTIONS:  # ce qu'il voit ne coûte aucune position
                 self.regardees(self.definitions[nom], etat, self.joueur(moi, qui), vues, faits)
         elif kind == "non":
             self.regardees(args[0], etat, moi, vues, faits)
@@ -308,8 +326,8 @@ def enumerer(pensee: Pensee, positions: list[tuple], taille_max: int = 5,
         signatures.add(signature)
         par_taille[c.size].append(c)
 
-    for nom in [GAGNE] + list(pensee.definitions):
-        profondeur = 0 if nom == GAGNE else pensee.definitions[nom].depth
+    for nom in [GAGNE] + pensee.perceptions + list(pensee.definitions):
+        profondeur = pensee.definitions[nom].depth if nom in pensee.definitions else 0
         for j in qui:
             essayer(brique(nom, j, profondeur))
     for taille in range(2, taille_max + 1):
@@ -352,6 +370,11 @@ def decrire(c: Concept, vrai: bool = True) -> str:
             if qui == MOI:
                 return "j'ai gagné" if vrai else "je n'ai pas gagné"
             return f"{_sujet(qui)} a gagné" if vrai else f"{_sujet(qui)} n'a pas gagné"
+        if nom in PERCEPTIONS:
+            sujet = "j'ai" if qui == MOI else f"{_sujet(qui)} a"
+            negatif = "je n'ai" if qui == MOI else f"{_sujet(qui)} n'a"
+            article = "une"
+            return f"{sujet} {article} {nom}" if vrai else f"{negatif} pas de {nom}"
         if qui != MOI:  # une brique vue du côté d'un autre joueur
             d = distance(qui)
             nom = f"{nom} pour {'le suivant' if d == 1 else f'le {d}e après moi'}"
@@ -430,7 +453,7 @@ def dependances(noms: list[str], definitions: dict[str, Concept]) -> list[str]:
     def visiter(c: Concept) -> None:
         if c.kind == "brique":
             nom = c.args[0]
-            if nom != GAGNE and nom not in ordre:
+            if nom != GAGNE and nom not in PERCEPTIONS and nom not in ordre:
                 visiter(definitions[nom])
                 ordre.append(nom)
         else:

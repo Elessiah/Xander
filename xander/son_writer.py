@@ -289,6 +289,80 @@ def rappel(etat, moi, souvenirs):
 '''
 
 
+CONSTRUCTIONS_SOURCE = '''# --- Ce que je vois sans rien imaginer : les constructions en cours -----------
+# Une construction : un motif de fin où un seul joueur a des pions. Le tableau des
+# constructions est tenu au fil de la partie : un coup ne change que celles qui passent
+# par sa case (un pion posé il y a trois coups et celui qui le complète se retrouvent
+# dans la même construction) ; il n'est jamais recompté de zéro quand une position voisine
+# est déjà connue.
+
+PAR_CASE = {}  # case -> les motifs qui passent par elle
+for _i, _motif in enumerate(MOTIFS):
+    for _case in _motif:
+        PAR_CASE.setdefault(_case, []).append(_i)
+TABLEAUX = {}  # position -> l'état de chaque construction
+DERNIER = []  # la dernière position dont je connais le tableau
+
+
+def construction(etat, i):
+    """(joueur, cases qui lui manquent) si un seul joueur a des pions dans le motif i, sinon None."""
+    joueurs = {etat[c] for c in MOTIFS[i] if etat[c] in PIONS}
+    if len(joueurs) != 1:
+        return None
+    (joueur,) = joueurs
+    return joueur, tuple(c for c in MOTIFS[i] if etat[c] != joueur)
+
+
+def constructions(etat):
+    """Le tableau des constructions : mis à jour depuis la dernière position connue (seules
+    les constructions qui passent par une case changée), sinon fait une fois."""
+    cle = tuple(etat)
+    tableau = TABLEAUX.get(cle)
+    if tableau is None:
+        if DERNIER:
+            avant, connu = DERNIER[0]
+            tableau = list(connu)
+            for case in [c for c in range(len(cle)) if cle[c] != avant[c]]:
+                for i in PAR_CASE.get(case, ()):
+                    tableau[i] = construction(cle, i)
+        else:
+            tableau = [construction(cle, i) for i in range(len(MOTIFS))]
+        if len(TABLEAUX) > 20000:
+            TABLEAUX.clear()
+        TABLEAUX[cle] = tableau
+    DERNIER[:] = [(cle, tableau)]
+    return tableau
+
+
+def jouables(etat):
+    """Les cases où un coup peut tomber (ce que je sais de l'action, sans l'imaginer)."""
+    return {case_jouee(etat, action) for action in possibles(etat)} - {None}
+
+
+def completions(etat, joueur):
+    """Les cases jouables qui finiraient une de ses constructions (toutes, si une est finie)."""
+    ici = jouables(etat)
+    fins = set()
+    for c in constructions(etat):
+        if c is not None and c[0] == joueur:
+            if not c[1]:
+                return ici
+            if len(c[1]) == 1 and c[1][0] in ici:
+                fins.add(c[1][0])
+    return fins
+
+
+def menace(etat, joueur):
+    """Une de ses constructions n'attend plus qu'une case, et cette case est jouable."""
+    return len(completions(etat, joueur)) >= 1
+
+
+def fourchette(etat, joueur):
+    """Deux cases jouables différentes qui finissent chacune une de ses constructions."""
+    return len(completions(etat, joueur)) >= 2
+'''
+
+
 def perception_source(knowledge: dict) -> str:
     """Les quatre notions, pour un état en tableau dont chaque action remplit une case."""
     if est_valeur(knowledge):
@@ -325,6 +399,8 @@ def possibles(etat):
 def gagne(etat, joueur):
     return any(all(etat[case] == joueur for case in motif) for motif in MOTIFS)
 
+
+{CONSTRUCTIONS_SOURCE}
 
 {ORDRE_SOURCE}
 
