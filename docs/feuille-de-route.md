@@ -212,8 +212,14 @@ de l'élargissement au Morpion à trois.
    celui du labo (qui rejoue toujours la même graine).
 5. **Pylos 3×3** : tours de longueur variable, plusieurs sortes d'actions
    par tour, défaite quand on ne peut plus jouer.
-6. **Des règles pour un joueur seul** : les concepts parlent de `gagne` et
-   d'`adversaire` ; il faut une forme pour « atteindre le but » ou « durer ».
+6. **Des règles pour un joueur seul** : « atteindre le but » **fait**
+   (2026-11-26) : quand la mère prévoit l'état et a compris une fin gagnée,
+   les quatre notions existent seul (`suivant(moi)` = moi) et elle trouve
+   « jouer un coup après lequel j'ai gagné » à Hanoï (taille 28 → 21 ;
+   architecture, § 6). Le compte est bon n'en garde aucune : un seul tirage,
+   donc un seul cas par règle. La généralisation ne bouge pas (Hanoï 3/15) :
+   ces règles ne voient le but que de près. Reste « durer » (fin perdue : Jumper) et
+   des sous-buts à reconnaître, ce qui rejoint la priorité 3.
 7. **Un moteur commun** pour `effets.py` et `transformations.py` (énumérer
    par taille, confondre par les valeurs) : premier pas vers le jalon 2.
 8. **Examen blanc n° 2**, quand plusieurs de ces points sont faits : un
@@ -248,6 +254,7 @@ Premiers bulletins (graine 0 ; « général. » : positions jamais vues tenues) 
 | Jumper (30) | 1 (0 + 1) | 322 | 0 % / 12 % / 88 % | 4/4 |
 | Partition (30) | 1 (0 + 1) | 300 | 0 % / 38 % / 62 % | toutes vues |
 | Hanoï (30) | 21 (0 + 21) | 2,19 | 0 % / 57 % / 43 % | 3/15 (la mère gagne depuis les 15) |
+| Hanoï (30), avec les règles à un joueur | 21 (1 + 20) | 2,19 | 14 % / 43 % / 43 % | 3/15 |
 | Le compte est bon (30) | 15 (0 + 15) | 0,40 | 0 % / 100 % / 0 % | 50/50, mais personne ne gagne depuis ces positions |
 
 (Tailles à la première mesure, sans le coup demandé par chaque souvenir ;
@@ -276,7 +283,17 @@ bien joués sur 3 143 (333 leçons au lieu de 337, 306 souvenirs au lieu de
 identiques (la revérification n'y trouve rien). Et au Compte est bon, la
 généralisation ne veut rien dire tant que le labo rejoue un seul tirage.
 
-**Reste à faire** : l'écrire dans le rapport du lanceur d'examen ; la
+**Bulletin dans le rapport d'examen : fait** (2026-11-26). Il est lu
+après coup, comme une relecture du code du fils : le sous-processus envoie
+d'abord le score (éducation et mesure, seules comptées dans la limite), puis
+le bulletin, qui a sa propre limite (`Budget.facteur_bulletin`, 10 000 fois
+la tâche de référence). Le rapport le donne en annexe, en nombres seulement.
+Son coût, mesuré (bulletin ÷ éducation) : Morpion 0,06, Allumettes 0,22, Nim
+0,14, Hanoï 0,09, Jumper 0,26, Le compte est bon 0,12, Morpion à trois 0,01
+(5 s pour 659 s d'éducation). Au pire 0,26 × 20 000 ≈ 5 200 fois la
+référence : la limite du bulletin en laisse le double.
+
+**Reste à faire** : la
 stabilité en ligne de commande ; au Puissance 4 (10 parties), 1 cas sur 499
 est mal joué par le fils final, décidé par une règle ou le coup par défaut
 et non par un souvenir (déjà avant la revérification) : à comprendre.
@@ -501,6 +518,7 @@ comparant des résultats.
 | Examen : graines de mesure par place et par sorte d'adversaires | 10 | `examen.BUDGET` | a priori ; changé (2 parties contre le professeur, 100 contre le hasard) à cause des fragilités du protocole, pas du score |
 | Examen : barème | au moins aussi bien que le professeur à sa place, dans toutes les situations ; aucun coup impossible après la partie 5 | `examen.mesurer`, `BUDGET.rodage` | principe (« le fils ne triche jamais ») ; changé (« ne perdre aucune partie ») à cause des fragilités du protocole, pas du score |
 | Examen : limite de temps par problème | 20 000 fois la tâche de référence (environ 30 minutes sur la machine de développement) | `BUDGET.facteur`, `tache_de_reference` | a priori (les 30 minutes de l'examen n° 1, rapportées à la machine) |
+| Examen : limite du bulletin, après le score | 10 000 fois la tâche de référence | `BUDGET.facteur_bulletin` | mesurée : le bulletin coûte au plus 0,26 fois l'éducation sur sept jeux (≈ 5 200 fois la référence au pire) ; la limite en laisse le double |
 
 Les réglages « réglés » sont les premiers à remettre en cause quand un
 nouveau problème échoue. L'objectif, à terme, est que la mère choisisse

@@ -512,6 +512,43 @@ def motif_text(motif: dict) -> str:
     return "{" + ", ".join(f"{i}: {v!r}" for i, v in sorted(motif.items())) + "}"
 
 
+SOLO_NOTIONS_SOURCE = '''# --- Règles apprises (concepts construits par la mère) --------------------
+# Une règle : jouer une action après laquelle le concept est vrai.
+
+def apres(etat, action, joueur=None):
+    """L'état après l'action, tel que je le prévois (une position regardée à l'avance)."""
+    global VUES
+    VUES += 1
+    suite = valeur_apres(list(etat), arguments(action))
+    return list(suite) if isinstance(suite, (list, tuple)) else suite
+
+
+def gagne(etat, joueur=None):
+    """Ai-je gagné ? L'état est une fin gagnée que la mère a comprise."""
+    cle = tuple(etat) if isinstance(etat, list) else etat
+    return FINS.get(cle) == "gagnée"
+
+
+def suivant(joueur):
+    """Seul, c'est encore moi qui joue après moi."""
+    return joueur
+'''
+
+
+def solo_rules_source(knowledge: dict) -> str:
+    """Les règles d'un fils qui joue seul, avec les quatre notions qu'elles demandent : ``apres``
+    (l'état prévu, le seul endroit où il regarde à l'avance : ``VUES`` les compte), ``gagne``
+    (l'état est une fin gagnée comprise), ``possibles`` et ``suivant`` (seul, je joue après
+    moi). Sans règle, rien : le fils reconnaît, il ne prévoit pas."""
+    rules, definitions = knowledge.get("rules", []), knowledge.get("concepts", {})
+    if not rules:
+        return "REGLES = []  # aucune règle apprise"
+    parts = [SOLO_NOTIONS_SOURCE, concepts.AU_MOINS_SOURCE]
+    parts += [concepts.source(name, definitions[name]) for name in concepts.dependances(rules, definitions)]
+    parts.append(f"REGLES = [{', '.join(rules)}]  # ordre de priorité appris")
+    return "\n\n".join(parts) + "\n"
+
+
 def solo_source(name: str, knowledge: dict, nb_games: int = 0) -> str:
     """Le fils d'un jeu à un joueur : il lit l'état, reconnaît un souvenir ou un petit motif,
     sinon joue le coup par défaut. Il ne regarde aucune position à l'avance (``VUES`` reste 0)."""
@@ -538,6 +575,7 @@ def possibles(etat):
     return list(ACTIONS)
 '''
     motifs = "".join(f"    ({motif_text(m)}, {a!r}),\n" for m, a in knowledge.get("motifs", []))
+    regles = solo_rules_source(knowledge)
     return f'''"""Fils « {name} », écrit par la logique mère de Xander (jeu à un joueur).
 
 Leçon de l'exemple, puis {nb_games} partie(s) corrigée(s). Ce fichier ne contient
@@ -570,6 +608,8 @@ SOUVENIRS = {pformat(knowledge["memories"], width=100)}  # état exact -> coup
 MOTIFS = [
 {motifs}]  # petits motifs ({{case: valeur}}, coup), dans l'ordre appris
 
+{regles}
+
 
 def motif_de(etat):
     """Le premier petit motif que contient l'état (None s'il n'y en a pas)."""
@@ -585,8 +625,8 @@ HABITUEL = {knowledge.get("usual")!r}  # ce que l'action renvoie quand le coup e
 
 
 def choisir(etat, moi=None):
-    """Mon coup et sa raison : souvenir, sinon petit motif, sinon défaut (la plus petite action).
-    Aucun coup possible : (None, "aucun coup")."""
+    """Mon coup et sa raison : souvenir, sinon petit motif, sinon la première règle qui choisit,
+    sinon défaut (la plus petite action). Aucun coup possible : (None, "aucun coup")."""
     global VUES
     VUES = 0
     permis = possibles(etat)
@@ -599,6 +639,10 @@ def choisir(etat, moi=None):
         for motif, coup in MOTIFS:
             if contient(etat, motif) and coup in permis:
                 return coup, "petit motif"
+    for regle in REGLES:
+        coups = [a for a in permis if regle(apres(etat, a, moi), moi)]
+        if coups and len(coups) < len(permis):  # une règle qui accepte tout ne choisit rien
+            return min(coups), regle.__name__
     return min(permis), "défaut"
 
 

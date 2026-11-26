@@ -320,18 +320,30 @@ def bulletin_solo(education, nom: str, graine: int, positions: int, parties: int
     b.souvenirs = len(k["memories"])
     b.petits_motifs = len(k.get("motifs", []))
     b.cases_fixees = taille.cases(k)
+    b.regles = list(k.get("rules", []))
+    b.noeuds = noeuds(b.regles, k.get("concepts", {}))
     b.budget = education.max_views
     fils = education.son
     with intact(education):
+        b.solidite = {r: {"choisit": 0, "bon": 0, "decide": 0} for r in b.regles}
+        pensee = education.concept_bank()[0] if b.regles else None
         for cas in education.cases.values():
             valeurs = cas["values"]
             if not valeurs:
                 continue
             b.cas += 1
-            coup, _ = fils.choisir(cas["state"])
+            coup, raison = fils.choisir(cas["state"])
             b.cas_bien_joues += valeurs.get(coup, -1) >= max(valeurs.values())
+            if raison in b.solidite:
+                b.solidite[raison]["decide"] += 1
+            for regle in b.regles:  # comme à deux : où elle choisirait, et si son coup serait bon
+                choix = pensee.choix(k["concepts"][regle], cas["state"], None)
+                if choix:
+                    b.solidite[regle]["choisit"] += 1
+                    b.solidite[regle]["bon"] += valeurs.get(min(choix), -1) >= max(valeurs.values())
         for _ in range(parties):
             for _, _, _, raison in education.play_game():
+                raison = f"règle {raison}" if raison in b.solidite else raison
                 b.origine[raison] = b.origine.get(raison, 0) + 1
         # Généralisation : depuis des positions jamais vues, le fils contre le calcul de la mère
         rng, lab = random.Random(f"bulletin-{graine}"), education.lab

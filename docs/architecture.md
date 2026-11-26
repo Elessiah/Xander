@@ -898,6 +898,51 @@ faudrait reconnaître des configurations (« il manque 5, et j'ai un 5 ») au
 lieu de souvenirs d'états exacts : les petits motifs, qui comparent des
 cases à des valeurs fixes, n'y suffisent pas.
 
+### Des règles pour un joueur seul : atteindre le but
+
+Les quatre notions existent aussi pour un joueur seul, quand la mère prévoit
+l'état d'après en entier et qu'elle a compris une fin **gagnée** (Hanoï, Le
+compte est bon) : `apres` est l'état qu'elle prévoit, `gagne` dit que l'état
+est cette fin, `possibles` les actions dont elle prévoit l'état, et
+`suivant(moi)` est moi (seul, je joue encore après moi). Le langage des
+concepts (§ 8) ne change pas : avec le seul joueur `moi`, il dit « jouer un
+coup après lequel j'ai gagné » (`gagne(moi)`) ou « … après lequel un de mes
+coups donne « j'ai gagné » » (`AuMoins(1, moi, gagne(moi))`).
+
+La mère cherche ces règles comme à deux (`Solo.refactor`) : le plus petit
+concept qui, à un rang de priorité, libère au moins **deux** souvenirs (une
+règle explique plusieurs cas ; un seul peut être une coïncidence), joue encore
+un des meilleurs coups dans chaque cas enregistré, rend le fils plus court
+(le rasoir, `xander/taille.py`) et reste dans le budget de positions
+regardées. Les règles retirées sans rien rater sont élaguées. Le fils les
+consulte après ses souvenirs et ses petits motifs ; `apres` est le seul
+endroit où il regarde à l'avance (`VUES` le compte). Les positions qui
+servent à confondre deux concepts sont imaginées en largeur depuis le départ
+et depuis les positions que les parties ont montrées (au plus 120) : une
+partie au hasard d'un petit casse-tête repasse sans fin par les mêmes
+positions.
+
+Résultat (30 parties, graine 0) :
+
+| | Avant | Avec les règles |
+|---|---|---|
+| Hanoï | 7 souvenirs, taille 28 | « jouer un coup après lequel j'ai gagné » (2 souvenirs libérés), 5 souvenirs, taille 21 |
+| Le compte est bon | 3 souvenirs, taille 18 | inchangé : le labo rejoue un seul tirage, chaque règle n'y explique qu'un cas |
+| Jumper, Partition | inchangés : la fin y est perdue, `gagne` n'y est jamais vrai | |
+
+Avec un seul souvenir libéré suffisant, la mère prenait aussi « gagner au
+coup d'après » à Hanoï, et les deux règles au Compte est bon (taille 18 → 9),
+chacune tirée d'un seul cas : refusé, comme à deux.
+
+Le fils est plus court et joue aussi bien, mais **ne généralise pas
+mieux** : Hanoï tient toujours 3 positions jamais vues sur 15 (et Le compte
+est bon, même avec ses deux règles d'un seul cas, gagnait toujours 2 tirages
+jamais vus sur 100). Ces règles ne voient le but que de près ; loin du but, il faudrait regarder plus loin que le budget ne
+le permet (à Hanoï, 3 coups possibles par position : 3⁷ positions pour voir le
+but à 7 coups). Ce qui manque : une forme pour **durer** (une fin perdue :
+Jumper), et des **sous-buts** à reconnaître (une partie de l'état déjà comme
+à la fin, à ne plus défaire), plutôt qu'un calcul plus profond.
+
 ## 7. Motifs décalés et symétries — `xander/symmetries.py`
 
 **Un motif marcherait-il ailleurs ?** Dès qu'elle comprend un motif, la mère
@@ -1477,7 +1522,8 @@ réécrit pas, et son labo n'est pas utilisé (un test le vérifie).
 | Graine maîtresse | 0 : éducation, graines des parties de mesure, hasard |
 | Mesure | 10 graines pour chaque place et chaque sorte d'adversaires : 10 situations pour un joueur seul, 40 à deux joueurs, 60 à trois ; deux parties par situation, chacune d'au plus `plafond` coups |
 | Rodage | aucun coup impossible après la partie 5 de l'éducation |
-| Limite de temps | 20 000 fois la tâche de référence par problème (environ 30 minutes sur la machine de développement), tout compris |
+| Limite de temps | 20 000 fois la tâche de référence par problème (environ 30 minutes sur la machine de développement), éducation et mesure comprises (le temps est mesuré par le sous-processus, jusqu'à l'envoi du score) |
+| Bulletin | après le score, hors de la limite précédente : au plus 10 000 fois la tâche de référence (`facteur_bulletin`) |
 
 Le travail est borné par les nombres de parties et le plafond de coups. La
 limite de temps n'est qu'un garde-fou ; pour qu'elle dépende moins de la
@@ -1493,6 +1539,18 @@ modifications non commitées), la date, la machine et sa mesure de référence,
 le budget, puis pour chaque problème son numéro, réussi ou raté, son score
 relatif, son nombre de joueurs et la durée ; enfin les deux scores. Rien
 d'autre sur le contenu des problèmes, ni sur la raison d'un échec.
+
+**Le bulletin, après coup.** Une fois le score envoyé (le sous-processus
+l'écrit avant toute autre chose, ligne `@@examen`), il lit le fils comme on
+relit du code : son bulletin (§ 12), sur une ligne `@@bulletin`. Le score
+est déjà fixé : le bulletin ne le change pas, ne compte pas dans la limite de
+l'examen et ne revient pas vers la mère, qui a fini. Il a sa propre limite
+(`facteur_bulletin`) ; s'il la dépasse, le sous-processus est arrêté et le
+rapport dit seulement « pas de bulletin », le score reste. Le rapport donne
+les bulletins en annexe, après les scores, en nombres seulement (nom
+« problème », règles `concept_N`). Comme le score, ils se lisent comme une
+mesure : on ne s'en sert jamais pour corriger la mère sur ces problèmes
+(règle 4 du cap).
 
 **Écrire un problème.**
 
