@@ -107,6 +107,25 @@ def au_moins(k: int, joueur: str, x: Concept) -> Concept:
     return Concept("au_moins", k, joueur, x)
 
 
+def negation(x: Concept) -> Concept:
+    """Le contraire de ``x`` (sans double négation)."""
+    return x.args[0] if x.kind == "non" else non(x)
+
+
+def parties_ou(c: Concept) -> list[Concept]:
+    """Les parties d'un « ou » : ``non(et(non a, non b))`` se lit « a ou b ». Un concept qui n'en
+    est pas un est sa seule partie. Les parties sont rangées **du plus immédiat au plus lointain**
+    (profondeur croissante : combien de fois on regarde un coup plus loin), puis du plus petit au
+    plus grand : on règle d'abord ce qui arrive le plus tôt."""
+    def parties(x: Concept) -> list[Concept]:
+        if x.kind == "non" and x.args[0].kind == "et":
+            a, b = x.args[0].args
+            return parties(negation(a)) + parties(negation(b))
+        return [x]
+    trouvees = list(dict.fromkeys(parties(c)))
+    return sorted(trouvees, key=lambda x: (x.depth, x.size)) if len(trouvees) > 1 else trouvees
+
+
 # ---------------------------------------------------------------------- #
 # Évaluer un concept avec les quatre notions
 # ---------------------------------------------------------------------- #
@@ -177,6 +196,37 @@ class Pensee:
             valeur = compte >= k
         self._memo[cle] = valeur
         return valeur
+
+    def vues(self, concept: Concept, etat, moi) -> int:
+        """Combien de positions le fils regarde (appels à ``apres``) pour savoir si le concept est
+        vrai ici, en exécutant son code tel que la mère l'écrit (:func:`expression`) : ``and``
+        s'arrête au premier faux, ``au_moins`` dès qu'il a ses ``k`` coups. La mère le compte
+        sans écrire ni compiler ce code."""
+        etat = _key(etat)
+        cle = ("vues", concept.id, etat, moi)
+        if cle in self._memo:
+            return self._memo[cle]
+        kind, args = concept.kind, concept.args
+        if kind == "brique":
+            nom, qui = args
+            n = 0 if nom == GAGNE else self.vues(self.definitions[nom], etat, self.joueur(moi, qui))
+        elif kind == "non":
+            n = self.vues(args[0], etat, moi)
+        elif kind == "et":
+            n = self.vues(args[0], etat, moi)
+            if self.vrai(args[0], etat, moi):
+                n += self.vues(args[1], etat, moi)
+        else:
+            k, qui, x = args
+            n = compte = 0
+            for _, suite in self.enfants(etat, self.joueur(moi, qui)):
+                n += 1 + self.vues(x, suite, moi)
+                if self.vrai(x, suite, moi):
+                    compte += 1
+                    if compte >= k:
+                        break
+        self._memo[cle] = n
+        return n
 
     def coups(self, concept: Concept, etat, moi) -> set:
         """La règle : les actions après lesquelles le concept est vrai."""
