@@ -134,6 +134,16 @@ def parties_ou(c: Concept) -> list[Concept]:
     return sorted(trouvees, key=lambda x: (x.depth, x.size)) if len(trouvees) > 1 else trouvees
 
 
+def parties_et(c: Concept) -> list[Concept]:
+    """Les parties d'un « et » (``et(a, et(b, c))`` : a, b, c), rangées comme celles d'un « ou »
+    (:func:`parties_ou`) : du plus immédiat au plus lointain. Un concept qui n'en est pas un est
+    sa seule partie."""
+    def parties(x: Concept) -> list[Concept]:
+        return parties(x.args[0]) + parties(x.args[1]) if x.kind == "et" else [x]
+    trouvees = list(dict.fromkeys(parties(c)))
+    return sorted(trouvees, key=lambda x: (x.depth, x.size)) if len(trouvees) > 1 else trouvees
+
+
 # ---------------------------------------------------------------------- #
 # Évaluer un concept avec les quatre notions
 # ---------------------------------------------------------------------- #
@@ -202,7 +212,10 @@ class Pensee:
         return valeur
 
     def vrai(self, concept: Concept, etat, moi) -> bool:
-        etat = _key(etat)
+        return self._vrai(concept, _key(etat), moi)
+
+    def _vrai(self, concept: Concept, etat, moi) -> bool:
+        """:meth:`vrai`, pour une position déjà sous sa forme de clé."""
         cle = (concept.id, etat, moi)
         if cle in self._memo:
             return self._memo[cle]
@@ -215,17 +228,17 @@ class Pensee:
             elif nom in PERCEPTIONS:
                 valeur = bool(getattr(self.notions, nom)(etat, joueur))  # vu, pas imaginé
             else:
-                valeur = self.vrai(self.definitions[nom], etat, joueur)
+                valeur = self._vrai(self.definitions[nom], etat, joueur)
         elif kind == "non":
-            valeur = not self.vrai(args[0], etat, moi)
+            valeur = not self._vrai(args[0], etat, moi)
         elif kind == "et":
-            valeur = self.vrai(args[0], etat, moi) and self.vrai(args[1], etat, moi)
+            valeur = self._vrai(args[0], etat, moi) and self._vrai(args[1], etat, moi)
         else:
             k, qui, x = args
             joueur = self.joueur(moi, qui)
             compte = 0
             for _, suite in self.enfants(etat, joueur):
-                if self.vrai(x, suite, moi):
+                if self._vrai(x, suite, moi):
                     compte += 1
                     if compte >= k:
                         break
