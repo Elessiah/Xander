@@ -188,6 +188,13 @@ l'éducation bloque) est dans `docs/jeux.md`. Commandes :
 
 ### Priorités pour la suite, dans l'ordre
 
+**Fait (2026-11-26) : l'hypothèse vient de l'explication** (architecture,
+§ 6, « L'hypothèse vient de l'explication ») : explication par cas à marge
+croissante, élargissement des bornes, séparation des « ou », contre-exemples,
+oubli du redondant, budget tenu en partie. Reste : le souvenir qui passe
+avant « gagner », les défaites contre le professeur du Puissance 4, le coût
+de l'élargissement au Morpion à trois.
+
 1. ~~Vérifier le Morpion à trois après la fusion~~ : **fait** (2026-11-26).
    Morpion à trois et Puissance 4 identiques leçon pour leçon avant et après
    les PR #20 et #22 ; 200 parties de Morpion à trois en 340 s (voir
@@ -331,7 +338,8 @@ misère.
 
 **Ce qui est accepté** :
 
-- un **refactor** (`Education.shorter`) : il libère au moins un souvenir,
+- un **refactor** (`Education.shorter`) : il libère au moins deux souvenirs
+  (un seul pendant un temps, voir « Le rasoir mis de côté » ci-dessous),
   ne fait rater aucun cas (`check`) et ne rallonge pas le fils. Les règles
   qu'il rend inutiles comptent comme déjà retirées (`pruned`), puisque
   l'élagage suit. À taille égale, la règle est gardée : le rasoir ne
@@ -395,6 +403,27 @@ Ce qui a été essayé :
    « plus court » à chaque tour, et l'élagage n'avait lieu qu'à la fin).
    D'où l'exigence d'au moins un souvenir libéré.
 
+**Le rasoir mis de côté** (2026-11-26). Avec un seul souvenir libéré, le
+Puissance 4 s'effondrait (10 parties : 1 règle au lieu de 3, 149 souvenirs
+au lieu de 139, 2 défaites au lieu de 2 nuls contre le professeur, 40
+défaites au lieu de 12 sur 100 contre le hasard) alors que le Nim gagnait
+quelques positions. Le seuil revient à **deux souvenirs libérés** (le
+concept, lui, expliquait déjà deux souvenirs) :
+
+| | un souvenir libéré | deux |
+|---|---|---|
+| Morpion | taille 84, 49/50 | taille 90, 49/50 |
+| Nim | 22/36 | 19/35 |
+| Nim misère | 20/35 | 17/34 |
+| Morpion à trois | 3 143 cas bien joués, 89 / 4 / 7 contre le hasard | identique |
+| Puissance 4 (10) | 54 / 6 / 40 contre le hasard, 2 défaites contre le professeur | 79 / 9 / 12, 2 nuls |
+
+L'effet du critère change d'un jeu à l'autre sans qu'on sache pourquoi :
+le rasoir reste écrit (la taille sert encore à départager et aux petits
+motifs), mais on n'y touche plus avant d'avoir compris, au Puissance 4, ce
+que la règle tirée d'un seul souvenir libéré y faisait mal. La suite passe
+par l'hypothèse tirée de l'explication (priorité suivante).
+
 Les poids du critère (un coup par souvenir ; l'égalité en faveur de la
 règle ; au moins un souvenir libéré) sont dans le tableau « Réglages fixés à
 la main ». Ils ne se règlent jamais sur un examen blanc.
@@ -443,6 +472,9 @@ comparant des résultats.
 | Constantes retenues de chaque sorte | 8 | `effets.MAX_CONSTANTES` | a priori |
 | Expériences pour réfuter l'effet / parties d'exploration / nouvelles recherches / refus avant d'arrêter d'explorer | 40 / 8 / 3 / 2 | `EXPERIENCES`, `PARTIES_D_ESSAI`, `REPRISES`, `PATIENCE` | a priori |
 | Taille et profondeur d'un concept | 6 nœuds, 2 `AuMoins` | `Education.max_size`, `max_depth` | réglé au Morpion |
+| Élargissement des bornes quand un cas reste sans explication | 2 crans (chaque cran : un nœud et un niveau de plus) | `ELARGISSEMENTS`, `Education.wider` | a priori (un nœud et un niveau ensemble, pour ne pas choisir l'un d'après nos jeux) |
+| Contre-exemples rejoués d'abord | 20 | `CONTRE_EXEMPLES`, `Education.check` | sans effet sur ce qu'elle apprend (l'ordre de la vérification seulement) |
+| Parties d'un « ou » : la plus immédiate d'abord | profondeur croissante, puis taille | `concepts.parties_ou` | principe fourni à la main (régler d'abord ce qui arrive le plus tôt) |
 | k dans `AuMoins(k, …)` | 1 seulement | `Education.counts` | réglé au Morpion (tableau de `docs/architecture.md`, § 6) |
 | Positions imaginées pour départager des concepts | 120 | `concepts.echantillon` | a priori |
 | Autres coups adverses revus (variantes) | tous | `Education.variants` | réglé au Morpion (toute autre valeur y est pire) |

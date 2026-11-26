@@ -78,6 +78,7 @@ Limites : jeux où les joueurs jouent chacun leur tour, dans un ordre fixe ;
 
 from __future__ import annotations
 
+import collections
 import functools
 import itertools
 import math
@@ -101,6 +102,12 @@ def issue(winner: int | None, side: int) -> int:
 #: Le fils pense comme un joueur humain : il reconnaît, il ne calcule pas tout.
 #: La mère refuse une règle qui lui ferait regarder plus de positions pour un coup.
 BUDGET = 1000
+#: Crans d'élargissement au plus quand un cas reste sans explication (chaque cran : un nœud et un
+#: niveau d'imbrication de plus que les bornes de la recherche de concepts).
+ELARGISSEMENTS = 2
+#: Contre-exemples que la mère rejoue d'abord pour vérifier une hypothèse (l'ordre seulement : le
+#: résultat de la vérification n'en dépend pas).
+CONTRE_EXEMPLES = 20
 
 #: Coups que la mère joue dans son labo pour mettre à l'épreuve la description de l'action.
 EXPERIENCES = 40
@@ -172,12 +179,15 @@ class GameRecord:
     patterns: list[list[int]] = field(default_factory=list)  # motifs découverts pendant la partie
     refactors: list[str] = field(default_factory=list)       # souvenirs remplacés par une règle
     impossibles: list[str] = field(default_factory=list)     # coups du fils refusés par le jeu
+    over_budget: int = 0                                     # positions où il a trop calculé (à reconnaître)
 
     def __str__(self) -> str:
         text = f"partie {self.number:>3} | fils {self.son_side} contre {self.opponent:<10} : {self.result:<8}"
         text += f" | {len(self.lessons)} erreur(s)"
         if self.impossibles:
             text += f" | {len(self.impossibles)} coup(s) impossible(s)"
+        if self.over_budget:
+            text += f" | {self.over_budget} position(s) à reconnaître (budget dépassé)"
         for impossible in self.impossibles:
             text += f"\n      {impossible}"
         for pattern in self.patterns:
@@ -315,6 +325,12 @@ class Education:
         self.cases: dict[str, Case] = {}            # cle de la position -> cas enregistré
         self._pensee = None                          # évalue les concepts (à refaire si le jeu est mieux compris)
         self._bank = None                            # concepts énumérés par taille (à refaire si une brique s'ajoute)
+        self._bank_rank = None                       # (concepts, place de chacun, combien)
+        self._bank_positions = None                  # positions imaginées qui confondent les concepts
+        self._wider = None                           # (concepts, ceux des crans d'élargissement)
+        self._explanations: dict = {}                # cas -> son explication (au fil des marges)
+        self._counterexamples = collections.OrderedDict()  # cas qui ont fait tomber une hypothèse
+        self.over_budget: dict = {}                  # coups -> (position, joueur) où le fils a trop calculé
         self._judged: dict = {}                      # (cas, coup) -> aussi bon que le professeur ?
         self._symmetries_known = False               # à chercher de nouveau si un motif s'ajoute
         self._shapes_known = False                   # motifs à essayer décalés (idem)
@@ -1304,7 +1320,7 @@ class Education:
             if self.seat(len(lab.moves)) == son_side:
                 moves, state = list(lab.moves), self.position()
                 action, reason = self.son.choisir(list(state), self.marks[son_side])
-                self.max_views = max(self.max_views, self.son.VUES)
+                self.note_views(moves, state, self.marks[son_side])
                 if lab.play(*self.args(action)) == "refused":
                     self.impossibles.append(self.impossible(state, action))
                     continue
@@ -1355,9 +1371,18 @@ class Education:
                     continue
                 state = self.position()
                 son_cell, reason = self.son.choisir(list(state), me)
-                self.max_views = max(self.max_views, self.son.VUES)
+                self.note_views(lab.moves, state, me)
                 imagined.append((list(lab.moves), state, son_cell, reason))
         return imagined
+
+    def note_views(self, moves, state, me) -> None:
+        """Le fils vient de choisir : combien de positions a-t-il regardées ? Au-delà du budget,
+        la position est à **reconnaître** (elle deviendra un souvenir à la revue) : il ne doit pas
+        calculer davantage. Le budget mesuré (``max_views``) est celui qu'il tient."""
+        if self.son.VUES > self.budget:
+            self.over_budget[tuple(map(tuple, moves))] = (list(state), me)
+        else:
+            self.max_views = max(self.max_views, self.son.VUES)
 
     def review(self, decisions: list, son_side: int) -> list[Lesson]:
         lessons = []
@@ -1365,6 +1390,10 @@ class Education:
         for moves, state, son_cell, reason in decisions:
             teacher = self.teacher_move(moves)
             teacher_cell = self.action(teacher)
+            if tuple(map(tuple, moves)) in self.over_budget:  # trop calculé : à reconnaître
+                lessons.append(self.correct(state, me, son_cell, "trop de positions regardées",
+                                            teacher_cell, moves))
+                continue
             if teacher_cell == son_cell or not self.better(moves, teacher, son_cell, son_side):
                 key = self.mind.cle(list(state), me)
                 if key not in self.cases:  # bien joué : la position reste un test pour les refactors
@@ -1681,10 +1710,27 @@ class Education:
     def bank(self) -> list:
         """Les concepts que la mère sait former, du plus petit au plus grand."""
         if self._bank is None:
-            positions = concepts.echantillon(self.mind, self.start_position(), self.knowledge["marks"])
-            self._bank = concepts.enumerer(self.pensee, positions, self.max_size, self.max_depth,
+            self._bank_positions = concepts.echantillon(self.mind, self.start_position(), self.knowledge["marks"])
+            self._bank = concepts.enumerer(self.pensee, self._bank_positions, self.max_size, self.max_depth,
                                            self.counts, tuple(concepts.joueurs(self.n)))
         return self._bank
+
+    def wider(self, level: int) -> list:
+        """« Rien de ce que je sais former ne l'explique : et en cherchant plus loin ? » Les concepts
+        qu'elle forme en élargissant ses bornes de ``level`` crans (chaque cran : un nœud et un niveau
+        d'imbrication de plus), sans ceux des crans d'avant. Elle ne les énumère que si un cas reste
+        sans explication, et les garde tant qu'elle ne sait pas former de nouvelles briques."""
+        bank = self.bank
+        if self._wider is None or self._wider[0] is not bank:
+            self._wider = (bank, [])
+        levels = self._wider[1]
+        while len(levels) < level:
+            k = len(levels) + 1
+            seen = {c.id for c in bank}.union(c.id for lower in levels for c in lower)
+            found = concepts.enumerer(self.pensee, self._bank_positions, self.max_size + k, self.max_depth + k,
+                                      self.counts, tuple(concepts.joueurs(self.n)))
+            levels.append([c for c in found if c.id not in seen])
+        return levels[level - 1]
 
     def rule(self, name: str) -> concepts.Concept:
         return self.knowledge["concepts"][name]  # l'arbre lui-même : un nom essayé peut être abandonné
@@ -1720,13 +1766,27 @@ class Education:
 
     def check(self, rules: list[str], covering: dict) -> list[str] | None:
         """Rejoue tous les cas avec ces règles : ``None`` si un cas sans souvenir est raté,
-        sinon les souvenirs dont plus aucun cas n'a besoin."""
+        sinon les souvenirs dont plus aucun cas n'a besoin.
+
+        Elle rejoue d'abord ses **contre-exemples** : les cas sans souvenir qui ont déjà fait
+        tomber une hypothèse (le dernier en premier). Une règle fausse tombe souvent sur le même
+        cas ; le résultat ne dépend pas de l'ordre, seulement le temps pour le trouver."""
+        cases = self.cases
+        for key in list(self._counterexamples):
+            case = cases.get(key)
+            if case is not None and covering.get(key) is None and                     not self.good(case, self.decide(case.state, case.me, rules)):
+                self._counterexamples.move_to_end(key, last=False)
+                return None
         needed, useful = set(), set()
-        for case in self.cases.values():
+        for case in cases.values():
             ok = self.good(case, self.decide(case.state, case.me, rules))
             memory = covering[case.key]
             if memory is None:
                 if not ok:
+                    self._counterexamples[case.key] = True
+                    self._counterexamples.move_to_end(case.key, last=False)
+                    while len(self._counterexamples) > CONTRE_EXEMPLES:
+                        self._counterexamples.popitem()
                     return None
             else:
                 useful.add(memory)
@@ -1735,7 +1795,88 @@ class Education:
         return sorted(useful - needed)
 
     def views(self, rules: list[str], freed: list[str]) -> int:
-        """Positions regardées au plus par le fils écrit avec ces règles, sur les cas enregistrés."""
+        """Positions regardées au plus par le fils écrit avec ces règles, sur les cas enregistrés.
+        La mère les compte avec sa pensée (:meth:`concepts.Pensee.vues`), comme les compterait le
+        code du fils (ses souvenirs d'abord, puis chaque règle sur chaque coup possible, jusqu'à
+        celle qui choisit), sans écrire ni compiler un fils d'essai (:meth:`views_compiled` le
+        fait, pour le vérifier)."""
+        memories = {k: v for k, v in self.knowledge["memories"].items() if k not in freed}
+        most = 0
+        for case in self.cases.values():
+            most = max(most, self.views_at(case.state, case.me, rules, memories))
+            if most > self.budget:
+                break
+        return most
+
+    def views_at(self, state, me, rules: list[str], memories: dict) -> int:
+        """Positions que regarderait le fils dans cette position (voir :meth:`views`)."""
+        mind, pensee, state = self.mind, self.pensee, list(state)
+        _, cell = mind.rappel(state, me, memories)
+        if cell is not None and cell in mind.possibles(state):
+            return 0  # un souvenir : il ne regarde rien à l'avance
+        seen, key = 0, concepts._key(state)
+        for name in rules:
+            rule = self.rule(name)
+            seen += sum(1 + pensee.vues(rule, child, me) for _, child in pensee.enfants(key, me))
+            if pensee.choix(rule, state, me):
+                break
+        return seen
+
+    def economize(self) -> list[str]:
+        """Le fils a regardé trop de positions (plus que son budget) : la mère cherche une façon
+        **moins chère de penser la même chose**. Pour chaque règle, un concept qu'elle sait former
+        (sans élargir ses bornes pour autant) qui choisit exactement les mêmes coups qu'elle dans
+        chaque cas enregistré et dans ces positions, mais en regardant moins de positions là où le
+        fils a trop calculé. S'il existe, il remplace la règle. Sinon, ces positions seront
+        reconnues (des souvenirs, à la revue) : il ne doit pas calculer davantage."""
+        over = list(self.over_budget.values())
+        if not over or not self.knowledge["rules"]:
+            return []
+        pensee, definitions = self.pensee, self.knowledge["concepts"]
+        bank = self.bank
+        wider = self._wider[1] if self._wider is not None and self._wider[0] is bank else []
+        candidates = sorted(list(bank) + [c for level in wider for c in level], key=lambda c: (c.size, c.id))
+        positions = [(concepts._key(s), m) for s, m in over]
+
+        def cost(concept) -> int:
+            return sum(1 + pensee.vues(concept, child, me) for state, me in positions
+                       for _, child in pensee.enfants(state, me))
+
+        tests = [(case.state, case.me) for case in self.cases.values()] + over
+        done, names = [], {c.id: n for n, c in definitions.items()}
+        for index, name in enumerate(list(self.knowledge["rules"])):
+            rule, best = self.rule(name), None
+            current = cost(rule)
+            for concept in candidates:
+                if concept.id == rule.id:
+                    continue
+                price = cost(concept)
+                if price >= current or (best is not None and price >= best[0]):
+                    continue
+                if all(pensee.choix(concept, s, m) == pensee.choix(rule, s, m) for s, m in tests):
+                    best = (price, concept)
+            if best is None:
+                continue
+            price, concept = best
+            new = names.get(concept.id) or f"concept_{len(definitions) + 1}"
+            if new not in definitions:
+                definitions[new] = concept
+                names[concept.id] = new
+                self._bank = None  # une nouvelle brique
+            self.knowledge["rules"][index] = new
+            self.rewrite()
+            done.append(f"{name} -> {new} : les mêmes choix dans chaque cas, {current} -> {price} positions "
+                        f"regardées là où le fils dépassait son budget (« {concepts.decrire_regle(concept)} »)")
+        if done:  # les positions qui tiennent maintenant le budget n'ont plus à être reconnues
+            son = self.son
+            for moves, (state, me) in list(self.over_budget.items()):
+                son.choisir(list(state), me)
+                if son.VUES <= self.budget:
+                    del self.over_budget[moves]
+        return done
+
+    def views_compiled(self, rules: list[str], freed: list[str]) -> int:
+        """:meth:`views` en écrivant, compilant et faisant jouer un fils d'essai (plus lent)."""
         knowledge = dict(self.knowledge, rules=rules,
                          memories={k: v for k, v in self.knowledge["memories"].items() if k not in freed})
         son = son_writer.load(son_writer.son_source("essai", knowledge))
@@ -1779,6 +1920,46 @@ class Education:
             done += self.prune()
         return done
 
+    def forget(self) -> list[str]:
+        """Oublie les souvenirs **redondants** : un souvenir (ou un petit motif) sans lequel chaque
+        cas qu'il décide reste bien joué, par les règles ou par un autre souvenir. Seuls ces cas
+        changent quand il disparaît : ce sont eux qu'elle rejoue. Un souvenir qui ne décide aucun
+        cas enregistré (un petit motif décalé, vérifié dans le labo) n'est pas oublié à l'aveugle.
+        Comme pour les règles inutiles : du code mort."""
+        memories, mind, rules = self.knowledge["memories"], self.mind, self.knowledge["rules"]
+        decided: dict[str, list] = {}
+        for case in self.cases.values():
+            key = mind.rappel(list(case.state), case.me, memories)[0]
+            if key is not None:
+                decided.setdefault(key, []).append(case)
+        done = []
+        for key in list(memories):
+            cases = decided.get(key)
+            if not cases:
+                continue
+            trial = {k: v for k, v in memories.items() if k != key}
+            moved = []
+            for case in cases:
+                other, cell = mind.rappel(list(case.state), case.me, trial)
+                if cell is None:
+                    cell = self.decide(case.state, case.me, rules)
+                    if self.views_at(case.state, case.me, rules, trial) > self.budget:
+                        break  # sans lui, le fils calculerait trop : il reconnaît, il le garde
+                if not self.good(case, cell):
+                    break
+                moved.append((other, case))
+            else:
+                del memories[key]
+                del decided[key]
+                for other, case in moved:  # ces cas sont maintenant décidés par un autre souvenir
+                    if other is not None:
+                        decided.setdefault(other, []).append(case)
+                kind = "petit motif" if "?" in key else "souvenir"
+                done.append(f"{kind} {key} oublié : ses {len(cases)} cas restent bien joués sans lui")
+        if done:
+            self.rewrite()
+        return done
+
     def prune(self) -> list[str]:
         """Retire chaque règle sans laquelle tous les cas restent bien joués (du code mort).
         Un oubli ne rallonge jamais le fils (:mod:`xander.taille`) : il le raccourcit, ou laisse
@@ -1807,42 +1988,136 @@ class Education:
         pending = [case for case in self.cases.values() if covering[case.key] is not None]
         if len({covering[case.key] for case in pending}) < 2:
             return None
-        pensee = self.pensee
-        candidates = []
-        for rank, concept in enumerate(self.bank):
-            explained = set()  # souvenirs expliqués (deux positions équivalentes comptent pour un)
+        # « Pourquoi le coup du professeur valait-il mieux ? » Chaque cas a son explication (les
+        # plus petits concepts vrais après le coup du professeur et faux après celui du fils) ;
+        # une hypothèse de règle est une explication que partagent au moins deux souvenirs. La
+        # mère commence par les plus courtes (marge 0) et n'allonge les explications (marge 1,
+        # 2…) que si aucune hypothèse n'a été adoptée, en reprenant où elle s'était arrêtée.
+        names, tried = {c.id: name for name, c in definitions.items()}, set()
+        for margin in itertools.count():
+            explained: dict[int, set] = {}  # concept -> souvenirs expliqués (deux positions
+            found: dict[int, concepts.Concept] = {}  # équivalentes comptent pour un)
+            complete = True
             for case in pending:
-                cells = pensee.choix(concept, case.state, case.me)
-                if case.teacher_cell in cells and case.son_cell not in cells:
-                    explained.add(covering[case.key])
-            if len(explained) >= 2:
-                candidates.append((concept.size, -len(explained), rank, concept))
-        names = {c.id: name for name, c in definitions.items()}
-        for _, _, _, concept in sorted(candidates):
+                for concept in self.explanation(case, margin):
+                    explained.setdefault(concept.id, set()).add(covering[case.key])
+                    found[concept.id] = concept
+                complete &= self._explanations[case.key]["fini"]
+            rank = self.bank_rank  # après les explications : un élargissement y ajoute des concepts
+            candidates = sorted((found[c].size, -len(m), rank[c], found[c])
+                                for c, m in explained.items() if len(m) >= 2 and c not in tried)
+            for _, _, _, concept in candidates:
+                tried.add(concept.id)
+                adopted = self.try_rule(concept, names, covering)
+                if adopted is not None:
+                    return adopted
+            if complete:
+                return None
+
+    def try_rule(self, concept: concepts.Concept, names: dict, covering: dict) -> str | None:
+        """L'hypothèse ``concept`` comme règle, à chaque rang, du moins prioritaire au plus
+        prioritaire : adoptée (le message) si tous les cas restent bien joués, qu'elle libère au
+        moins deux souvenirs sans rallonger le fils, et que le fils reste dans son budget."""
+        parts = concepts.parties_ou(concept)
+        if len(parts) > 1:  # « a ou b » : d'abord a, puis b, comme deux règles
+            adopted = self.try_rules(parts, names, covering)
+            if adopted is not None:
+                return adopted
+        return self.try_rules([concept], names, covering)
+
+    def try_rules(self, block: list, names: dict, covering: dict) -> str | None:
+        """Ces concepts comme règles qui se suivent (dans cet ordre), à chaque rang du moins
+        prioritaire au plus prioritaire ; adoptées aux conditions de :meth:`try_rule`.
+
+        **Une règle « a ou b » se tait quand b est vrai partout** : « gagner ou parer », quand il
+        n'y a rien à parer, accepte tous les coups, donc ne choisit rien, et la victoire passe.
+        Séparée en « a » puis « b », la première parle dès qu'elle peut. C'est pourquoi la mère
+        essaie d'abord les parties d'un « ou » (:func:`concepts.parties_ou`), la plus immédiate
+        en premier."""
+        definitions = self.knowledge["concepts"]
+        chosen, added = [], []
+        for concept in block:
             if concept.kind == "brique" and concept.args[1] == MOI and concept.args[0] in definitions:
                 concept = definitions[concept.args[0]]  # une brique connue : la règle existe déjà
             known = concept.id in names
             name = names[concept.id] if known else f"concept_{len(definitions) + 1}"
             if not known:
                 definitions[name] = concept
-            others = [r for r in self.knowledge["rules"] if r != name]
-            for rank in range(len(others), -1, -1):  # du moins prioritaire au plus prioritaire
-                rules = others[:rank] + [name] + others[rank:]
-                freed = self.check(rules, covering)
-                if freed is not None and self.shorter(rules, freed) and self.views(rules, freed) <= self.budget:
-                    return self.adopt(name, concept, rules, freed, known)
-            if not known:
-                del definitions[name]
+                names[concept.id] = name
+                added.append((concept.id, name))
+            if name not in chosen:
+                chosen.append(name)
+        others = [r for r in self.knowledge["rules"] if r not in chosen]
+        for rank in range(len(others), -1, -1):
+            rules = others[:rank] + chosen + others[rank:]
+            freed = self.check(rules, covering)
+            if freed is not None and self.shorter(rules, freed) and self.views(rules, freed) <= self.budget:
+                return self.adopt(chosen, rules, freed, bool(added))
+        for concept_id, name in added:
+            del definitions[name]
+            del names[concept_id]
         return None
+
+    def explanation(self, case: Case, margin: int | None = None) -> list[concepts.Concept]:
+        """Pourquoi le coup du professeur valait-il mieux que celui du fils, dans ce cas ? Les
+        concepts vrais après le coup du professeur et faux après celui du fils, pris dans ceux
+        qu'elle sait former du plus petit au plus grand : le plus petit, et ceux qui ont au plus
+        ``margin`` nœuds de plus (``None`` : tous). Elle ne parcourt les concepts qu'au fur et à
+        mesure qu'on lui demande une marge plus grande, et reprend où elle s'était arrêtée ; elle
+        recommence seulement si elle sait former de nouveaux concepts. Si aucun ne l'explique, elle
+        élargit ses bornes (:meth:`wider`, au plus :data:`ELARGISSEMENTS` crans), pour ce cas
+        seulement. Un coup bien joué n'a rien à expliquer."""
+        bank = self.bank
+        state = self._explanations.get(case.key)
+        if state is None or state["concepts"] is not bank:
+            state = {"concepts": bank, "liste": bank, "cran": 0, "suivant": 0, "trouves": [],
+                     "plus_petit": None, "fini": case.son_cell == case.teacher_cell}
+            self._explanations[case.key] = state
+        pensee, found = self.pensee, state["trouves"]
+        while not state["fini"]:
+            if state["suivant"] >= len(state["liste"]):
+                if found or state["cran"] >= ELARGISSEMENTS:
+                    state["fini"] = True
+                    break
+                state["cran"] += 1  # rien ne l'explique : elle cherche plus loin, pour ce cas
+                state["liste"], state["suivant"] = self.wider(state["cran"]), 0
+                continue
+            concept = state["liste"][state["suivant"]]
+            smallest = state["plus_petit"]
+            if margin is not None and smallest is not None and concept.size > smallest + margin:
+                break  # assez pour cette marge ; la suite attendra une marge plus grande
+            state["suivant"] += 1
+            cells = pensee.choix(concept, case.state, case.me)
+            if case.teacher_cell in cells and case.son_cell not in cells:
+                found.append(concept)
+                if smallest is None:
+                    state["plus_petit"] = concept.size
+        if margin is None or state["plus_petit"] is None:
+            return list(found)
+        return [c for c in found if c.size <= state["plus_petit"] + margin]
+
+    @property
+    def bank_rank(self) -> dict[int, int]:
+        """La place de chaque concept dans l'ordre où la mère les forme (pour départager)."""
+        bank = self.bank
+        wider = self._wider[1] if self._wider is not None and self._wider[0] is bank else []
+        size = len(bank) + sum(map(len, wider))
+        if self._bank_rank is None or self._bank_rank[0] is not bank or self._bank_rank[2] != size:
+            order = list(bank) + [c for level in wider for c in level]
+            self._bank_rank = (bank, {c.id: k for k, c in enumerate(order)}, size)
+        return self._bank_rank[1]
 
     def shorter(self, rules: list[str], freed: list[str]) -> bool:
         """Le rasoir d'Ockham : le fils écrit avec ces règles, sans les souvenirs libérés et sans
         les règles que celle-ci rend inutiles (:meth:`pruned`), est-il plus court
         (:func:`xander.taille.taille` : nœuds des règles et de leurs briques, cases des
-        souvenirs et des petits motifs, un coup par souvenir) ? Il doit libérer au moins un
-        souvenir ; à taille égale, la règle est gardée. Qu'il joue bien chaque cas, :meth:`check` l'a
-        vérifié : entre deux fils qui jouent aussi bien tous les cas, elle garde le plus court."""
-        if not freed:  # un refactor remplace des souvenirs (sinon il ne fait que déplacer une règle)
+        souvenirs et des petits motifs, un coup par souvenir) ? Il doit libérer au moins **deux**
+        souvenirs : une règle explique plusieurs cas, un seul peut être une coïncidence (et un
+        souvenir de 42 cases pèse plus que n'importe quelle petite règle : la taille seule ne
+        l'empêcherait pas). À taille égale, la règle est gardée. Qu'il joue bien chaque cas,
+        :meth:`check` l'a vérifié : entre deux fils qui jouent aussi bien tous les cas, elle garde
+        le plus court."""
+        if len(freed) < effets.MIN_CAS:  # une règle explique plusieurs cas (sinon une coïncidence)
             return False
         memories = {k: v for k, v in self.knowledge["memories"].items() if k not in freed}
         trial = dict(self.knowledge, rules=rules, memories=memories)
@@ -1851,15 +2126,16 @@ class Education:
         steps = self.pruned(rules, self.covering(memories))  # les règles que la nouvelle rend inutiles
         return bool(steps) and taille.plus_court(self.knowledge, dict(trial, rules=steps[-1][1]), egalite=True)
 
-    def adopt(self, name, concept, rules, freed, known) -> str:
+    def adopt(self, names: list[str], rules, freed, new: bool) -> str:
         self.knowledge["rules"] = rules
         for key in freed:
             del self.knowledge["memories"][key]
-        if not known:
+        if new:
             self._bank = None  # une nouvelle brique : la mère sait former de nouveaux concepts
         self.rewrite()
-        what = "règle remontée" if known else f"nouvelle règle « {concepts.decrire_regle(concept)} »"
-        return (f"{len(freed)} souvenirs -> {name} ({what}) ; "
+        definitions = self.knowledge["concepts"]
+        what = " puis ".join(f"« {concepts.decrire_regle(definitions[n])} »" for n in names)
+        return (f"{len(freed)} souvenirs -> {' > '.join(names)} (règle{'s' if len(names) > 1 else ''} {what}) ; "
                 f"règles : {' > '.join(rules)} ; souvenirs : {len(self.knowledge['memories'])}")
 
     def train(self, nb_games: int, on_game=None) -> list[GameRecord]:
@@ -1888,12 +2164,17 @@ class Education:
             record.refactors += shifted
             if symmetry:
                 record.refactors.append(symmetry)
-            record.lessons = self.review(decisions + self.variations(decisions, side), side)
+            imagined = self.variations(decisions, side)
+            record.over_budget = len(self.over_budget)
+            record.refactors += self.economize()  # trop calculé : une façon moins chère de penser ?
+            record.lessons = self.review(decisions + imagined, side)
+            self.over_budget = {}
             if record.lessons:
                 record.refactors += self.refactor()
                 if self.tableau:
                     record.refactors += self.generalize()
                 record.refactors += self.recheck()
+                record.refactors += self.forget()
             record.patterns, self.discovered = self.discovered, []
             self.records.append(record)
             if on_game:
