@@ -122,6 +122,38 @@ def negation(x: Concept) -> Concept:
     return x.args[0] if x.kind == "non" else non(x)
 
 
+def contre_son_but(c: Concept, definitions: dict, n: int = 2) -> bool:
+    """Le concept dit-il qu'un coup vaut mieux parce qu'il **me laisse moins près de gagner** (une
+    de mes perceptions de progrès, :data:`PERCEPTIONS`, niée : « je n'ai pas de menace ») ou **le
+    laisse, lui, plus près** (la sienne, affirmée : « il a une menace ») ? Un joueur ne se fait
+    pas de tort : un tel concept n'explique pas pourquoi le coup du professeur valait mieux, c'est
+    une coïncidence. Sous « au moins k de ses coups » (un autre que moi choisit), on ne conclut
+    rien : il choisira ce qui l'arrange. ``n`` : le nombre de joueurs (« lui pour le suivant »,
+    c'est moi à deux). Principe fourni à la main, général : on joue pour gagner.
+
+    Seulement pour les perceptions : une construction est faite des pions d'un joueur, elle est à
+    lui. ``gagne`` et les coups imaginés, non : au Nim, où les deux joueurs ont les mêmes coups,
+    « aucun de mes coups ne donne « aucun de mes coups ne donne « je n'ai pas gagné » » » est
+    une bonne règle (mes coups y imaginent les siens)."""
+    def tort(x: Concept, signe: int, qui: int, libre: bool) -> bool:
+        kind, args = x.kind, x.args
+        if kind == "brique":
+            nom, joueur = args
+            joueur = (qui + distance(joueur)) % n
+            if nom in definitions:
+                return tort(definitions[nom], signe, joueur, libre)
+            if nom not in PERCEPTIONS or libre:
+                return False
+            return signe < 0 if joueur == 0 else signe > 0
+        if kind == "non":
+            return tort(args[0], -signe, qui, libre)
+        if kind == "et":
+            return tort(args[0], signe, qui, libre) or tort(args[1], signe, qui, libre)
+        _, joueur, y = args
+        return tort(y, signe, qui, libre or (qui + distance(joueur)) % n != 0)
+    return tort(c, 1, 0, False)
+
+
 def parties_ou(c: Concept) -> list[Concept]:
     """Les parties d'un « ou » : ``non(et(non a, non b))`` se lit « a ou b ». Un concept qui n'en
     est pas un est sa seule partie. Les parties sont rangées **du plus immédiat au plus lointain**
@@ -402,7 +434,9 @@ def enumerer(pensee: Pensee, positions: list[tuple], taille_max: int = 5,
     peuvent parler (voir :func:`joueurs`).
 
     Un concept qui dit la même chose qu'un plus petit sur ``positions``, ou qui
-    y est toujours vrai (ou toujours faux), n'est pas gardé.
+    y est toujours vrai (ou toujours faux), n'est pas gardé ; sauf si le plus petit est contraire
+    au but et lui non (:func:`contre_son_but` : dans un jeu où « je pourrais gagner » et « il
+    pourrait gagner » vont ensemble, la version qui peut expliquer un coup est gardée aussi).
 
     **Ne pas penser à ce que le fils ne pourrait pas se permettre.** Avec un ``budget`` (les
     positions que le fils peut regarder par coup), la mère n'imagine même pas une règle qui lui
@@ -413,7 +447,14 @@ def enumerer(pensee: Pensee, positions: list[tuple], taille_max: int = 5,
     il y en a seize.
     """
     par_taille: dict[int, list[Concept]] = {t: [] for t in range(1, taille_max + 1)}
-    signatures = set()
+    signatures: dict = {}  # signature -> le concept qui la représente
+    tort: dict = {}
+
+    def contre(c: Concept) -> bool:
+        if c.id not in tort:
+            tort[c.id] = contre_son_but(c, pensee.definitions, len(qui))
+        return tort[c.id]
+
     couts: dict = {}
     parts: dict = {}  # concept -> part des positions où il est vrai
     coups = sum(len(pensee.enfants(etat, moi)) for etat, moi in positions) / max(len(positions), 1)
@@ -424,9 +465,12 @@ def enumerer(pensee: Pensee, positions: list[tuple], taille_max: int = 5,
         if budget is not None and coups * (1 + cout(c, coups, pensee.definitions, couts, parts)) > budget:
             return  # trop cher pour le fils : elle n'y pense pas
         signature = tuple(pensee.vrai(c, etat, moi) for etat, moi in positions)
-        if signature in signatures or all(signature) or not any(signature):
+        if all(signature) or not any(signature):
             return
-        signatures.add(signature)
+        premier = signatures.get(signature)
+        if premier is not None and not (contre(premier) and not contre(c)):
+            return
+        signatures[signature] = c
         parts[c.id] = sum(signature) / len(signature)
         par_taille[c.size].append(c)
 

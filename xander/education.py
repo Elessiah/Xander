@@ -2120,7 +2120,8 @@ class Education:
                 break  # assez pour cette marge ; la suite attendra une marge plus grande
             state["suivant"] += 1
             cells = pensee.choix(concept, case.state, case.me)
-            if case.teacher_cell in cells and case.son_cell not in cells:
+            if case.teacher_cell in cells and case.son_cell not in cells and not concepts.contre_son_but(
+                    concept, self.knowledge["concepts"], self.n):  # on joue pour gagner
                 found.append(concept)
                 if smallest is None:
                     state["plus_petit"] = concept.size
