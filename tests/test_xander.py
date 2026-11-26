@@ -707,13 +707,19 @@ class EducationTest(unittest.TestCase):
 
     def test_views_counted_without_compiling(self):
         """La mère compte les positions que regarderait le fils avec sa pensée, sans écrire ni
-        compiler un fils d'essai : le même nombre que le fils compilé, pour chaque ordre de règles."""
+        compiler un fils d'essai : le même nombre que le fils compilé, pour tous les ordres d'au
+        plus deux règles et pour quelques ordres de toutes ses règles (tous les ordres de six règles,
+        ce seraient près de deux mille fils à compiler)."""
         import itertools
+        import random
         teaching = trained(200)
         rules = teaching.knowledge["rules"]
-        for size in range(len(rules) + 1):
-            for order in itertools.permutations(rules, size):
-                self.assertEqual(teaching.views(list(order), []), teaching.views_compiled(list(order), []), order)
+        orders = [list(order) for size in range(min(len(rules), 2) + 1)
+                  for order in itertools.permutations(rules, size)]
+        hasard = random.Random(3)
+        orders += [list(rules), list(reversed(rules))] + [hasard.sample(rules, len(rules)) for _ in range(4)]
+        for order in orders:
+            self.assertEqual(teaching.views(order, []), teaching.views_compiled(order, []), order)
         some = list(teaching.knowledge["memories"])[:2]
         self.assertEqual(teaching.views(rules, some), teaching.views_compiled(rules, some))
 
