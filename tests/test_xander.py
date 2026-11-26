@@ -7,7 +7,7 @@ from Games.MinmaxMorpion import minmax_morpion_play
 from Games.MinmaxPuissance4 import WINDOWS, minmax_puissance4_play
 from Games.Morpion import LINES, Morpion, is_free, winner_of
 from xander.analyzer import analyse
-from xander.education import REPRISES, Education
+from xander.education import REPRISES, Case, Education
 from xander.game_model import GameModel
 from xander.lab import Lab, LabError
 from xander.model import Function, Variable
@@ -623,6 +623,27 @@ class EducationTest(unittest.TestCase):
         self.assertEqual(teaching.son.choisir(rotated, "X"), (4, "souvenir"))
         corner = ["0", "1", "2", "3", "4", "5", "6", "7", "X"]  # le coin opposé : pas cette symétrie
         self.assertNotEqual(teaching.son.choisir(corner, "X")[1], "souvenir")
+
+    def test_recheck_case_against_symmetric_memory(self):
+        """« Les souvenirs sont les tests » : un souvenir d'une position équivalente qui fait mal
+        jouer un cas enregistré est démenti pour ce cas, qui devient son propre souvenir."""
+        teaching = education()
+        quarter = [6, 3, 0, 7, 4, 1, 8, 5, 2]
+        teaching.knowledge["symmetries"] = [quarter]
+        moves = [(0,), (3,), (1,), (4,)]  # X gagne en 2 ; en 8, il laisse O gagner en 5
+        teaching.lab.goto(moves)
+        state = list(teaching.lab.states[-1])
+        key = teaching.mind.cle(state, "X")
+        image = "".join(teaching.mind.transformer(key, quarter))
+        teaching.knowledge["memories"] = {image: quarter[8]}  # vu tourné : « jouer en 8 »
+        teaching.rewrite()
+        self.assertEqual(teaching.son.choisir(list(state), "X"), (8, "souvenir"))
+        teaching.cases[key] = Case(moves, state, "X", key, 8, 2)
+        done = teaching.recheck()
+        self.assertEqual(len(done), 1)
+        self.assertEqual(teaching.knowledge["memories"][key], 2)
+        self.assertEqual(teaching.son.choisir(list(state), "X"), (2, "souvenir"))
+        self.assertEqual(teaching.recheck(), [])  # rien d'autre à démentir
 
     def lesson_at(self, teaching, moves, son_cell, reason, teacher_cell):
         teaching.lab.goto(moves)

@@ -1747,6 +1747,25 @@ class Education:
                 break
         return most
 
+    def recheck(self) -> list[str]:
+        """« Les souvenirs sont les tests » : après les corrections d'une partie, la mère rejoue
+        chaque cas enregistré que décide un souvenir. Un souvenir vaut pour les positions
+        équivalentes (symétries) et pour celles qui contiennent un petit motif ; s'il fait mal
+        jouer un cas, l'équivalence ne tient pas pour ce cas (le professeur, par exemple, ne la
+        respecte pas) : le cas devient son propre souvenir, qui passe avant les images des autres.
+        """
+        memories, mind, done = self.knowledge["memories"], self.mind, []
+        for case in self.cases.values():
+            key, action = mind.rappel(list(case.state), case.me, memories)
+            if key is None or key == case.key or self.good(case, action):
+                continue
+            memories[case.key] = mind.case_jouee(list(case.state), case.teacher_cell)
+            self._generalized.add(case.key)  # une exception : la réduire la ferait retomber
+            done.append(f"souvenir {key} démenti au cas {case.key} : souvenir propre au cas")
+        if done:
+            self.rewrite()
+        return done
+
     def refactor(self) -> list[str]:
         """Remplace des souvenirs par des règles, tant que c'est possible, puis retire
         les règles devenues inutiles."""
@@ -1874,6 +1893,7 @@ class Education:
                 record.refactors += self.refactor()
                 if self.tableau:
                     record.refactors += self.generalize()
+                record.refactors += self.recheck()
             record.patterns, self.discovered = self.discovered, []
             self.records.append(record)
             if on_game:
