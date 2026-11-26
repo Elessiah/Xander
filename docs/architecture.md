@@ -445,6 +445,10 @@ joué. Avant, le labo le prenait pour un refus et se désynchronisait du jeu.
    défaut », à part des vraies victoires (journal, `evaluate`, bulletin) ; ses
    coups par défaut ne deviennent pas des cas bien joués : il a gagné sans
    savoir pourquoi, ce n'est pas une preuve.
+   Mesuré (graine 0) : contre le hasard, 59 des 94 victoires du Puissance 4
+   (10 parties) sont des victoires par défaut, 25 sur 97 aux Allumettes,
+   33 sur 97 aux Allumettes misère ; ce que la mère apprend ne change pas
+   (Morpion, Allumettes, Nim, Puissance 4 : mêmes règles, souvenirs, taille).
 6. **Refactoriser.** Après chaque partie, la mère cherche le plus petit concept
    (section 8) vrai après le coup du professeur et faux après celui du fils
    dans **au moins deux** souvenirs (le détail : « L'hypothèse vient de
