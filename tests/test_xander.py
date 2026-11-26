@@ -453,6 +453,8 @@ def trained(nb_games: int) -> Education:
 #: Ce que la mère doit retrouver seule (écrit ici pour comparer, jamais donné à la mère).
 GAGNER = concepts.brique(concepts.GAGNE, MOI)
 PARER = concepts.non(concepts.au_moins(1, LUI, concepts.brique(concepts.GAGNE, LUI)))
+# « il n'a pas de menace » : le même concept, reconnu au lieu d'imaginer chacun de ses coups
+PARER_VU = concepts.non(concepts.brique("menace", LUI))
 
 
 def possible_defeats(son) -> tuple[list[list[int]], int]:
@@ -547,7 +549,7 @@ class EducationTest(unittest.TestCase):
         self.assertEqual(len(done), 1, done)
         self.assertEqual(teaching.knowledge["memories"], {})  # les deux cas sont couverts
         rule = teaching.knowledge["concepts"][teaching.knowledge["rules"][0]]
-        self.assertIs(rule, PARER)  # « aucun de ses coups ne le fait gagner »
+        self.assertIn(rule, (PARER, PARER_VU))  # « aucun de ses coups ne le fait gagner »
 
     def test_one_case_is_not_enough(self):
         """Un seul cas peut être une coïncidence : pas de refactor."""
@@ -575,10 +577,10 @@ class EducationTest(unittest.TestCase):
         self.assertIn(GAGNER, [definitions[name] for name in rules])
         mind = think(teaching.mind.possibles, teaching.mind.apres, teaching.mind.gagne,
                           teaching.mind.suivant)
-        parried = 0
+        parried, covering = 0, teaching.covering()
         for case in teaching.cases.values():
-            if case.key in teaching.knowledge["memories"]:
-                continue  # ici c'est un souvenir qui décide, pas une règle
+            if covering[case.key] is not None:
+                continue  # ici c'est un souvenir qui décide (exact, symétrique ou petit motif), pas une règle
             threat = mind["parer"](case.state, case.me)
             if threat and not mind["gagner"](case.state, case.me):
                 self.assertIn(teaching.decide(case.state, case.me, rules), threat, case.key)

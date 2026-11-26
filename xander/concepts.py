@@ -46,12 +46,12 @@ MOI, LUI = "moi", "lui"
 GAGNE = "gagne"
 #: Ce que le joueur **voit** sans rien imaginer, dans un jeu dont la fin est un motif de cases :
 #: une menace (une de ses constructions n'attend plus qu'une case, et cette case est jouable) et
-#: une fourchette (deux cases jouables différentes qui en complètent chacune une). Ce sont des
+#: une double menace (deux cases jouables différentes qui en complètent chacune une). Ce sont des
 #: briques de départ, comme ``gagne``, quand la perception du jeu les fournit
 #: (:func:`xander.son_writer.constructions_source`) ; la mère ne garde, entre deux concepts qui
 #: disent la même chose sur ses positions, que le plus petit : une menace reconnue (un nœud)
 #: remplace « un de ses coups donne « il a gagné » » (deux nœuds, un coup imaginé par action).
-PERCEPTIONS = ("menace", "fourchette")
+PERCEPTIONS = ("menace", "double_menace")
 
 
 def joueurs(n: int = 2) -> list[str]:
@@ -373,8 +373,8 @@ def decrire(c: Concept, vrai: bool = True) -> str:
         if nom in PERCEPTIONS:
             sujet = "j'ai" if qui == MOI else f"{_sujet(qui)} a"
             negatif = "je n'ai" if qui == MOI else f"{_sujet(qui)} n'a"
-            article = "une"
-            return f"{sujet} {article} {nom}" if vrai else f"{negatif} pas de {nom}"
+            nom = nom.replace("_", " ")
+            return f"{sujet} une {nom}" if vrai else f"{negatif} pas de {nom}"
         if qui != MOI:  # une brique vue du côté d'un autre joueur
             d = distance(qui)
             nom = f"{nom} pour {'le suivant' if d == 1 else f'le {d}e après moi'}"

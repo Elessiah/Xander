@@ -357,14 +357,29 @@ def menace(etat, joueur):
     return len(completions(etat, joueur)) >= 1
 
 
-def fourchette(etat, joueur):
+def double_menace(etat, joueur):
     """Deux cases jouables différentes qui finissent chacune une de ses constructions."""
     return len(completions(etat, joueur)) >= 2
 '''
 
 
-def perception_source(knowledge: dict) -> str:
-    """Les quatre notions, pour un état en tableau dont chaque action remplit une case."""
+def uses_perceptions(knowledge: dict) -> bool:
+    """Une règle du fils (ou une de ses briques) parle-t-elle de ce qu'il voit (menace…) ?"""
+    definitions = knowledge.get("concepts", {})
+
+    def parle(c) -> bool:
+        if c.kind == "brique" and c.args[0] in concepts.PERCEPTIONS:
+            return True
+        return any(parle(a) for a in c.args if isinstance(a, concepts.Concept))
+
+    names = concepts.dependances(knowledge.get("rules", []), definitions)
+    return any(parle(definitions[n]) for n in names)
+
+
+def perception_source(knowledge: dict, constructions: bool = True) -> str:
+    """Les quatre notions, pour un état en tableau dont chaque action remplit une case ; et ce
+    que le joueur voit sans rien imaginer (les constructions en cours), sauf ``constructions``
+    faux : le fils ne le reçoit que s'il s'en sert."""
     if est_valeur(knowledge):
         return perception_valeur_source(knowledge)
     return f'''# --- Perception (écrite par la mère) -------------------------------------
@@ -400,7 +415,7 @@ def gagne(etat, joueur):
     return any(all(etat[case] == joueur for case in motif) for motif in MOTIFS)
 
 
-{CONSTRUCTIONS_SOURCE}
+{CONSTRUCTIONS_SOURCE if constructions else ""}
 
 {ORDRE_SOURCE}
 
@@ -595,8 +610,8 @@ def son_source(name: str, knowledge: dict, nb_games: int = 0) -> str:
         "que ce que la mère lui a appris ; il l'exécute sans jamais revenir en arrière.\n"
         '"""\n'
     )
-    return "\n\n".join([header, perception_source(knowledge), rules_source(knowledge),
-                        skeleton_source(knowledge)])
+    return "\n\n".join([header, perception_source(knowledge, uses_perceptions(knowledge)),
+                        rules_source(knowledge), skeleton_source(knowledge)])
 
 
 def load(source: str, name: str = "fils") -> types.ModuleType:
