@@ -558,7 +558,7 @@ concept, avec ce que la mère sait déjà de ses parties (la part des positions
 de l'échantillon où chacune est vraie), sans rien calculer : « au moins k de
 ses coups » examine environ k / p coups (au plus tous), « a et b » ne regarde
 b que si a est vrai. Une première borne au pire cas (tous les coups, toujours)
-coupait au Nim un concept utile (taille 93 → 126). Ainsi la profondeur dépend du jeu :
+coupait au Nim des concepts utiles (taille 119 au lieu de 118 ; 126 au lieu de 93 quand les règles filtrent). Ainsi la profondeur dépend du jeu :
 loin au Nim (trois coups par position), à peine au-delà d'un coup au Morpion
 à trois (seize cases). Sans cette borne, l'élargissement au Morpion à trois
 (taille 8, profondeur 4 : jusqu'à 16⁴ positions imaginées pour chacune des
