@@ -1847,13 +1847,13 @@ class Education:
         _, cell = mind.rappel(state, me, memories)
         if cell is not None and cell in mind.possibles(state):
             return 0  # un souvenir : il ne regarde rien à l'avance
-        seen, key = 0, concepts._key(state)
+        seen, done = set(), set()  # il ne calcule pas deux fois la même chose pendant un coup
         for name in rules:
             rule = self.rule(name)
-            seen += sum(1 + pensee.vues(rule, child, me) for _, child in pensee.enfants(key, me))
+            pensee.regle_regardees(rule, state, me, seen, done)
             if pensee.choix(rule, state, me):
                 break
-        return seen
+        return len(seen)
 
     def economize(self) -> list[str]:
         """Le fils a regardé trop de positions (plus que son budget) : la mère cherche une façon
@@ -1872,8 +1872,7 @@ class Education:
         positions = [(concepts._key(s), m) for s, m in over]
 
         def cost(concept) -> int:
-            return sum(1 + pensee.vues(concept, child, me) for state, me in positions
-                       for _, child in pensee.enfants(state, me))
+            return sum(pensee.vues(concept, state, me) for state, me in positions)
 
         tests = [(case.state, case.me) for case in self.cases.values()] + over
         done, names = [], {c.id: n for n, c in definitions.items()}

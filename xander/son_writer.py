@@ -21,7 +21,10 @@ Quand l'état est une valeur (un nombre) et non un tableau, la perception est
 gagner, et il n'y a ni cases, ni motifs, ni symétries.
 
 Le fils compte les positions qu'il regarde (``VUES``, incrémenté par
-``apres``) : c'est le budget de réflexion vérifié par les tests.
+``apres``) : c'est le budget de réflexion vérifié par les tests. **Il ne calcule
+pas deux fois la même chose** : pendant un coup, il retient les positions qu'il a
+déjà regardées et ce qu'il a déjà compris d'une position (:data:`DEJA_SOURCE`) ;
+une position revue n'est ni recalculée ni recomptée.
 """
 
 from __future__ import annotations
@@ -397,14 +400,51 @@ def qui_suis_je(etat, memoire):
 '''
 
 
+DEJA_SOURCE = '''# --- Ne pas calculer deux fois la même chose (écrit par la mère) ----------
+
+DEJA = {}  # pendant le coup en cours : positions déjà regardées, concepts déjà compris
+
+
+def _cle(etat):
+    return repr(etat)
+
+
+_apres_calcule = apres
+
+
+def apres(etat, action, joueur=None):
+    """Une position déjà regardée pendant ce coup n'est ni recalculée ni recomptée."""
+    cle = ("apres", _cle(etat), repr(action), repr(joueur))
+    if cle not in DEJA:
+        DEJA[cle] = _apres_calcule(etat, action, joueur)
+    return DEJA[cle]
+
+
+def retenu(concept):
+    """Ce qu'il a déjà compris d'une position pendant ce coup, il ne le recalcule pas."""
+    def deja_compris(etat, moi):
+        cle = (concept.__name__, _cle(etat), repr(moi))
+        if cle not in DEJA:
+            DEJA[cle] = concept(etat, moi)
+        return DEJA[cle]
+    deja_compris.__name__, deja_compris.__doc__ = concept.__name__, concept.__doc__
+    return deja_compris
+'''
+
+
+def concepts_source(rules: list[str], definitions: dict) -> list[str]:
+    """Les concepts du fils (ses règles et leurs briques), chacun retenu pendant le coup."""
+    return ["@retenu\n" + concepts.source(name, definitions[name])
+            for name in concepts.dependances(rules, definitions)]
+
+
 def rules_source(knowledge: dict) -> str:
     rules, definitions = knowledge["rules"], knowledge["concepts"]
     parts = ["# --- Règles apprises (concepts construits par la mère) --------------------\n"
-             "# Une règle : jouer une action après laquelle le concept est vrai."]
+             "# Une règle : jouer une action après laquelle le concept est vrai.", DEJA_SOURCE]
     if rules:
         parts.append(concepts.AU_MOINS_SOURCE)
-        parts += [concepts.source(name, definitions[name])
-                  for name in concepts.dependances(rules, definitions)]
+        parts += concepts_source(rules, definitions)
     parts.append(f"REGLES = [{', '.join(rules)}]  # ordre de priorité appris")
     parts.append(f"SOUVENIRS = {pformat(knowledge['memories'], width=70)}")
     return "\n\n".join(parts) + "\n"
@@ -439,6 +479,7 @@ def choisir(etat, moi):
     """Mon coup et sa raison : souvenir, sinon première règle qui s'applique, sinon défaut."""
     global VUES
     VUES = 0
+    DEJA.clear()  # un nouveau coup : rien n'est encore regardé
     _, coup = rappel(etat, moi, SOUVENIRS)
     if coup is not None and coup in possibles(etat):
         return coup, "souvenir"
@@ -542,9 +583,9 @@ def solo_rules_source(knowledge: dict) -> str:
     moi). Sans règle, rien : le fils reconnaît, il ne prévoit pas."""
     rules, definitions = knowledge.get("rules", []), knowledge.get("concepts", {})
     if not rules:
-        return "REGLES = []  # aucune règle apprise"
-    parts = [SOLO_NOTIONS_SOURCE, concepts.AU_MOINS_SOURCE]
-    parts += [concepts.source(name, definitions[name]) for name in concepts.dependances(rules, definitions)]
+        return "REGLES = []  # aucune règle apprise\nDEJA = {}"
+    parts = [SOLO_NOTIONS_SOURCE, DEJA_SOURCE, concepts.AU_MOINS_SOURCE]
+    parts += concepts_source(rules, definitions)
     parts.append(f"REGLES = [{', '.join(rules)}]  # ordre de priorité appris")
     return "\n\n".join(parts) + "\n"
 
@@ -629,6 +670,7 @@ def choisir(etat, moi=None):
     sinon défaut (la plus petite action). Aucun coup possible : (None, "aucun coup")."""
     global VUES
     VUES = 0
+    DEJA.clear()  # un nouveau coup : rien n'est encore regardé
     permis = possibles(etat)
     if not permis:
         return None, "aucun coup"

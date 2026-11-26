@@ -1197,12 +1197,17 @@ chaque correction, qui n'importe rien de Xander :
    plus tard transmettre l'expérience de ses frères.
 
 Le fils exécute son code bêtement : il ne simule que ce que ses règles
-demandent, sans mémoire, et n'appelle jamais `back`. Il ne joue qu'un coup
+demandent et n'appelle jamais `back`. **Il ne calcule pas deux fois la même
+chose** : pendant un coup, il retient les positions qu'il a déjà regardées et
+ce qu'il a déjà compris d'une position (`DEJA`, vidé à chaque coup ; chaque
+concept est `retenu`). Une position revue ne compte pas de nouveau dans `VUES`.
+La mère le lui apprend en écrivant son code, et compte de même
+(`Pensee.regardees` : des positions distinctes). Il ne joue qu'un coup
 par tour : si le jeu le refuse, il le dit (« coup impossible ») au lieu
 d'essayer d'autres actions jusqu'à ce que le jeu en accepte une, ce qui
 serait tricher. **Budget** : la mère
-refuse un refactor qui ferait regarder au fils plus de 1 000 positions pour
-un coup (un minimax complet en regarde plus de 500 000 au premier coup du
+refuse un refactor qui ferait regarder au fils plus de 1 000 positions
+distinctes pour un coup (un minimax complet en regarde plus de 500 000 au premier coup du
 Morpion) ; un test le vérifie sur toutes les positions.
 
 Pour un joueur seul (`son_writer.solo_source`), le fils n'a ni `apres` ni
