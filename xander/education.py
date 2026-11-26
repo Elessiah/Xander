@@ -1839,10 +1839,13 @@ class Education:
         """Le rasoir d'Ockham : le fils écrit avec ces règles, sans les souvenirs libérés et sans
         les règles que celle-ci rend inutiles (:meth:`pruned`), est-il plus court
         (:func:`xander.taille.taille` : nœuds des règles et de leurs briques, cases des
-        souvenirs et des petits motifs, un coup par souvenir) ? Il doit libérer au moins un
-        souvenir ; à taille égale, la règle est gardée. Qu'il joue bien chaque cas, :meth:`check` l'a
-        vérifié : entre deux fils qui jouent aussi bien tous les cas, elle garde le plus court."""
-        if not freed:  # un refactor remplace des souvenirs (sinon il ne fait que déplacer une règle)
+        souvenirs et des petits motifs, un coup par souvenir) ? Il doit libérer au moins **deux**
+        souvenirs : une règle explique plusieurs cas, un seul peut être une coïncidence (et un
+        souvenir de 42 cases pèse plus que n'importe quelle petite règle : la taille seule ne
+        l'empêcherait pas). À taille égale, la règle est gardée. Qu'il joue bien chaque cas,
+        :meth:`check` l'a vérifié : entre deux fils qui jouent aussi bien tous les cas, elle garde
+        le plus court."""
+        if len(freed) < effets.MIN_CAS:  # une règle explique plusieurs cas (sinon une coïncidence)
             return False
         memories = {k: v for k, v in self.knowledge["memories"].items() if k not in freed}
         trial = dict(self.knowledge, rules=rules, memories=memories)
