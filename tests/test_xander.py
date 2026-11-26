@@ -916,6 +916,23 @@ def think(possibles, apres, gagne, adversaire) -> dict:
 class ConceptsGenerauxTest(unittest.TestCase):
     """Le vocabulaire de la mère vaut pour d'autres jeux (gravité, quantité, Puissance 4)."""
 
+    def test_one_plays_to_win(self):
+        """On joue pour gagner : une explication qui dit « je n'ai pas de menace » ou « il a une
+        menace » est une coïncidence ; sous ses coups à lui (il choisit), on ne conclut rien ; une
+        victoire ou des coups imaginés (Nim : mes coups y imaginent les siens) ne comptent pas."""
+        b, non, au_moins, et = concepts.brique, concepts.non, concepts.au_moins, concepts.et
+        moi, lui = concepts.MOI, concepts.LUI
+        contre = lambda c, d={}: concepts.contre_son_but(c, d, 2)
+        self.assertFalse(contre(non(b("menace", lui))))                      # parer
+        self.assertFalse(contre(au_moins(1, moi, b("menace", moi))))         # je peux me créer une menace
+        self.assertFalse(contre(au_moins(1, lui, b("menace", moi))))         # il choisit : rien à conclure
+        self.assertFalse(contre(non(au_moins(1, moi, non(au_moins(1, moi, non(b("gagne", moi))))))))  # Nim
+        self.assertTrue(contre(non(b("menace", moi))))                       # je n'ai pas de menace
+        self.assertTrue(contre(b("double_menace", lui)))                     # il a une double menace
+        self.assertTrue(contre(et(non(b("menace", lui)), non(au_moins(1, moi, b("menace", moi))))))
+        d = {"concept_1": non(b("menace", lui))}
+        self.assertTrue(contre(b("concept_1", lui), d))                      # pour le suivant : je n'en ai pas
+
     def test_rules_filter_one_after_another(self):
         """Une règle propose, elle ne tranche pas seule : la suivante choisit parmi les coups
         qu'elle laisse (ici A garde 0 et 1, B garde 1 et 2 : il reste 1, pas le plus petit de A)."""
