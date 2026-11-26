@@ -138,6 +138,21 @@ def parties_ou(c: Concept) -> list[Concept]:
 # Évaluer un concept avec les quatre notions
 # ---------------------------------------------------------------------- #
 
+#: Ce que la mère retient au plus de ses calculs (par sorte : valeurs des concepts, positions
+#: imaginées…). Ce n'est qu'une mémoire de travail : pleine, elle est vidée et la mère recalcule
+#: ce dont elle a encore besoin (les résultats n'en dépendent pas). Sans ce plafond, une recherche
+#: de concepts à trois joueurs, élargie, a rempli 31 Go.
+MEMOIRE_MAX = 3_000_000
+
+
+def _retenir(memoire: dict, cle, valeur):
+    """Retient ``valeur`` sous ``cle`` ; une mémoire pleine est d'abord vidée."""
+    if len(memoire) >= MEMOIRE_MAX:
+        memoire.clear()
+    memoire[cle] = valeur
+    return valeur
+
+
 def _key(etat):
     return tuple(etat) if isinstance(etat, list) else etat
 
@@ -166,10 +181,11 @@ class Pensee:
 
     def enfants(self, etat, joueur) -> list:
         cle = (etat, joueur)
-        if cle not in self._enfants:
+        enfants = self._enfants.get(cle)
+        if enfants is None:
             n = self.notions
-            self._enfants[cle] = [(a, _key(n.apres(etat, a, joueur))) for a in n.possibles(etat)]
-        return self._enfants[cle]
+            enfants = _retenir(self._enfants, cle, [(a, _key(n.apres(etat, a, joueur))) for a in n.possibles(etat)])
+        return enfants
 
     def joueur(self, moi, qui: str):
         """Le joueur ``qui`` vu de ``moi`` : moi, ou le suivant autant de fois que sa place."""
@@ -180,9 +196,10 @@ class Pensee:
 
     def gagne(self, etat, joueur) -> bool:
         cle = (etat, joueur)
-        if cle not in self._gagne:
-            self._gagne[cle] = bool(self.notions.gagne(etat, joueur))
-        return self._gagne[cle]
+        valeur = self._gagne.get(cle)
+        if valeur is None:
+            valeur = _retenir(self._gagne, cle, bool(self.notions.gagne(etat, joueur)))
+        return valeur
 
     def vrai(self, concept: Concept, etat, moi) -> bool:
         etat = _key(etat)
@@ -213,8 +230,7 @@ class Pensee:
                     if compte >= k:
                         break
             valeur = compte >= k
-        self._memo[cle] = valeur
-        return valeur
+        return _retenir(self._memo, cle, valeur)
 
     def regardees(self, concept: Concept, etat, moi, vues: set, faits: set) -> None:
         """Ajoute à ``vues`` les positions que regarde le fils (ses appels à ``apres`` :
@@ -273,10 +289,11 @@ class Pensee:
         """Les coups proposés par la règle ; vide si elle n'en écarte aucun (elle ne choisit rien)."""
         etat = _key(etat)
         cle = (regle.id, etat, moi)
-        if cle not in self._choix:
+        choisis = self._choix.get(cle)
+        if choisis is None:
             coups = self.coups(regle, etat, moi)
-            self._choix[cle] = coups if len(coups) < len(self.enfants(etat, moi)) else set()
-        return self._choix[cle]
+            choisis = _retenir(self._choix, cle, coups if len(coups) < len(self.enfants(etat, moi)) else set())
+        return choisis
 
 
 # ---------------------------------------------------------------------- #

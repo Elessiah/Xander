@@ -723,6 +723,21 @@ class EducationTest(unittest.TestCase):
         some = list(teaching.knowledge["memories"])[:2]
         self.assertEqual(teaching.views(rules, some), teaching.views_compiled(rules, some))
 
+    def test_working_memory_is_only_a_cache(self):
+        """La mémoire de travail de la mère, même minuscule (vidée sans cesse), ne change aucun
+        concept trouvé : elle recalcule ce qu'elle a oublié."""
+        teaching = trained(200)
+        positions = teaching._bank_positions
+        def bank():
+            pensee = concepts.Pensee(teaching.mind, teaching.knowledge["concepts"])
+            return [c.id for c in concepts.enumerer(pensee, positions[:40], 4, 2)]
+        normal = bank()
+        old, concepts.MEMOIRE_MAX = concepts.MEMOIRE_MAX, 50
+        try:
+            self.assertEqual(bank(), normal)
+        finally:
+            concepts.MEMOIRE_MAX = old
+
     def test_memory_holds_for_rotated_position(self):
         """Un souvenir vaut pour la position tournée d'un quart de tour."""
         teaching = education()
