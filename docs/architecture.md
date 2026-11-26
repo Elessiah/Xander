@@ -549,6 +549,42 @@ plus `ELARGISSEMENTS` = 2 crans). C'est là qu'elle trouve, au Puissance 4,
 « après mon coup, aucun de ses coups ne m'empêche de parer » : se garder des
 fourchettes.
 
+**Voir sans imaginer : les constructions en cours.** Dans un jeu dont la fin
+est un motif de cases (Morpion, Puissance 4, Morpion à trois), la mère a deux
+briques de départ en plus de `gagne` (`concepts.PERCEPTIONS`) : `menace` (une
+de ses constructions, un motif où il est seul à avoir des pions, n'attend plus
+qu'une case, et cette case est jouable) et `double_menace` (deux cases jouables
+différentes en finissent chacune une). Le fils les **voit** sans imaginer de
+coup : elles ne coûtent aucune position regardée. Le tableau des
+constructions est tenu au fil de la partie (`son_writer.CONSTRUCTIONS_SOURCE`) :
+un coup ne change que les constructions qui passent par sa case, et un pion
+posé il y a trois coups se retrouve dans la même construction que celui qui la
+complète. C'est la reconnaissance de Chase et Simon à la place du calcul :
+« un de ses coups donne « il a gagné » » (un coup imaginé par action) devient
+« il a une menace » (vu). Au Morpion, le fils regarde 311 positions par coup
+au plus (985 sans elles). Le fils ne reçoit ce code que si une de ses règles
+s'en sert.
+
+**On joue pour gagner.** Une perception rend aussi les coïncidences bon
+marché : au Puissance 4, « il n'a pas de menace **et** aucun de mes coups ne
+me donne de menace » (6 nœuds) expliquait les premières parties, où le fils
+empile ses pions dans la colonne 0, et devenait sa première règle : 151
+souvenirs, 38 % de coups par défaut, 10 défaites sur 40 contre le hasard. Or
+ce concept dit que le coup du professeur valait mieux parce qu'il **me laisse
+moins près de gagner**. Principe fourni à la main, général : une explication
+ne dit jamais qu'un coup vaut mieux parce qu'il nie une de mes perceptions de
+progrès (« je n'ai pas de menace ») ou affirme celle d'un autre (« il a une
+menace ») (`concepts.contre_son_but`). Sous « un de ses coups » (un autre
+choisit), on ne conclut rien. Le principe ne vaut que pour les perceptions :
+une construction est faite des pions d'un joueur. Au Nim, où les deux joueurs
+ont les mêmes coups, « mes coups » imaginent souvent les siens, et le même
+principe appliqué à `gagne` y faisait perdre ses meilleures règles (taille
+93 → 141). À signature égale, la banque garde aussi la version conforme au
+but. Au Puissance 4 : 38 souvenirs (78 sans perceptions), 12 % de coups par
+défaut, 40 victoires sur 40 contre le hasard ; ses règles se lisent comme un
+plan offensif (« un de mes coups me donne une menace », « aucun de ses coups
+ne lui donne de double menace »).
+
 **Ne pas penser à ce que le fils ne pourrait pas se permettre.** La recherche
 de concepts est bornée par le **budget du fils**, pas seulement par une
 profondeur (`concepts.cout`, `enumerer(…, budget)`) : une règle qui lui
@@ -1181,7 +1217,9 @@ adopté devient une brique, d'où des concepts plus grands à taille égale
 (composition, comme les configurations de Chase et Simon).
 
 **Fourni à la main** : ces quatre sortes de nœuds (avec k = 1, c'est la
-logique minimale : non, et, il existe), la façon de désigner un joueur (sa
+logique minimale : non, et, il existe), les perceptions de départ des jeux à
+motifs (`menace`, `double_menace`), le principe « on joue pour gagner »
+(`contre_son_but`), la façon de désigner un joueur (sa
 place après moi, avec `suivant`), les bornes de la recherche, le budget
 du fils, et la forme d'une règle (« jouer une action après laquelle… »). Le vocabulaire écrit à la
 main (`xander/vocabulary.py` : `gagner`, `parer`, `fourchette`,

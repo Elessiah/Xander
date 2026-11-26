@@ -525,6 +525,11 @@ comparant des résultats.
 | Élargissement des bornes quand un cas reste sans explication | 2 crans (chaque cran : un nœud et un niveau de plus) | `ELARGISSEMENTS`, `Education.wider` | a priori (un nœud et un niveau ensemble, pour ne pas choisir l'un d'après nos jeux) |
 | Victoire par défaut : plus de cette part des coups du fils joués par défaut | la moitié | `education.PART_DEFAUT` | consigne (une victoire faite surtout de coups par défaut ne doit pas être un bon entraînement) |
 | Contre-exemples rejoués d'abord | 20 | `CONTRE_EXEMPLES`, `Education.check` | sans effet sur ce qu'elle apprend (l'ordre de la vérification seulement) |
+| Perceptions de départ des jeux à motifs | `menace`, `double_menace` (constructions en cours) | `concepts.PERCEPTIONS`, `son_writer.CONSTRUCTIONS_SOURCE` | principe (reconnaître au lieu de calculer, Chase et Simon) ; les deux choisies a priori |
+| On joue pour gagner | une explication ne nie pas une de mes perceptions de progrès, n'affirme pas celle d'un autre (sauf sous ses coups à lui) | `concepts.contre_son_but` | principe fourni à la main ; restreint aux perceptions après le Nim (avec `gagne`, taille 93 → 141) |
+| Borne de la recherche de concepts | coût attendu d'une règle ≤ budget du fils | `concepts.cout`, `enumerer(…, budget)` | principe (budget mesurable) ; d'abord au pire cas, trop strict au Nim |
+| Mémoire de travail de la mère | 3 millions de valeurs par sorte, vidée quand elle est pleine | `concepts.MEMOIRE_MAX` | a priori ; sans effet sur ce qu'elle apprend (un cache) |
+| Règles qui se suivent | chacune filtre les coups que laissent les précédentes, puis le plus petit | `Pensee.decision`, squelette du fils | principe (les règles proposent, le calcul vérifie) ; le fils à un joueur garde l'ancien ordre |
 | Parties d'un « ou » : la plus immédiate d'abord | profondeur croissante, puis taille | `concepts.parties_ou` | principe fourni à la main (régler d'abord ce qui arrive le plus tôt) |
 | k dans `AuMoins(k, …)` | 1 seulement | `Education.counts` | réglé au Morpion (tableau de `docs/architecture.md`, § 6) |
 | Positions imaginées pour départager des concepts | 120 | `concepts.echantillon` | a priori |
