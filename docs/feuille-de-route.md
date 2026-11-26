@@ -189,6 +189,37 @@ l'éducation bloque) est dans `docs/jeux.md`. Commandes :
 
 ### Priorités pour la suite, dans l'ordre
 
+**Priorité avant de valider les entraînements actuels (2026-11-26) : finir
+l'énumération, ou la limiter dans des proportions raisonnables.** Le fils
+regarde jusqu'à 922 positions par coup au Morpion et 996 au Puissance 4
+(budget 1 000, fixé a priori contre un minimax complet, pas contre un humain :
+de Groot, quelques dizaines) ; ses règles profondes énumèrent toutes les
+réponses sur deux ou trois coups (contraire à la règle 2 de `CLAUDE.md`).
+La mère, elle, énumère tous les concepts jusqu'à 6 nœuds (8 en élargissant)
+et les essaie sur chaque cas (manque de mémoire au Morpion à trois avec
+l'explication exigeante). Dans l'ordre :
+
+1. **Reconnaître au lieu de calculer (le fils).** Pour un concept qui
+   regarde à l'avance, la mère cherche une configuration fixe (un petit
+   motif) qui dit la même chose sur ses cas, et la met à sa place ; puis le
+   budget baisse par paliers vers l'échelle humaine.
+2. **Des hypothèses guidées (la mère).** Tirées du cas : ce qui diffère entre
+   la position après le coup du professeur et après celui du fils, le refus
+   d'une règle connue (« ce qui l'aide, je le lui refuse » : au Puissance 4,
+   26 à 44 souvenirs libérés sans cas mal joué, bloqués par le budget), la
+   suite de la partie (sous-buts, avec prudence). L'énumération devient un
+   dernier recours, à bornes plus petites.
+3. **Vérifier la règle 2, pas seulement le total** : un test refuse une règle
+   qui énumère toutes les réponses au-delà d'un coup hors suite forcée.
+
+En attente sur leurs branches, à reprendre après : la valeur « gagner plus
+tôt, perdre plus tard » (`feature/gagner-plus-tot` : 55 erreurs de plus
+visibles au Puissance 4, toutes gardées en souvenirs), le classement des
+souvenirs par rapports et l'explication exigeante
+(`feature/souvenirs-incompressibles` : au Nim, 17 souvenirs sur 23 sans
+aucune explication ; manque de mémoire au Morpion à trois), les souvenirs
+rangés là où la règle a échoué (`feature/souvenirs-classes` : mitigé).
+
 **Fait (2026-11-26) : l'hypothèse vient de l'explication** (architecture,
 § 6, « L'hypothèse vient de l'explication ») : explication par cas à marge
 croissante, élargissement des bornes, séparation des « ou », contre-exemples,
