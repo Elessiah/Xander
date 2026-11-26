@@ -197,36 +197,54 @@ class Pensee:
         self._memo[cle] = valeur
         return valeur
 
-    def vues(self, concept: Concept, etat, moi) -> int:
-        """Combien de positions le fils regarde (appels à ``apres``) pour savoir si le concept est
-        vrai ici, en exécutant son code tel que la mère l'écrit (:func:`expression`) : ``and``
-        s'arrête au premier faux, ``au_moins`` dès qu'il a ses ``k`` coups. La mère le compte
-        sans écrire ni compiler ce code."""
+    def regardees(self, concept: Concept, etat, moi, vues: set, faits: set) -> None:
+        """Ajoute à ``vues`` les positions que regarde le fils (ses appels à ``apres`` :
+        ``(état, action, joueur)``) pour savoir si le concept est vrai ici, en exécutant son code
+        tel que la mère l'écrit (:func:`expression`) : ``and`` s'arrête au premier faux,
+        ``au_moins`` dès qu'il a ses ``k`` coups. **Il ne calcule pas deux fois la même chose**
+        pendant un coup : une position déjà regardée ne compte qu'une fois, et ce qu'il a déjà
+        compris d'une position (``faits`` : (concept, état, joueur)) n'est pas recalculé. La mère
+        le compte sans écrire ni compiler ce code."""
         etat = _key(etat)
-        cle = ("vues", concept.id, etat, moi)
-        if cle in self._memo:
-            return self._memo[cle]
+        cle = (concept.id, etat, moi)
+        if cle in faits:
+            return
+        faits.add(cle)
         kind, args = concept.kind, concept.args
         if kind == "brique":
             nom, qui = args
-            n = 0 if nom == GAGNE else self.vues(self.definitions[nom], etat, self.joueur(moi, qui))
+            if nom != GAGNE:
+                self.regardees(self.definitions[nom], etat, self.joueur(moi, qui), vues, faits)
         elif kind == "non":
-            n = self.vues(args[0], etat, moi)
+            self.regardees(args[0], etat, moi, vues, faits)
         elif kind == "et":
-            n = self.vues(args[0], etat, moi)
+            self.regardees(args[0], etat, moi, vues, faits)
             if self.vrai(args[0], etat, moi):
-                n += self.vues(args[1], etat, moi)
+                self.regardees(args[1], etat, moi, vues, faits)
         else:
             k, qui, x = args
-            n = compte = 0
-            for _, suite in self.enfants(etat, self.joueur(moi, qui)):
-                n += 1 + self.vues(x, suite, moi)
+            joueur, compte = self.joueur(moi, qui), 0
+            for action, suite in self.enfants(etat, joueur):
+                vues.add((etat, action, joueur))
+                self.regardees(x, suite, moi, vues, faits)
                 if self.vrai(x, suite, moi):
                     compte += 1
                     if compte >= k:
                         break
-        self._memo[cle] = n
-        return n
+
+    def regle_regardees(self, regle: Concept, etat, moi, vues: set, faits: set) -> None:
+        """Les positions que regarde le fils pour appliquer la règle ici : chaque coup possible,
+        puis le concept après lui (voir :meth:`regardees`)."""
+        etat = _key(etat)
+        for action, suite in self.enfants(etat, moi):
+            vues.add((etat, action, moi))
+            self.regardees(regle, suite, moi, vues, faits)
+
+    def vues(self, regle: Concept, etat, moi) -> int:
+        """Combien de positions distinctes le fils regarde pour appliquer cette seule règle ici."""
+        vues: set = set()
+        self.regle_regardees(regle, etat, moi, vues, set())
+        return len(vues)
 
     def coups(self, concept: Concept, etat, moi) -> set:
         """La règle : les actions après lesquelles le concept est vrai."""
