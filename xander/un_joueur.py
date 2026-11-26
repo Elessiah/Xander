@@ -53,7 +53,7 @@ import itertools
 import random
 
 from xander import concepts, effets, son_writer, taille
-from xander.education import BUDGET, Education, GameRecord, Lesson, gele
+from xander.education import BUDGET, Education, GameRecord, Lesson, coups_par_defaut, gele, par_defaut
 from xander.game_model import GameModel
 from xander.lab import Lab, LabError
 from xander.parser import ParsedExample
@@ -81,6 +81,8 @@ class SoloRecord(GameRecord):
         text = super().__str__()
         _, _, rest = text.partition("\n")
         head = f"partie {self.number:>3} | seul : {self.result:<20} | {len(self.lessons)} erreur(s)"
+        if self.defaults:
+            head += f" | {self.defaults}/{self.son_moves} coup(s) par défaut"
         if self.impossibles:
             head += f" | {len(self.impossibles)} coup(s) impossible(s)"
         return head + ("\n" + rest if rest else "")
@@ -798,7 +800,10 @@ class Solo(Education):
         for number in range(1, nb_games + 1):
             decisions = self.play_game()
             result = self.result()
+            if result.startswith("gagnée") and par_defaut(decisions):
+                result = result.replace("gagnée", "gagnée par défaut", 1)
             record = SoloRecord(len(self.records), "seul", "-", result)
+            record.defaults, record.son_moves = coups_par_defaut(decisions), len(decisions)
             record.impossibles = self.impossibles
             record.lessons = self.review(decisions)
             if record.lessons:

@@ -484,6 +484,7 @@ comparant des résultats.
 | Expériences pour réfuter l'effet / parties d'exploration / nouvelles recherches / refus avant d'arrêter d'explorer | 40 / 8 / 3 / 2 | `EXPERIENCES`, `PARTIES_D_ESSAI`, `REPRISES`, `PATIENCE` | a priori |
 | Taille et profondeur d'un concept | 6 nœuds, 2 `AuMoins` | `Education.max_size`, `max_depth` | réglé au Morpion |
 | Élargissement des bornes quand un cas reste sans explication | 2 crans (chaque cran : un nœud et un niveau de plus) | `ELARGISSEMENTS`, `Education.wider` | a priori (un nœud et un niveau ensemble, pour ne pas choisir l'un d'après nos jeux) |
+| Victoire par défaut : plus de cette part des coups du fils joués par défaut | la moitié | `education.PART_DEFAUT` | consigne (une victoire faite surtout de coups par défaut ne doit pas être un bon entraînement) |
 | Contre-exemples rejoués d'abord | 20 | `CONTRE_EXEMPLES`, `Education.check` | sans effet sur ce qu'elle apprend (l'ordre de la vérification seulement) |
 | Parties d'un « ou » : la plus immédiate d'abord | profondeur croissante, puis taille | `concepts.parties_ou` | principe fourni à la main (régler d'abord ce qui arrive le plus tôt) |
 | k dans `AuMoins(k, …)` | 1 seulement | `Education.counts` | réglé au Morpion (tableau de `docs/architecture.md`, § 6) |
