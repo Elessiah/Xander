@@ -65,6 +65,15 @@ sont explorées du centre vers les bords. Il ne rate jamais une victoire ou un
 blocage immédiat et bat toujours un joueur aléatoire, mais il n'est pas
 imbattable : au-delà de son horizon, un humain attentif peut le piéger.
 
+**Plus rapide, les mêmes coups** (2026-11-26). La note du plateau est tenue
+à jour à chaque jeton posé ou retiré (chaque fenêtre garde ses jetons de
+chaque joueur ; un alignement de 4 se lit sur ces nombres), au lieu d'être
+recalculée sur les 69 fenêtres à chaque feuille. Même negamax, même ordre
+des colonnes, même élagage : sur 2 000 positions tirées au hasard, il joue
+exactement les coups de la version directe (`best_move_reference`, gardée
+pour le test), 6 fois plus vite. Le professeur prenait les deux tiers d'une
+éducation du Puissance 4.
+
 Exemple de partie : [`res/examplePuissance4.py`](../res/examplePuissance4.py).
 À cause de la gravité, la case modifiée n'est la case `colonne` que pour la
 ligne du bas. La mère le décrit elle-même : en jouant des parties dans son

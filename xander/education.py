@@ -1735,7 +1735,31 @@ class Education:
         return sorted(useful - needed)
 
     def views(self, rules: list[str], freed: list[str]) -> int:
-        """Positions regardées au plus par le fils écrit avec ces règles, sur les cas enregistrés."""
+        """Positions regardées au plus par le fils écrit avec ces règles, sur les cas enregistrés.
+        La mère les compte avec sa pensée (:meth:`concepts.Pensee.vues`), comme les compterait le
+        code du fils (ses souvenirs d'abord, puis chaque règle sur chaque coup possible, jusqu'à
+        celle qui choisit), sans écrire ni compiler un fils d'essai (:meth:`views_compiled` le
+        fait, pour le vérifier)."""
+        memories = {k: v for k, v in self.knowledge["memories"].items() if k not in freed}
+        mind, pensee, most = self.mind, self.pensee, 0
+        for case in self.cases.values():
+            state, me = list(case.state), case.me
+            _, cell = mind.rappel(state, me, memories)
+            if cell is not None and cell in mind.possibles(state):
+                continue  # un souvenir : il ne regarde rien à l'avance
+            seen, key = 0, concepts._key(state)
+            for name in rules:
+                rule = self.rule(name)
+                seen += sum(1 + pensee.vues(rule, child, me) for _, child in pensee.enfants(key, me))
+                if pensee.choix(rule, state, me):
+                    break
+            most = max(most, seen)
+            if most > self.budget:
+                break
+        return most
+
+    def views_compiled(self, rules: list[str], freed: list[str]) -> int:
+        """:meth:`views` en écrivant, compilant et faisant jouer un fils d'essai (plus lent)."""
         knowledge = dict(self.knowledge, rules=rules,
                          memories={k: v for k, v in self.knowledge["memories"].items() if k not in freed})
         son = son_writer.load(son_writer.son_source("essai", knowledge))
