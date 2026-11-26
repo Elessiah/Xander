@@ -553,9 +553,12 @@ fourchettes.
 de concepts est bornée par le **budget du fils**, pas seulement par une
 profondeur (`concepts.cout`, `enumerer(…, budget)`) : une règle qui lui
 coûterait en moyenne plus que tout son budget (chacun de ses coups, puis le
-concept ; « au moins k de ses coups » multiplie par le nombre moyen de coups
-des positions de l'échantillon) n'est même pas imaginée. Le coût se lit sur
-l'arbre du concept, sans rien calculer. Ainsi la profondeur dépend du jeu :
+concept) n'est même pas imaginée. Le coût attendu se lit sur l'arbre du
+concept, avec ce que la mère sait déjà de ses parties (la part des positions
+de l'échantillon où chacune est vraie), sans rien calculer : « au moins k de
+ses coups » examine environ k / p coups (au plus tous), « a et b » ne regarde
+b que si a est vrai. Une première borne au pire cas (tous les coups, toujours)
+coupait au Nim un concept utile (taille 93 → 126). Ainsi la profondeur dépend du jeu :
 loin au Nim (trois coups par position), à peine au-delà d'un coup au Morpion
 à trois (seize cases). Sans cette borne, l'élargissement au Morpion à trois
 (taille 8, profondeur 4 : jusqu'à 16⁴ positions imaginées pour chacune des
