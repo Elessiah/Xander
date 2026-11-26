@@ -36,8 +36,10 @@ le plus petit concept (voir :mod:`xander.concepts`) vrai après le coup du
 professeur et faux après celui du fils dans au moins deux souvenirs. Elle
 l'essaie comme règle, à chaque rang de priorité en partant du plus bas : si le
 fils joue encore bien dans **tous** les cas enregistrés (les cas sont les tests
-du refactor) et qu'au moins deux souvenirs deviennent inutiles, elle les
-remplace par la règle. Le concept devient une brique pour les suivants.
+du refactor) et que le fils devient **plus court** (le rasoir d'Ockham,
+:mod:`xander.taille` : nœuds des règles et de leurs briques, cases des
+souvenirs et des petits motifs), elle remplace par la règle les souvenirs
+devenus inutiles. Le concept devient une brique pour les suivants.
 
 **Petits motifs.** Chaque souvenir restant est réduit à ce qui comptait (les
 autres cases deviennent « ? »), puis essayé décalé ; les deux sont vérifiés
@@ -85,7 +87,7 @@ from dataclasses import dataclass, field
 from xander.game_model import GameModel
 from xander.lab import Lab, LabError
 from xander.parser import ParsedExample
-from xander import concepts, effets, son_writer, symmetries
+from xander import concepts, effets, son_writer, symmetries, taille
 from xander.concepts import MOI
 
 RESULTS = {1: "victoire", 0: "nul", -1: "défaite"}
@@ -1406,7 +1408,9 @@ class Education:
             self._generalized.add(key)
             move = memories[key]
             chunk = self.reduce(key, move)
-            if chunk != key:
+            # le rasoir : le petit motif ne fixe que les cases qui comptent, il est plus court ;
+            # :meth:`holds` a vérifié qu'il ne fait rater aucun cas enregistré
+            if chunk != key and taille.plus_court(self.knowledge, self.without(key, {chunk: move})):
                 del memories[key]
                 memories[chunk] = move
                 self._generalized.add(chunk)
@@ -1418,6 +1422,11 @@ class Education:
             self.rewrite()
         self.lab.goto([])
         return done
+
+    def without(self, key: str, added: dict) -> dict:
+        """Ce que saurait la mère avec ``added`` à la place du souvenir ``key`` (un essai)."""
+        memories = {k: v for k, v in self.knowledge["memories"].items() if k != key}
+        return dict(self.knowledge, memories={**memories, **added})
 
     def reduce(self, key: str, move: int) -> str:
         """« Qu'est-ce qui comptait ? » La plus petite partie du souvenir (le reste devient
@@ -1701,10 +1710,11 @@ class Education:
             self._judged[key] = self.action(teacher) == cell or not self.better(moves, teacher, cell, side)
         return self._judged[key]
 
-    def covering(self) -> dict[str, str | None]:
+    def covering(self, memories: dict | None = None) -> dict[str, str | None]:
         """Pour chaque cas, la clé du souvenir qui décide (le sien ou celui d'une position
         équivalente), ou ``None`` si ce sont les règles qui décident."""
-        memories, mind = self.knowledge["memories"], self.mind
+        memories = self.knowledge["memories"] if memories is None else memories
+        mind = self.mind
         return {case.key: mind.rappel(list(case.state), case.me, memories)[0]
                 for case in self.cases.values()}
 
@@ -1770,15 +1780,26 @@ class Education:
         return done
 
     def prune(self) -> list[str]:
-        """Retire chaque règle sans laquelle tous les cas restent bien joués (du code mort)."""
+        """Retire chaque règle sans laquelle tous les cas restent bien joués (du code mort).
+        Un oubli ne rallonge jamais le fils (:mod:`xander.taille`) : il le raccourcit, ou laisse
+        sa taille quand la règle reste une brique d'une autre, et le fils exécute une règle de moins."""
         done = []
-        for name in list(reversed(self.knowledge["rules"])):
-            rules = [r for r in self.knowledge["rules"] if r != name]
-            if self.check(rules, self.covering()) is not None:
-                self.knowledge["rules"] = rules
-                self.rewrite()
-                done.append(f"{name} retirée (inutile) ; règles : {' > '.join(rules) or 'aucune'}")
+        for name, rules in self.pruned(self.knowledge["rules"], self.covering()):
+            self.knowledge["rules"] = rules
+            self.rewrite()
+            done.append(f"{name} retirée (inutile) ; règles : {' > '.join(rules) or 'aucune'}")
         return done
+
+    def pruned(self, rules: list[str], covering: dict) -> list[tuple[str, list[str]]]:
+        """Les règles retirées une à une (de la moins prioritaire à la plus prioritaire) parce
+        que sans elles tous les cas restent bien joués, avec les règles qui restent après chaque."""
+        steps = []
+        for name in list(reversed(rules)):
+            trial = [r for r in rules if r != name]
+            if self.check(trial, covering) is not None:
+                rules = trial
+                steps.append((name, rules))
+        return steps
 
     def refactor_once(self) -> str | None:
         memories, definitions = self.knowledge["memories"], self.knowledge["concepts"]
@@ -1808,11 +1829,27 @@ class Education:
             for rank in range(len(others), -1, -1):  # du moins prioritaire au plus prioritaire
                 rules = others[:rank] + [name] + others[rank:]
                 freed = self.check(rules, covering)
-                if freed is not None and len(freed) >= 2 and self.views(rules, freed) <= self.budget:
+                if freed is not None and self.shorter(rules, freed) and self.views(rules, freed) <= self.budget:
                     return self.adopt(name, concept, rules, freed, known)
             if not known:
                 del definitions[name]
         return None
+
+    def shorter(self, rules: list[str], freed: list[str]) -> bool:
+        """Le rasoir d'Ockham : le fils écrit avec ces règles, sans les souvenirs libérés et sans
+        les règles que celle-ci rend inutiles (:meth:`pruned`), est-il plus court
+        (:func:`xander.taille.taille` : nœuds des règles et de leurs briques, cases des
+        souvenirs et des petits motifs, un coup par souvenir) ? Il doit libérer au moins un
+        souvenir ; à taille égale, la règle est gardée. Qu'il joue bien chaque cas, :meth:`check` l'a
+        vérifié : entre deux fils qui jouent aussi bien tous les cas, elle garde le plus court."""
+        if not freed:  # un refactor remplace des souvenirs (sinon il ne fait que déplacer une règle)
+            return False
+        memories = {k: v for k, v in self.knowledge["memories"].items() if k not in freed}
+        trial = dict(self.knowledge, rules=rules, memories=memories)
+        if taille.plus_court(self.knowledge, trial, egalite=True):
+            return True
+        steps = self.pruned(rules, self.covering(memories))  # les règles que la nouvelle rend inutiles
+        return bool(steps) and taille.plus_court(self.knowledge, dict(trial, rules=steps[-1][1]), egalite=True)
 
     def adopt(self, name, concept, rules, freed, known) -> str:
         self.knowledge["rules"] = rules

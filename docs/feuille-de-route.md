@@ -243,6 +243,9 @@ Premiers bulletins (graine 0 ; « général. » : positions jamais vues tenues) 
 | Hanoï (30) | 21 (0 + 21) | 2,19 | 0 % / 57 % / 43 % | 3/15 (la mère gagne depuis les 15) |
 | Le compte est bon (30) | 15 (0 + 15) | 0,40 | 0 % / 100 % / 0 % | 50/50, mais personne ne gagne depuis ces positions |
 
+(Tailles à la première mesure, sans le coup demandé par chaque souvenir ;
+la mesure actuelle et les chiffres après le rasoir d'Ockham sont en section 2.)
+
 Ce qu'il dit : le Morpion a **compris** (règles qui décident, 98 % de
 positions jamais vues tenues) ; Hanoï a **retenu** un chemin (rien que des
 souvenirs et le coup par défaut, 3 positions jamais vues sur 15 alors que la
@@ -301,34 +304,93 @@ compression et l'absence de nœuds inutiles s'en approchent. Les seuils
 d'interprétation (bonne ou mauvaise généralisation) ne sont pas fixés :
 le bulletin donne des nombres, on les compare d'un fils à l'autre.
 
-### 2. Le bulletin dans la mère (ensuite, une fois la mesure lue)
+### 2. Le bulletin dans la mère : le rasoir d'Ockham : **fait** (2026-11-26)
 
-La mère préfère déjà le plus petit concept, et un refactor doit libérer au
-moins deux souvenirs. L'étape suivante est d'en faire un **critère
-explicite** : entre deux fils qui jouent aussi bien tous les cas
-enregistrés, elle garde **le plus court** (souvenirs, nœuds, cases des
-motifs). Un souvenir coûte ; une règle qui en remplace plusieurs rapporte.
-Concrètement :
+Entre deux fils qui jouent aussi bien tous les cas enregistrés, la mère
+garde **le plus court**. Un souvenir coûte ; une règle qui en remplace
+plusieurs rapporte. C'est le rasoir d'Ockham (longueur de description
+minimale), général et déjà dans l'esprit du projet ; il sert le jalon 4
+(conclure à partir de peu).
 
-- un refactor, une réduction en petit motif ou un oubli sont acceptés s'ils
-  font baisser la taille totale sans faire rater un cas (aujourd'hui :
-  « au moins deux souvenirs libérés ») ;
-- pour un joueur seul, la valeur d'un coup reste son issue, mais à issue
-  égale la mère préfère la description la plus courte, ce qui pousse vers
-  des motifs plutôt que vers un chemin retenu par cœur ;
-- la taille d'un concept compte aussi ses briques, pour ne pas cacher la
-  complexité dans une brique.
+**La mesure**, une seule pour la mère et le bulletin : `xander/taille.py`.
+Taille = nœuds des règles **et des briques dont elles dépendent** (chaque
+brique une fois : la complexité ne se cache pas dans une brique) + cases
+fixées par les souvenirs et les petits motifs + **un coup par souvenir ou
+petit motif**. Ce dernier terme est nouveau : un souvenir dit « ici » *et*
+« jouer ce coup ». Sans lui, un souvenir d'une seule valeur (`7 M`) ne
+coûtait qu'un, autant qu'un nœud de règle. Au premier essai, la mère
+préférait alors retenir quatre valeurs plutôt que la règle des Allumettes
+misère.
 
-C'est le rasoir d'Ockham (longueur de description minimale), général et
-déjà dans l'esprit du projet ; il sert le jalon 4 (conclure à partir de peu).
+**Ce qui est accepté** :
 
-**Garde-fou.** Si la mère optimise l'indice, l'indice ne peut plus la
-juger. La **généralisation à des positions jamais vues** reste donc le
-juge : la mère n'y a jamais accès (ni pendant l'éducation, ni pour choisir
-un refactor), et un changement du critère n'est gardé que s'il ne la fait
-pas baisser sur les jeux d'entraînement (Morpion parfait, Allumettes,
-Nim, Hanoï, Jumper). Les poids éventuels du critère vont dans le tableau
-« Réglages fixés à la main », et ne se règlent jamais sur un examen blanc.
+- un **refactor** (`Education.shorter`) : il libère au moins un souvenir,
+  ne fait rater aucun cas (`check`) et ne rallonge pas le fils. Les règles
+  qu'il rend inutiles comptent comme déjà retirées (`pruned`), puisque
+  l'élagage suit. À taille égale, la règle est gardée : le rasoir ne
+  départage pas, et une règle qui explique plusieurs cas dit quelque chose
+  des positions jamais vues, alors qu'un souvenir n'en dit rien. Avant :
+  « au moins deux souvenirs libérés ». Le concept doit toujours expliquer
+  au moins deux souvenirs (`MIN_CAS`, coïncidence) ;
+- une **réduction en petit motif** (`generalize`) : elle est toujours plus
+  courte (seules les cases qui comptent restent), et `holds` rejoue déjà les
+  cas enregistrés ; le critère est maintenant écrit ;
+- un **oubli** de règle (`prune`) ne rallonge jamais le fils : il le
+  raccourcit, ou laisse sa taille quand la règle reste une brique d'une
+  autre ;
+- **un joueur seul** : un petit motif est gardé s'il raccourcit le fils et
+  joue encore bien tous les cas (`Solo.motif_for`). À issue égale, la mère
+  retient le coup qui donne la description la plus courte (`Solo.shortest`,
+  celui qui rejoint d'autres souvenirs dans un petit motif), puis le plus
+  petit. Cela ne change rien aujourd'hui. À Hanoï, l'état est une valeur
+  entière : il n'y a pas de petit motif possible, donc rien à raccourcir (il
+  faudra reconnaître des configurations, priorité 3). À Jumper, le fils
+  était déjà au plus court (un motif). En passant, `generalize` repart
+  maintenant de ce que sait la mère après chaque motif adopté. Avant, un
+  second motif dans le même appel repartait d'une copie périmée, qui
+  remettait les souvenirs libérés par le premier.
+
+**Garde-fou.** La mère n'a jamais accès à la généralisation du bulletin, ni
+pendant l'éducation ni pour choisir un refactor. Le changement n'est gardé
+que s'il ne la fait baisser sur aucun jeu d'entraînement. Mesures du
+2026-11-26 (`xander/bulletin.py`, graine 0 ; taille à la nouvelle mesure, y
+compris avant ; « gén. » : positions jamais vues tenues) :
+
+| Jeu (parties) | Taille avant → après | Souvenirs / motifs / règles avant → après | Gén. avant → après |
+|---|---|---|---|
+| Morpion (200) | 90 → **84** | 4 / 5 / 3 → 3 / 5 / 4 | 49/50 → 49/50, toujours parfait (0 défaite contre le professeur et 200 parties au hasard) |
+| Allumettes (200) | 5 → 5 | 0 / 0 / 1 → identique | toutes vues |
+| Allumettes misère (200) | 8 → 8 | 2 / 0 / 1 → identique | toutes vues |
+| Nim (200) | 135 → **129** | 31 / 0 / 2 → 28 / 0 / 2 | 19/35 (54 %) → **22/36 (61 %)** |
+| Nim misère (200) | 154 → **153** | 36 / 0 / 1 → 33 / 0 / 3 | 17/34 (50 %) → **19/34 (56 %)** |
+| Hanoï (30) | 28 → 28 | 7 / 0 / 0 → identique | 3/15 → 3/15 |
+| Jumper (30) | 2 → 2 | 0 / 1 / 0 → identique | 4/4 → 4/4 |
+
+La généralisation ne baisse nulle part. Elle monte au Nim et au Nim misère,
+où la mère garde maintenant des règles plus grandes (Nim : 11 → 17 nœuds ;
+Nim misère : 10 → 21) qui remplacent des souvenirs. Avant, elles étaient
+écartées faute de libérer deux souvenirs. Les cas enregistrés sont tous bien
+joués partout. Le Morpion à trois n'a pas été remesuré : il n'est pas dans
+la liste du garde-fou, et sa gestion des symétries change dans une autre
+branche.
+
+Ce qui a été essayé :
+
+1. Taille sans le coup demandé (celle du premier bulletin). Le Morpion
+   passe de 81 à 76, mais les Allumettes misère perdent leur règle
+   (4 nœuds contre 2 souvenirs d'une case), et la généralisation du Nim
+   passe de 19/35 à 18/34. Écarté.
+2. Avec le coup demandé, en ne gardant que ce qui est strictement plus
+   court : les Allumettes misère perdent encore leur règle (8 = 8). D'où la
+   règle d'égalité.
+3. Avec l'élagage simulé, le refactor qui ne libère aucun souvenir mais
+   rend une autre règle inutile bouclait sans fin au Nim (il était
+   « plus court » à chaque tour, et l'élagage n'avait lieu qu'à la fin).
+   D'où l'exigence d'au moins un souvenir libéré.
+
+Les poids du critère (un coup par souvenir ; l'égalité en faveur de la
+règle ; au moins un souvenir libéré) sont dans le tableau « Réglages fixés à
+la main ». Ils ne se règlent jamais sur un examen blanc.
 
 ## Prochaines étapes proposées
 
@@ -365,7 +427,10 @@ comparant des résultats.
 
 | Réglage | Valeur | Où | Origine |
 |---|---|---|---|
-| Cas distincts pour garder une explication (effet, refactor, souvenirs libérés) | 2 | `effets.MIN_CAS`, `refactor_once` | principe : un seul cas peut être une coïncidence |
+| Cas distincts pour garder une explication (effet, souvenirs expliqués par un concept de refactor, souvenirs d'un petit motif) | 2 | `effets.MIN_CAS`, `refactor_once` | principe : un seul cas peut être une coïncidence |
+| Rasoir d'Ockham : taille d'un fils | nœuds des règles et de leurs briques + cases fixées + 1 coup par souvenir ou petit motif | `xander/taille.py` | principe (longueur de description minimale) ; le « + 1 coup » réglé aux Allumettes misère (sans lui, quatre valeurs retenues battaient la règle) |
+| Rasoir d'Ockham : quand un refactor est gardé | au moins 1 souvenir libéré, pas plus long (règles rendues inutiles retirées) ; à taille égale, la règle | `Education.shorter` | principe (Ockham) ; avant : « au moins 2 souvenirs libérés ». L'égalité réglée aux Allumettes misère ; « au moins 1 » imposé par une boucle sans fin au Nim |
+| Un joueur : coup retenu à issue égale | le plus court après petit motif, puis le plus petit | `Solo.shortest` | principe (Ockham) ; ne change rien aujourd'hui (Hanoï, Jumper) |
 | Positions regardées par le fils pour un coup | 1 000 | `education.BUDGET` | principe (budget mesurable) ; valeur a priori, loin du minimax complet (500 000) |
 | Taille d'un programme d'effet | 5 nœuds | `effets.MAX_TAILLE` | a priori ; suffit pour la gravité (5 nœuds) |
 | Constantes retenues de chaque sorte | 8 | `effets.MAX_CONSTANTES` | a priori |

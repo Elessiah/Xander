@@ -10,7 +10,9 @@ Mesures (voir ``docs/feuille-de-route.md``, « Le bulletin du fils ») :
 * **taille** de ce qu'il sait : nœuds des règles et des briques dont elles dépendent (chaque
   brique comptée une fois), cases fixées par les souvenirs et les petits motifs (un souvenir
   entier fixe toutes les cases de la position, un petit motif seulement celles qui comptent ;
-  une valeur compte pour une case). C'est une longueur de description : plus court vaut mieux ;
+  une valeur compte pour une case), plus un coup demandé par souvenir et petit motif. C'est une
+  longueur de description, la même que celle de la mère (:mod:`xander.taille`) : plus court
+  vaut mieux ;
 * **compression** : cas enregistrés bien joués par le fils, divisés par la taille ;
 * **origine des coups** : sur des parties jouées sans correction, la part des coups décidés par
   une règle, un petit motif, un souvenir ou le coup par défaut ;
@@ -32,13 +34,12 @@ d'un fils à l'autre. La généralisation est le juge ; la mère n'y a jamais ac
 
 from __future__ import annotations
 
-import ast
 import contextlib
 import io
 import random
 from dataclasses import dataclass, field
 
-from xander import concepts, son_writer
+from xander import son_writer, taille
 from xander.education import Education
 from xander.un_joueur import Solo
 
@@ -74,7 +75,8 @@ class Bulletin:
 
     @property
     def taille(self) -> int:
-        return self.noeuds + self.cases_fixees
+        # la mesure de :func:`xander.taille.taille` : un coup demandé par souvenir et petit motif
+        return self.noeuds + self.cases_fixees + self.souvenirs + self.petits_motifs
 
     @property
     def compression(self) -> float:
@@ -89,7 +91,8 @@ class Bulletin:
         lignes = [
             f"Bulletin du fils ({self.jeu}, {self.joueurs} joueur(s), {self.parties} parties d'éducation)",
             f"  Taille : {self.taille} = {self.noeuds} nœud(s) de règles et briques + {self.cases_fixees} "
-            f"case(s) fixée(s) ({self.souvenirs} souvenir(s), {self.petits_motifs} petit(s) motif(s))",
+            f"case(s) fixée(s) + {self.souvenirs + self.petits_motifs} coup(s) demandé(s) "
+            f"({self.souvenirs} souvenir(s), {self.petits_motifs} petit(s) motif(s))",
             f"  Compression : {self.cas_bien_joues} cas bien joués sur {self.cas} enregistrés, "
             f"{self.compression:.2f} cas par unité de taille",
         ]
@@ -145,24 +148,8 @@ def intact(education):
 # Taille
 # --------------------------------------------------------------------------- #
 
-def cases_fixees(cle) -> int:
-    """Cases qu'un souvenir fixe : toutes celles de la position, sauf les « ? » d'un petit motif."""
-    if isinstance(cle, str):
-        if " " in cle:  # une valeur et le trait : la valeur entière (un tuple : chacun de ses termes)
-            try:
-                valeur = ast.literal_eval(cle.rsplit(" ", 1)[0])
-            except (ValueError, SyntaxError):
-                return 1
-            return len(valeur) if isinstance(valeur, (tuple, list)) else 1
-        return sum(c != "?" for c in cle)
-    if isinstance(cle, (tuple, list)):
-        return len(cle)
-    return 1
-
-
-def noeuds(regles: list[str], definitions: dict) -> int:
-    noms = list(dict.fromkeys(concepts.dependances(regles, definitions) + list(regles)))
-    return sum(definitions[nom].size for nom in noms if nom in definitions)
+# La mesure est celle de la mère (:mod:`xander.taille`) : une seule définition pour les deux.
+cases_fixees, noeuds = taille.cases_fixees, taille.noeuds
 
 
 # --------------------------------------------------------------------------- #
@@ -251,7 +238,7 @@ def bulletin_plusieurs(education: Education, nom: str, graine: int, positions: i
     memoires = k["memories"]
     b.petits_motifs = sum("?" in cle for cle in memoires)
     b.souvenirs = len(memoires) - b.petits_motifs
-    b.cases_fixees = sum(cases_fixees(cle) for cle in memoires)
+    b.cases_fixees = taille.cases(k)
     b.regles = list(k["rules"])
     b.noeuds = noeuds(b.regles, k["concepts"])
     b.budget = education.max_views
@@ -324,8 +311,7 @@ def bulletin_solo(education, nom: str, graine: int, positions: int, parties: int
     b = Bulletin(nom, 1, len(education.records) - 1)
     b.souvenirs = len(k["memories"])
     b.petits_motifs = len(k.get("motifs", []))
-    b.cases_fixees = (sum(cases_fixees(cle) for cle in k["memories"])
-                      + sum(len(motif) for motif, _ in k.get("motifs", [])))
+    b.cases_fixees = taille.cases(k)
     b.budget = education.max_views
     fils = education.son
     with intact(education):
