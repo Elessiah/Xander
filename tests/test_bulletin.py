@@ -55,7 +55,8 @@ class BulletinMorpionTest(unittest.TestCase):
         tenues, vues = b.generalisation
         self.assertEqual(vues, B.POSITIONS)
         self.assertGreaterEqual(tenues / vues, 0.9)
-        self.assertEqual(b.taille, b.noeuds + b.cases_fixees)
+        self.assertEqual(b.taille, b.noeuds + b.cases_fixees + b.souvenirs + b.petits_motifs)
+        self.assertEqual(b.taille, B.taille.taille(self.education.knowledge))  # la mesure de la mère
         self.assertLessEqual(b.budget, 1000)
         for regle, s in b.solidite.items():
             self.assertGreater(s["decide"], 0, regle)  # aucune règle morte (la mère les élague)

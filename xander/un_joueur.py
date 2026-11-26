@@ -52,7 +52,7 @@ from __future__ import annotations
 import itertools
 import random
 
-from xander import effets, son_writer
+from xander import effets, son_writer, taille
 from xander.education import Education, GameRecord, Lesson, gele
 from xander.game_model import GameModel
 from xander.lab import Lab, LabError
@@ -481,6 +481,23 @@ class Solo(Education):
         top = max(worth.values())
         return min(a for a, v in worth.items() if v == top)
 
+    def shortest(self, state, worth: dict):
+        """Le coup à retenir. La valeur d'un coup reste son issue ; à issue égale, la mère retient
+        celui qui donne la **description la plus courte** (:mod:`xander.taille`) : celui qui
+        rejoint d'autres souvenirs dans un petit motif plutôt qu'un chemin retenu par cœur.
+        À taille égale, le premier des meilleurs (:meth:`best`)."""
+        top = max(worth.values())
+        tops = sorted((a for a, v in worth.items() if v == top), key=repr)
+        if len(tops) < 2 or not self.tableau:
+            return self.best(worth)
+        key, sizes = son_writer.state_key(state), {}
+        for action in tops:
+            trial = dict(self.knowledge, memories={**self.knowledge["memories"], key: action})
+            found = self.motif_for(trial, action)
+            sizes[action] = taille.taille(found[0] if found else trial)
+        least = min(sizes.values())
+        return self.best({a: v for a, v in worth.items() if a in sizes and sizes[a] == least})
+
     def correct(self, moves, state, action, reason, worth) -> Lesson:
         """Corrige le cas : dans cet état, jouer le meilleur coup. Un petit motif qui a décidé
         ce coup est démenti : la mère l'oublie."""
@@ -490,7 +507,7 @@ class Solo(Education):
             motif = self.son.motif_de(state)
             self.knowledge["motifs"] = [(m, a) for m, a in self.knowledge["motifs"] if m != motif]
             changes.append(f"petit motif {son_writer.motif_text(motif)} démenti, oublié")
-        good = self.best(worth)
+        good = self.shortest(state, worth)
         self.knowledge["memories"][son_writer.state_key(state)] = good
         changes.append("nouveau souvenir")
         return SoloLesson(f"coup {len(moves) + 1}", action, reason, good,
@@ -533,25 +550,38 @@ class Solo(Education):
         if not self.tableau:
             return []
         done = []
-        memories = self.knowledge["memories"]
-        for action in sorted(set(memories.values()), key=repr):
-            keys = [k for k, a in memories.items() if a == action]
-            if len(keys) < effets.MIN_CAS:
+        for action in sorted(set(self.knowledge["memories"].values()), key=repr):
+            found = self.motif_for(self.knowledge, action)
+            if found is None:
                 continue
-            motif = self.smallest(keys, action)
-            if motif is None:
-                continue
-            freed = [k for k in keys if son_writer.contains(list(k), motif)]
-            trial = dict(self.knowledge, memories={k: a for k, a in memories.items() if k not in freed},
-                         motifs=self.knowledge["motifs"] + [(motif, action)])
-            if len(freed) < effets.MIN_CAS or not self.plays_well(trial):
-                continue
+            trial, motif, freed, size = found
             self.knowledge["memories"], self.knowledge["motifs"] = trial["memories"], trial["motifs"]
             self.rewrite()
             done.append(f"{len(freed)} souvenirs -> petit motif {son_writer.motif_text(motif)} : "
-                        f"{action!r} ({len(motif)} case(s) sur {len(keys[0])}, confirmé par "
+                        f"{action!r} ({len(motif)} case(s) sur {size}, confirmé par "
                         f"{self.holds(motif, action)[1]} cas)")
         return done
+
+    def motif_for(self, knowledge: dict, action):
+        """Le petit motif qui remplacerait des souvenirs de ``knowledge`` demandant ``action`` :
+        ``(connaissance d'essai, motif, souvenirs libérés, cases d'un souvenir)``, ou ``None``.
+        Gardé seulement si le fils devient **plus court** (le rasoir d'Ockham,
+        :mod:`xander.taille`) et joue encore un des meilleurs coups dans chaque cas."""
+        if not self.tableau:
+            return None
+        memories = knowledge["memories"]
+        keys = [k for k, a in memories.items() if a == action]
+        if len(keys) < effets.MIN_CAS:  # un seul souvenir peut être une coïncidence
+            return None
+        motif = self.smallest(keys, action)
+        if motif is None:
+            return None
+        freed = [k for k in keys if son_writer.contains(list(k), motif)]
+        trial = dict(knowledge, memories={k: a for k, a in memories.items() if k not in freed},
+                     motifs=knowledge["motifs"] + [(motif, action)])
+        if not taille.plus_court(knowledge, trial) or not self.plays_well(trial):
+            return None
+        return trial, motif, freed, len(keys[0])
 
     def smallest(self, keys: list[tuple], action) -> dict | None:
         """Le plus petit motif commun aux souvenirs qui tient (:meth:`holds`) et en couvre au moins
