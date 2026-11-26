@@ -149,6 +149,14 @@ après la PR #20), mis à jour le 2026-11-26.
   `son_writer.py` en même temps doivent chacun intégrer `main` avant de
   finir : préférer les faire l'un après l'autre. Les conflits de doc se
   résolvent en gardant les deux côtés.
+- **Le banc de mesure** d'un changement de l'éducation à plusieurs : Morpion,
+  Nim et Nim misère (200 parties), puis Puissance 4 (10) et Morpion à trois
+  (200) ; pour chacun : taille, règles, souvenirs, généralisation, positions
+  regardées, **part de coups par défaut** (sans correction, à chaque place :
+  une partie contre le professeur, dix contre le hasard) et bilan. Les
+  Allumettes en sont retirées (2026-11-26) : trop simples, elles n'apportent
+  plus rien à l'apprentissage (leurs tests unitaires restent : ils couvrent
+  un état qui est une valeur).
 - **Relire une PR** : aucun nom ni cas de jeu dans le code de `xander/` (les
   commentaires d'exemple sont permis), ce qui reste fourni à la main est
   listé, tout nouveau réglage est dans le tableau « Réglages fixés à la
