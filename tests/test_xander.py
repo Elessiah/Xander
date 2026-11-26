@@ -573,7 +573,7 @@ class EducationTest(unittest.TestCase):
         teaching = education(200)
         definitions, rules = teaching.knowledge["concepts"], teaching.knowledge["rules"]
         self.assertIn(GAGNER, [definitions[name] for name in rules])
-        mind = self.think(teaching.mind.possibles, teaching.mind.apres, teaching.mind.gagne,
+        mind = think(teaching.mind.possibles, teaching.mind.apres, teaching.mind.gagne,
                           teaching.mind.suivant)
         parried = 0
         for case in teaching.cases.values():
@@ -811,7 +811,7 @@ class EducationTest(unittest.TestCase):
                 self.assertEqual(actual, expected, (name, case.key))
 
     def test_learning_curve_drops(self):
-        records = education(60).records[1:]
+        records = education(200).records[1:]
         first, last = records[:20], records[-20:]
         self.assertGreater(sum(len(r.lessons) for r in first), sum(len(r.lessons) for r in last))
 
@@ -852,14 +852,18 @@ class EducationTest(unittest.TestCase):
                 (son.play if game.get_turn() == "X" else minmax_morpion_play)(game)
             self.assertEqual(game.win, "D")
 
-    @staticmethod
-    def think(possibles, apres, gagne, adversaire) -> dict:
-        """Le vocabulaire de la mère, exécuté avec les quatre notions d'un autre jeu."""
-        notions = {"possibles": possibles, "apres": apres, "gagne": gagne, "adversaire": adversaire}
-        source = "\n\n".join([vocabulary.tools_source()] + [vocabulary.concept_source(name)
-                                                             for name in vocabulary.concept_names()])
-        exec(source, notions)
-        return notions
+
+def think(possibles, apres, gagne, adversaire) -> dict:
+    """Le vocabulaire de la mère, exécuté avec les quatre notions d'un autre jeu."""
+    notions = {"possibles": possibles, "apres": apres, "gagne": gagne, "adversaire": adversaire}
+    source = "\n\n".join([vocabulary.tools_source()] + [vocabulary.concept_source(name)
+                                                         for name in vocabulary.concept_names()])
+    exec(source, notions)
+    return notions
+
+
+class ConceptsGenerauxTest(unittest.TestCase):
+    """Le vocabulaire de la mère vaut pour d'autres jeux (gravité, quantité, Puissance 4)."""
 
     def test_concepts_are_general_gravity(self):
         """Le même texte vaut avec la gravité : un mini Puissance 4 (4 x 4, aligner 3)."""
@@ -875,7 +879,7 @@ class EducationTest(unittest.TestCase):
             suite[ligne * size + colonne] = joueur
             return suite
 
-        mind = self.think(
+        mind = think(
             possibles=lambda etat: [c for c in range(size) if etat[(size - 1) * size + c] == "."],
             apres=apres,
             gagne=lambda etat, joueur: any(all(etat[i] == joueur for i in line) for line in lines),
@@ -888,7 +892,7 @@ class EducationTest(unittest.TestCase):
 
     def test_concepts_are_general_quantity(self):
         """Et avec une quantité : le Nim (prendre 1 à 3 allumettes, la dernière gagne)."""
-        mind = self.think(
+        mind = think(
             possibles=lambda n: list(range(1, min(3, n) + 1)),
             apres=lambda n, prises, joueur: n - prises,
             gagne=lambda n, joueur: n == 0,

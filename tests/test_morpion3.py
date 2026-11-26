@@ -12,6 +12,8 @@ from xander import concepts
 from xander.education import BUDGET, issue
 from xander.mother import Mother
 
+from tests import lent
+
 EMPTY = [str(i) for i in range(16)]
 EXAMPLE = Path(__file__).resolve().parent.parent / "res" / "exampleMorpion3.py"
 
@@ -261,6 +263,7 @@ class EducationMorpion3Test(unittest.TestCase):
         self.assertEqual([issue(2, side) for side in range(3)], [-1, -1, 1])
         self.assertEqual([issue(None, side) for side in range(3)], [0, 0, 0])
 
+    @lent
     def test_education_at_every_seat(self):
         """Le fils joue à chaque place, contre le professeur, le hasard et un adversaire mixte ;
         la mère retrouve les 24 alignements et les 8 symétries du carré, sans coup impossible
@@ -276,6 +279,7 @@ class EducationMorpion3Test(unittest.TestCase):
         self.assertLessEqual(teaching.max_views, BUDGET)
         self.assertTrue(teaching.knowledge["rules"])  # des règles qu'elle a construites
 
+    @lent
     def test_every_case_still_well_played(self):
         """« Les souvenirs sont les tests » : à trois, le professeur départage ses coups dans un
         ordre fixe de cases, si bien que deux positions symétriques n'ont pas toujours la même
