@@ -446,7 +446,11 @@ joué. Avant, le labo le prenait pour un refus et se désynchronisait du jeu.
    joue encore bien dans **tous** les cas (vérifié dans le labo), s'il libère
    des souvenirs (ils sont oubliés) et devient **plus court** (le rasoir
    d'Ockham, voir ci-dessous), et si le fils reste dans son budget de
-   réflexion. Le concept devient une **brique** pour les
+   réflexion. Ce budget, la mère le compte avec sa pensée
+   (`Pensee.vues` : chaque appel à `apres` que ferait le code du fils, `and`
+   et `au_moins` s'arrêtant comme en Python), sans écrire ni compiler un fils
+   d'essai pour chaque règle candidate (`views_compiled` le fait encore, pour
+   le test : les deux comptes sont égaux). Le concept devient une **brique** pour les
    suivants. Enfin, elle retire les règles devenues inutiles (sans elles,
    tous les cas restent bien joués). Puis elle **réécrit le code du fils**.
 

@@ -178,6 +178,37 @@ class Pensee:
         self._memo[cle] = valeur
         return valeur
 
+    def vues(self, concept: Concept, etat, moi) -> int:
+        """Combien de positions le fils regarde (appels à ``apres``) pour savoir si le concept est
+        vrai ici, en exécutant son code tel que la mère l'écrit (:func:`expression`) : ``and``
+        s'arrête au premier faux, ``au_moins`` dès qu'il a ses ``k`` coups. La mère le compte
+        sans écrire ni compiler ce code."""
+        etat = _key(etat)
+        cle = ("vues", concept.id, etat, moi)
+        if cle in self._memo:
+            return self._memo[cle]
+        kind, args = concept.kind, concept.args
+        if kind == "brique":
+            nom, qui = args
+            n = 0 if nom == GAGNE else self.vues(self.definitions[nom], etat, self.joueur(moi, qui))
+        elif kind == "non":
+            n = self.vues(args[0], etat, moi)
+        elif kind == "et":
+            n = self.vues(args[0], etat, moi)
+            if self.vrai(args[0], etat, moi):
+                n += self.vues(args[1], etat, moi)
+        else:
+            k, qui, x = args
+            n = compte = 0
+            for _, suite in self.enfants(etat, self.joueur(moi, qui)):
+                n += 1 + self.vues(x, suite, moi)
+                if self.vrai(x, suite, moi):
+                    compte += 1
+                    if compte >= k:
+                        break
+        self._memo[cle] = n
+        return n
+
     def coups(self, concept: Concept, etat, moi) -> set:
         """La règle : les actions après lesquelles le concept est vrai."""
         return {a for a, suite in self.enfants(_key(etat), moi) if self.vrai(concept, suite, moi)}

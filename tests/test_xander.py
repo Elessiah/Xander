@@ -613,6 +613,18 @@ class EducationTest(unittest.TestCase):
                          sorted(s for s in true if sorted(s[c] for c in (1, 4, 7)) == [1, 4, 7]))
         self.assertEqual(len(teaching.knowledge["symmetries"]), 3)  # deux miroirs et le demi-tour
 
+    def test_views_counted_without_compiling(self):
+        """La mère compte les positions que regarderait le fils avec sa pensée, sans écrire ni
+        compiler un fils d'essai : le même nombre que le fils compilé, pour chaque ordre de règles."""
+        import itertools
+        teaching = trained(200)
+        rules = teaching.knowledge["rules"]
+        for size in range(len(rules) + 1):
+            for order in itertools.permutations(rules, size):
+                self.assertEqual(teaching.views(list(order), []), teaching.views_compiled(list(order), []), order)
+        some = list(teaching.knowledge["memories"])[:2]
+        self.assertEqual(teaching.views(rules, some), teaching.views_compiled(rules, some))
+
     def test_memory_holds_for_rotated_position(self):
         """Un souvenir vaut pour la position tournée d'un quart de tour."""
         teaching = education()

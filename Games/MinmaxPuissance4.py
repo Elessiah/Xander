@@ -129,8 +129,107 @@ def negamax(board: list, heights: list, turn: str, depth: int, alpha: int, beta:
     return 0 if best is None else best  # plateau plein : match nul
 
 
+#: Pour chaque case, les numéros des fenêtres qui la contiennent.
+WINDOW_IDS_BY_CELL = [[k for k, w in enumerate(WINDOWS) if i in w] for i in range(WIDTH * HEIGHT)]
+#: Ce que rapporte une fenêtre à X selon ses jetons X et O (l'opposé pour O) : la même note que
+#: :func:`evaluate`, fenêtre par fenêtre.
+CONTRIBUTION = [[WINDOW_POINTS[x] if o == 0 else (-WINDOW_POINTS[o] if x == 0 else 0)
+                 for o in range(5)] for x in range(5)]
+
+
 def best_move(board: list, turn: str, depth: int = DEFAULT_DEPTH):
-    """Meilleure colonne ; à valeur égale, la plus proche du centre. ``None`` si le plateau est plein."""
+    """Meilleure colonne ; à valeur égale, la plus proche du centre. ``None`` si le plateau est plein.
+
+    Le même negamax que :func:`best_move_reference` (même ordre des colonnes, même élagage, mêmes
+    valeurs, donc les mêmes coups), mais la note du plateau est **tenue à jour** à chaque jeton
+    posé ou retiré, au lieu d'être recalculée sur les 69 fenêtres à chaque feuille : chaque
+    fenêtre garde son nombre de jetons de chaque joueur, et un alignement de 4 se lit sur ces
+    nombres."""
+    board = list(board)
+    heights = column_heights(board)
+    count_x = [sum(board[i] == "X" for i in w) for w in WINDOWS]
+    count_o = [sum(board[i] == "O" for i in w) for w in WINDOWS]
+    score = [sum(CONTRIBUTION[x][o] for x, o in zip(count_x, count_o))  # pour X
+             + CENTER_POINTS * sum((board[_index(CENTER, y)] == "X") - (board[_index(CENTER, y)] == "O")
+                                   for y in range(HEIGHT))]
+    ids_by_cell = WINDOW_IDS_BY_CELL
+    # vu du joueur qui pose : (ses jetons, ceux de l'autre, la note de X selon (siens, autres), centre)
+    sides = {True: (count_x, count_o, CONTRIBUTION, CENTER_POINTS),
+             False: (count_o, count_x, [list(col) for col in zip(*CONTRIBUTION)], -CENTER_POINTS)}
+
+    def place(i: int, is_x: bool) -> bool:
+        """Pose un jeton en ``i`` ; vrai s'il complète un alignement de 4."""
+        mine, theirs, table, center = sides[is_x]
+        won, delta = False, 0
+        for k in ids_by_cell[i]:
+            m, row = mine[k], theirs[k]
+            mine[k] = m + 1
+            delta += table[m + 1][row] - table[m][row]
+            if m == 3:
+                won = True
+        if i % WIDTH == CENTER:
+            delta += center
+        score[0] += delta
+        return won
+
+    def remove(i: int, is_x: bool) -> None:
+        mine, theirs, table, center = sides[is_x]
+        delta = 0
+        for k in ids_by_cell[i]:
+            m, row = mine[k], theirs[k]
+            mine[k] = m - 1
+            delta += table[m - 1][row] - table[m][row]
+        if i % WIDTH == CENTER:
+            delta -= center
+        score[0] += delta
+
+    def search(is_x: bool, depth: int, alpha: int, beta: int) -> int:
+        if depth == 0:
+            return score[0] if is_x else -score[0]
+        best = None
+        for x in COLUMN_ORDER:
+            y = heights[x]
+            if y == HEIGHT:
+                continue
+            i = y * WIDTH + x
+            heights[x] += 1
+            if place(i, is_x):
+                value = WIN_SCORE + depth
+            else:
+                value = -search(not is_x, depth - 1, -beta, -alpha)
+            remove(i, is_x)
+            heights[x] -= 1
+            if best is None or value > best:
+                best = value
+            alpha = max(alpha, value)
+            if alpha >= beta:
+                break
+        return 0 if best is None else best  # plateau plein : match nul
+
+    is_x = turn == "X"
+    best, best_value = None, None
+    alpha = -INFINITY
+    for x in COLUMN_ORDER:
+        y = heights[x]
+        if y == HEIGHT:
+            continue
+        i = y * WIDTH + x
+        heights[x] += 1
+        if place(i, is_x):
+            value = WIN_SCORE + depth
+        else:
+            value = -search(not is_x, depth - 1, -INFINITY, -alpha)
+        remove(i, is_x)
+        heights[x] -= 1
+        if best_value is None or value > best_value:
+            best, best_value = x, value
+            alpha = max(alpha, value)
+    return best
+
+
+def best_move_reference(board: list, turn: str, depth: int = DEFAULT_DEPTH):
+    """La version directe de :func:`best_move` (lente), gardée pour vérifier qu'elles jouent
+    exactement les mêmes coups."""
     board = list(board)
     heights = column_heights(board)
     best, best_value = None, None
