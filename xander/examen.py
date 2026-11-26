@@ -64,6 +64,16 @@ machine et sa mesure de référence, le budget, puis pour chaque problème son
 numéro, réussi ou raté, son score relatif, son nombre de joueurs et la
 durée : rien d'autre sur leur contenu. Il est écrit sur la sortie et dans un
 fichier hors du dépôt (par défaut dans ``<dossier>``).
+
+**Le bulletin, après coup.** Une fois le score d'un problème écrit (le
+sous-processus l'envoie avant toute autre chose), le lanceur lit le fils
+comme on relit du code : son bulletin (:mod:`xander.bulletin` : taille,
+compression, origine des coups, généralisation à des positions jamais vues).
+Il ne compte pas dans la limite de l'examen et ne change ni le score ni la
+mère, qui a fini ; il a sa propre limite, :attr:`Budget.facteur_bulletin`
+fois la tâche de référence. Le rapport le donne en annexe, en nombres
+seulement (rien sur le contenu du problème). Comme le score, il se lit comme
+une mesure : on ne s'en sert jamais pour corriger la mère sur ces problèmes.
 """
 
 from __future__ import annotations
@@ -92,6 +102,7 @@ ARBITRE = "arbitre.py"
 FONCTION_PROFESSEUR = "professeur"
 INTERFACE_ARBITRE = ("joueurs", "plafond", "nouvelle_partie", "a_qui", "finie", "resultat", "coups_permis")
 MARQUEUR = "@@examen"
+MARQUEUR_BULLETIN = "@@bulletin"
 
 
 @dataclass(frozen=True)
@@ -101,13 +112,15 @@ class Budget:
     graines: int = 10         # graines de mesure (pour chaque place et chaque sorte d'adversaires)
     rodage: int = 5           # coups impossibles tolérés pendant les premières parties d'éducation
     facteur: float = 20_000   # limite de temps par problème, en multiples de la tâche de référence
+    facteur_bulletin: float = 10_000  # limite du bulletin, après le score (même unité)
 
     def describe(self) -> str:
         return (f"{self.parties} parties d'éducation, graine maîtresse {self.graine} ; mesure : "
                 f"{self.graines} graines pour chaque place et chaque sorte d'adversaires (professeur, "
                 f"hasard ; aucun pour un joueur seul), chaque situation jouée par le fils puis par le "
                 f"professeur ; aucun coup impossible après la partie {self.rodage} ; limite de temps : "
-                f"{self.facteur:g} fois la tâche de référence par problème")
+                f"{self.facteur:g} fois la tâche de référence par problème ; bulletin après le score, "
+                f"hors de cette limite : au plus {self.facteur_bulletin:g} fois la référence")
 
 
 #: Le budget de l'examen, fixé avant tout examen. Ne pas le changer pour un examen en cours.
@@ -129,6 +142,7 @@ class Resultat:
     relatif: float
     joueurs: int
     duree: float
+    bulletin: str | None = None  # lu après le score ; None : pas de fils, ou temps dépassé
 
 
 @dataclass(frozen=True)
@@ -244,10 +258,10 @@ def _sous_processus(commande: list, env: dict, timeout: float | None):
                           timeout=timeout)
 
 
-def _reponse(sortie: str) -> dict | None:
-    """La dernière ligne ``@@examen {…}`` d'une sortie."""
-    lignes = [l for l in sortie.splitlines() if l.startswith(MARQUEUR + " ")]
-    return json.loads(lignes[-1][len(MARQUEUR) + 1:]) if lignes else None
+def _reponse(sortie: str, marqueur: str = MARQUEUR) -> dict | None:
+    """La dernière ligne ``@@examen {…}`` (ou d'un autre marqueur) d'une sortie."""
+    lignes = [l for l in sortie.splitlines() if l.startswith(marqueur + " ")]
+    return json.loads(lignes[-1][len(marqueur) + 1:]) if lignes else None
 
 
 def verifier_branchement(probleme: Path, env: dict) -> int:
@@ -427,9 +441,10 @@ def mesurer(education, arbitre, professeur, budget: Budget) -> float:
     return tenues / len(liste)
 
 
-def passer_probleme(probleme: Path, budget: Budget) -> dict:
+def passer_probleme(probleme: Path, budget: Budget) -> tuple[dict, object]:
     """Fait éduquer un fils par la mère sur ``probleme``, puis le mesure. Toute erreur de la
-    mère (elle ne sait pas éduquer ce problème, ou elle plante) rend le problème raté."""
+    mère (elle ne sait pas éduquer ce problème, ou elle plante) rend le problème raté. Rend
+    aussi l'éducation, pour le bulletin (``None`` si elle a échoué)."""
     import importlib
 
     from xander.mother import Mother
@@ -445,18 +460,32 @@ def passer_probleme(probleme: Path, budget: Budget) -> dict:
     except BranchementError:
         raise
     except Exception:  # noqa: BLE001 — la mère ne sait pas, ou plante : raté, sans regarder pourquoi
-        return rate
-    return {"reussi": relatif == 1 and not triche, "relatif": relatif}
+        return rate, None
+    return {"reussi": relatif == 1 and not triche, "relatif": relatif}, education
+
+
+def lire_le_fils(education) -> str:
+    """Le bulletin du fils, une fois le score envoyé : une mesure, qui ne change rien."""
+    from xander.bulletin import bulletin
+    try:
+        return bulletin(education, "problème").decrire()
+    except Exception as erreur:  # noqa: BLE001 — le score est déjà donné ; on dit seulement pourquoi
+        return f"bulletin impossible ({type(erreur).__name__})"
 
 
 def _enfant(probleme: str, budget_json: str) -> int:
     """Point d'entrée du sous-processus : une ligne ``@@examen {…}`` sur la sortie."""
+    debut = time.monotonic()
     budget = Budget(**json.loads(budget_json))
+    education = None
     try:
-        reponse = passer_probleme(Path(probleme), budget)
+        reponse, education = passer_probleme(Path(probleme), budget)
+        reponse["duree"] = time.monotonic() - debut
     except BranchementError as erreur:
         reponse = {"branchement": str(erreur)}
-    print(MARQUEUR, json.dumps(reponse), flush=True)
+    print(MARQUEUR, json.dumps(reponse), flush=True)  # le score d'abord : le bulletin n'y touche plus
+    if education is not None:
+        print(MARQUEUR_BULLETIN, json.dumps({"texte": lire_le_fils(education)}), flush=True)
     return 0
 
 
@@ -464,23 +493,34 @@ def _enfant(probleme: str, budget_json: str) -> int:
 # L'examen
 # --------------------------------------------------------------------------- #
 
-def lancer(probleme: Path, numero: int, budget: Budget, limite: float) -> Resultat:
+def lancer(probleme: Path, numero: int, budget: Budget, limite: float,
+           limite_bulletin: float = 0.0) -> Resultat:
+    """Le sous-processus a ``limite`` pour envoyer son score, puis ``limite_bulletin`` de plus
+    pour le bulletin. Un score envoyé après ``limite`` (mesuré par le sous-processus) est un
+    temps dépassé ; un bulletin qui manque ne change pas le score."""
     env = environnement(probleme, budget.graine)
     joueurs = verifier_branchement(probleme, env)
     commande = [sys.executable, "-m", "xander.examen", "--un-probleme", str(probleme),
                 "--budget", json.dumps(asdict(budget))]
     debut = time.monotonic()
     try:
-        fini = _sous_processus(commande, env, limite)
-    except subprocess.TimeoutExpired:
-        return Resultat(numero, False, 0.0, joueurs, time.monotonic() - debut)
+        sortie = _sous_processus(commande, env, limite + limite_bulletin).stdout
+    except subprocess.TimeoutExpired as arret:  # arrêté : ce qu'il a écrit avant compte encore
+        sortie = arret.stdout or ""
+        if isinstance(sortie, bytes):
+            sortie = sortie.decode("utf-8", errors="replace")
     duree = time.monotonic() - debut
-    reponse = _reponse(fini.stdout)
-    if reponse is None:  # le sous-processus est mort sans répondre (mémoire, plantage de Python…)
+    reponse = _reponse(sortie)
+    if reponse is None:  # mort ou arrêté sans répondre (temps, mémoire, plantage de Python…)
         return Resultat(numero, False, 0.0, joueurs, duree)
     if "branchement" in reponse:
         raise BranchementError(f"{probleme.name} : {reponse['branchement']}")
-    return Resultat(numero, bool(reponse["reussi"]), float(reponse["relatif"]), joueurs, duree)
+    duree = float(reponse.get("duree", duree))
+    if duree > limite:  # le score est arrivé, mais trop tard
+        return Resultat(numero, False, 0.0, joueurs, duree)
+    bulletin = _reponse(sortie, MARQUEUR_BULLETIN)
+    return Resultat(numero, bool(reponse["reussi"]), float(reponse["relatif"]), joueurs, duree,
+                    bulletin["texte"] if bulletin else None)
 
 
 def passer_examen(dossier: str | Path, budget: Budget = BUDGET, rapport: str | Path | None = None,
@@ -500,6 +540,7 @@ def passer_examen(dossier: str | Path, budget: Budget = BUDGET, rapport: str | P
         raise BranchementError("le rapport s'écrit hors du dépôt")
     reference = mesure_de_reference()
     limite = budget.facteur * reference
+    limite_bulletin = budget.facteur_bulletin * reference
     lignes = [f"Examen blanc : {dossier.name}",
               f"Commit : {commit()}",
               f"Date : {debut:%Y-%m-%d %H:%M}",
@@ -513,7 +554,7 @@ def passer_examen(dossier: str | Path, budget: Budget = BUDGET, rapport: str | P
         sortie(ligne)
     resultats = []
     for numero, probleme in enumerate(liste, 1):
-        resultat = lancer(probleme, numero, budget, limite)
+        resultat = lancer(probleme, numero, budget, limite, limite_bulletin)
         resultats.append(resultat)
         ligne = (f"Problème {numero} : {'réussi' if resultat.reussi else 'raté'}, score relatif "
                  f"{resultat.relatif:.2f} ({resultat.joueurs} joueur{'s' if resultat.joueurs > 1 else ''}, "
@@ -525,6 +566,13 @@ def passer_examen(dossier: str | Path, budget: Budget = BUDGET, rapport: str | P
     lignes += ["", f"Score : {score}/{len(resultats)} ; score relatif moyen : {relatif:.2f}"]
     sortie(lignes[-2])
     sortie(lignes[-1])
+    annexe = ["", "Bulletins des fils (lus après le score, hors de la limite de l'examen) :"]
+    for r in resultats:
+        texte = r.bulletin or "pas de bulletin (pas de fils, ou temps du bulletin dépassé)"
+        annexe.append(f"Problème {r.numero} : " + texte.replace("\n", "\n  "))
+    lignes += annexe
+    for ligne in annexe:
+        sortie(ligne)
     rapport.parent.mkdir(parents=True, exist_ok=True)
     rapport.write_text("\n".join(lignes) + "\n", encoding="utf-8")
     sortie(f"Rapport écrit dans {rapport}")

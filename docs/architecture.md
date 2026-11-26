@@ -1467,7 +1467,8 @@ réécrit pas, et son labo n'est pas utilisé (un test le vérifie).
 | Graine maîtresse | 0 : éducation, graines des parties de mesure, hasard |
 | Mesure | 10 graines pour chaque place et chaque sorte d'adversaires : 10 situations pour un joueur seul, 40 à deux joueurs, 60 à trois ; deux parties par situation, chacune d'au plus `plafond` coups |
 | Rodage | aucun coup impossible après la partie 5 de l'éducation |
-| Limite de temps | 20 000 fois la tâche de référence par problème (environ 30 minutes sur la machine de développement), tout compris |
+| Limite de temps | 20 000 fois la tâche de référence par problème (environ 30 minutes sur la machine de développement), éducation et mesure comprises (le temps est mesuré par le sous-processus, jusqu'à l'envoi du score) |
+| Bulletin | après le score, hors de la limite précédente : au plus 10 000 fois la tâche de référence (`facteur_bulletin`) |
 
 Le travail est borné par les nombres de parties et le plafond de coups. La
 limite de temps n'est qu'un garde-fou ; pour qu'elle dépende moins de la
@@ -1483,6 +1484,18 @@ modifications non commitées), la date, la machine et sa mesure de référence,
 le budget, puis pour chaque problème son numéro, réussi ou raté, son score
 relatif, son nombre de joueurs et la durée ; enfin les deux scores. Rien
 d'autre sur le contenu des problèmes, ni sur la raison d'un échec.
+
+**Le bulletin, après coup.** Une fois le score envoyé (le sous-processus
+l'écrit avant toute autre chose, ligne `@@examen`), il lit le fils comme on
+relit du code : son bulletin (§ 12), sur une ligne `@@bulletin`. Le score
+est déjà fixé : le bulletin ne le change pas, ne compte pas dans la limite de
+l'examen et ne revient pas vers la mère, qui a fini. Il a sa propre limite
+(`facteur_bulletin`) ; s'il la dépasse, le sous-processus est arrêté et le
+rapport dit seulement « pas de bulletin », le score reste. Le rapport donne
+les bulletins en annexe, après les scores, en nombres seulement (nom
+« problème », règles `concept_N`). Comme le score, ils se lisent comme une
+mesure : on ne s'en sert jamais pour corriger la mère sur ces problèmes
+(règle 4 du cap).
 
 **Écrire un problème.**
 
