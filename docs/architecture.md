@@ -551,14 +551,30 @@ fourchettes.
 
 **Ne pas penser à ce que le fils ne pourrait pas se permettre.** La recherche
 de concepts est bornée par le **budget du fils**, pas seulement par une
-profondeur (`concepts.cout`, `enumerer(…, budget)`) : une règle qui lui
-coûterait en moyenne plus que tout son budget (chacun de ses coups, puis le
-concept) n'est même pas imaginée. Le coût attendu se lit sur l'arbre du
-concept, avec ce que la mère sait déjà de ses parties (la part des positions
-de l'échantillon où chacune est vraie), sans rien calculer : « au moins k de
-ses coups » examine environ k / p coups (au plus tous), « a et b » ne regarde
-b que si a est vrai. Une première borne au pire cas (tous les coups, toujours)
-coupait au Nim des concepts utiles (taille 119 au lieu de 118 ; 126 au lieu de 93 quand les règles filtrent). Ainsi la profondeur dépend du jeu :
+profondeur (`concepts.cout`, `enumerer(…, budget)`) : une règle qui pourrait
+lui coûter plus que tout son budget (chacun de ses coups, puis le concept)
+n'est même pas imaginée. **Au pire, pas en moyenne** : le budget est un
+plafond par coup, et la règle 2 de `CLAUDE.md` interdit d'énumérer toutes les
+réponses au-delà d'un coup. Ce pire, la mère le **mesure** pour ce qu'elle a
+déjà formé (`Pensee.regard` : sur chacune des positions de l'échantillon, ce
+que le fils regarde en exécutant son code, qui s'arrête au premier faux d'un
+« et » et dès ses k coups d'un « au moins ») et ne le **suppose** que pour ce
+qui est nouveau : « au moins k de ses coups », chacun de ses coups puis la
+partie déjà mesurée ; « a et b », les deux. Trois bornes essayées :
+
+- **pire cas supposé** (tous les coups, toujours) : coupe au Nim des concepts
+  qui, en fait, s'arrêtent vite partout (taille 126 au lieu de 93 quand les
+  règles filtrent) ;
+- **coût attendu** (« au moins » : environ k / p coups si le concept est vrai
+  après une part p des coups) : laisse entrer au Morpion à trois des concepts
+  bon marché en moyenne qui regardent trois ou quatre coups plus loin ;
+  l'élargissement (taille 8, profondeur 4) n'y finissait plus (taille 6 :
+  3 s à profondeur 2, 56 s à profondeur 3 ; 200 parties : plus de 12 h) ;
+- **pire cas mesuré** (retenu) : Nim inchangé (taille 93), banque du Morpion à
+  trois en 2 s (1 894 concepts), élargissements en 5 s et 17 s (3 033 puis
+  7 954 concepts ; au pire supposé : 2 646, 11 s et 33 s).
+
+Ainsi la profondeur dépend du jeu :
 loin au Nim (trois coups par position), à peine au-delà d'un coup au Morpion
 à trois (seize cases). Sans cette borne, l'élargissement au Morpion à trois
 (taille 8, profondeur 4 : jusqu'à 16⁴ positions imaginées pour chacune des
