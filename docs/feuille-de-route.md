@@ -220,6 +220,49 @@ l'explication exigeante). Dans l'ordre :
 3. **Vérifier la règle 2, pas seulement le total** : un test refuse une règle
    qui énumère toutes les réponses au-delà d'un coup hors suite forcée.
 
+**Fait (nuit du 2026-11-26) : la mère ne pense plus à ce que le fils ne
+pourrait pas se permettre** (architecture, § 6). Le Morpion à trois
+atteignait 31 Go : elle imaginait des concepts que le fils n'aurait jamais
+pu évaluer dans son budget. Désormais :
+
+- **l'énumération est bornée par le budget du fils, au pire** : ce que le
+  fils regarderait au pire, mesuré sur les positions de la mère pour ce
+  qu'elle a déjà formé, supposé pour le reste ; un concept qui dépasse le
+  budget n'est jamais construit. Une première version au coût attendu (en
+  moyenne) laissait entrer au Morpion à trois des concepts à trois ou quatre
+  coups d'avance : plus de 12 h pour 200 parties. Une mémoire de travail
+  plafonnée (3 millions d'entrées) reste en filet de sécurité ;
+- **les règles se suivent comme des filtres** : chacune garde, parmi les
+  coups laissés par les précédentes, ceux qui la satisfont (la règle
+  propose, elle ne tranche pas seule) ; le fils seul garde l'ancien ordre ;
+- **voir sans imaginer** : deux perceptions (« j'ai une menace », « j'ai une
+  double menace ») se lisent sur les constructions en cours, sans regarder
+  de coup ;
+- **on joue pour gagner** : une explication ne dit pas qu'un coup vaut
+  mieux parce qu'il me laisse moins près de gagner (ou laisse un autre plus
+  près), sauf sous un coup de l'autre. Sans ce principe, les perceptions
+  rendaient bon marché une coïncidence au Puissance 4.
+
+| Jeu | Avant (`main`) | Après |
+|---|---|---|
+| Morpion | taille 57, 922 vues, 32 % par défaut | taille 35, 2 souvenirs, 311 vues, 48/50, **25 %** par défaut |
+| Nim | — | taille 93, 4 règles, 18 souvenirs, 251 vues, 27/36, **22 %** |
+| Nim misère | — | taille 104, 22/34, **16 %** |
+| Puissance 4 (10 parties) | 5 règles, 78 souvenirs, 996 vues, 32 %, professeur 0/0/2 | 7 règles, 38 souvenirs, 669 vues, **14 %**, professeur 1/0/1, hasard 99/0/1 |
+| Morpion à trois | 296 souvenirs, taille 5 033 ; 31 Go avec l'explication exigeante | sans manque de mémoire ; 80 parties en 2 411 s (mesure des 200 en cours) |
+
+Le recalcul de la banque à chaque nouvelle brique est réglé : la mère garde ce
+qu'elle sait de chaque concept (168 s → 3 s par recalcul au Morpion à trois).
+
+Reste :
+- **le Morpion à trois reste lent** (environ 50 s par partie après la 50ᵉ) :
+  l'énumération n'y coûte plus que quelques secondes, le temps est ailleurs
+  (à profiler : probablement l'explication des cas, qui essaie une banque de
+  plus de 100 000 concepts) ; le bilan des 200 parties est à mesurer ;
+- les perceptions et le principe « on joue pour gagner » sont **fournis à la
+  main** (listés dans l'architecture) ;
+- la priorité 2 ci-dessus.
+
 En attente sur leurs branches, à reprendre après : la valeur « gagner plus
 tôt, perdre plus tard » (`feature/gagner-plus-tot` : 55 erreurs de plus
 visibles au Puissance 4, toutes gardées en souvenirs), le classement des
@@ -527,7 +570,7 @@ comparant des résultats.
 | Contre-exemples rejoués d'abord | 20 | `CONTRE_EXEMPLES`, `Education.check` | sans effet sur ce qu'elle apprend (l'ordre de la vérification seulement) |
 | Perceptions de départ des jeux à motifs | `menace`, `double_menace` (constructions en cours) | `concepts.PERCEPTIONS`, `son_writer.CONSTRUCTIONS_SOURCE` | principe (reconnaître au lieu de calculer, Chase et Simon) ; les deux choisies a priori |
 | On joue pour gagner | une explication ne nie pas une de mes perceptions de progrès, n'affirme pas celle d'un autre (sauf sous ses coups à lui) | `concepts.contre_son_but` | principe fourni à la main ; restreint aux perceptions après le Nim (avec `gagne`, taille 93 → 141) |
-| Borne de la recherche de concepts | coût attendu d'une règle ≤ budget du fils | `concepts.cout`, `enumerer(…, budget)` | principe (budget mesurable) ; d'abord au pire cas, trop strict au Nim |
+| Borne de la recherche de concepts | coût d'une règle au pire ≤ budget du fils (mesuré sur l'échantillon pour les concepts formés, supposé pour le reste) | `concepts.cout`, `Pensee.regard`, `enumerer(…, budget)` | principe (budget mesurable, règle 2) ; pire cas supposé trop strict au Nim, coût attendu trop large au Morpion à trois |
 | Mémoire de travail de la mère | 3 millions de valeurs par sorte, vidée quand elle est pleine | `concepts.MEMOIRE_MAX` | a priori ; sans effet sur ce qu'elle apprend (un cache) |
 | Règles qui se suivent | chacune filtre les coups que laissent les précédentes, puis le plus petit | `Pensee.decision`, squelette du fils | principe (les règles proposent, le calcul vérifie) ; le fils à un joueur garde l'ancien ordre |
 | Parties d'un « ou » : la plus immédiate d'abord | profondeur croissante, puis taille | `concepts.parties_ou` | principe fourni à la main (régler d'abord ce qui arrive le plus tôt) |
