@@ -610,6 +610,16 @@ partie déjà mesurée ; « a et b », les deux. Trois bornes essayées :
   trois en 2 s (1 894 concepts), élargissements en 5 s et 17 s (3 033 puis
   7 954 concepts ; au pire supposé : 2 646, 11 s et 33 s).
 
+**Ce qu'elle a compris d'un concept, elle le garde.** À chaque nouvelle brique
+(une règle adoptée), la mère reforme sa banque et ses élargissements. Ce
+qu'elle sait d'un concept sur ses positions (vrai ou faux sur chacune, ce que
+le fils y regarde au pire) ne change pas pour autant : elle le garde d'une
+recherche à l'autre (`enumerer(…, memoire)`, vidée si les positions changent ou
+si un nom change de sens), et « a et b », « non a » se lisent sur ce qu'elle
+sait déjà de a et de b, sans rien regarder. La banque trouvée est la même
+(test). Au Morpion à trois, le recalcul après 12 parties passe de 168 s à
+3 s, et les 40 premières parties de 1 202 s à 360 s.
+
 Ainsi la profondeur dépend du jeu :
 loin au Nim (trois coups par position), à peine au-delà d'un coup au Morpion
 à trois (seize cases). Sans cette borne, l'élargissement au Morpion à trois

@@ -422,37 +422,44 @@ def echantillon(notions, depart, joueurs, nombre: int = 120, graine: int = 0) ->
 
 
 def cout(c: Concept, coups: float, definitions: dict, memo: dict | None = None,
-         connus: dict | None = None) -> float:
+         connus: dict | None = None, racine: bool = True) -> float:
     """Au plus combien de positions le fils regarde pour savoir si ``c`` est vrai, quand chaque
     position offre ``coups`` coups. Rien pour ce qu'il voit (``gagne``, une perception) ;
     « au moins k de ses coups » : chacun de ses coups et ce qui suit ; « a et b » : les deux.
     ``connus`` : pour les concepts déjà formés, ce qu'il regarde **au pire, mesuré** sur les
     positions de la mère (:meth:`Pensee.regard`) : elle ne suppose le pire que de ce qu'elle
-    n'a pas encore pensé. Se lit sur l'arbre du concept, sans rien imaginer."""
+    n'a pas encore pensé (le concept lui-même est toujours jugé sur ses parties : qu'elle l'ait
+    déjà rencontré ne change pas sa décision). Se lit sur l'arbre du concept, sans rien imaginer."""
     memo = {} if memo is None else memo
     connus = {} if connus is None else connus
-    if c.id in connus:
+    if not racine and c.id in connus:
         return connus[c.id]
     if c.id not in memo:
         kind, args = c.kind, c.args
         if kind == "brique":
             nom = args[0]
-            valeur = cout(definitions[nom], coups, definitions, memo, connus) if nom in definitions else 0.0
+            valeur = cout(definitions[nom], coups, definitions, memo, connus, False) if nom in definitions else 0.0
         elif kind == "non":
-            valeur = cout(args[0], coups, definitions, memo, connus)
+            valeur = cout(args[0], coups, definitions, memo, connus, False)
         elif kind == "et":
-            valeur = cout(args[0], coups, definitions, memo, connus) + cout(args[1], coups, definitions, memo, connus)
+            valeur = cout(args[0], coups, definitions, memo, connus, False) + cout(args[1], coups, definitions, memo, connus, False)
         else:
-            valeur = coups * (1 + cout(args[2], coups, definitions, memo, connus))
+            valeur = coups * (1 + cout(args[2], coups, definitions, memo, connus, False))
         memo[c.id] = valeur
     return memo[c.id]
 
 
 def enumerer(pensee: Pensee, positions: list[tuple], taille_max: int = 5,
              profondeur_max: int = 2, comptes: tuple = (1, 2),
-             qui: tuple = (MOI, LUI), budget: int | None = None) -> list[Concept]:
+             qui: tuple = (MOI, LUI), budget: int | None = None,
+             memoire: dict | None = None) -> list[Concept]:
     """Les concepts distincts, du plus petit au plus grand. ``qui`` : les joueurs dont ils
     peuvent parler (voir :func:`joueurs`).
+
+    Ce qu'elle a compris d'un concept sur ``positions`` (vrai ou faux sur chacune, ce que le fils
+    y regarde au pire) ne change pas quand elle apprend une nouvelle brique : ``memoire`` le garde
+    d'une recherche à l'autre (pour les mêmes positions), et seul ce qui est nouveau est évalué.
+    « a et b », « non a » se lisent sur ce qu'elle sait déjà de a et de b, sans rien regarder.
 
     Un concept qui dit la même chose qu'un plus petit sur ``positions``, ou qui
     y est toujours vrai (ou toujours faux), n'est pas gardé ; sauf si le plus petit est contraire
@@ -480,23 +487,51 @@ def enumerer(pensee: Pensee, positions: list[tuple], taille_max: int = 5,
         return tort[c.id]
 
     couts: dict = {}
-    pires: dict = {}  # concept formé -> ce que le fils regarde au pire, mesuré sur les positions
+    positions = list(positions)
+    noms = {nom: c.id for nom, c in pensee.definitions.items()}
+    if memoire is None or memoire.get("positions") != positions or any(
+            noms.get(nom) != ident for nom, ident in memoire["noms"].items()):
+        memoire = {} if memoire is None else memoire  # d'autres positions, ou un nom qui a changé de sens
+        memoire.clear()
+        memoire.update(positions=positions, signatures={}, pires={})
+    memoire["noms"] = noms
+    connues: dict = memoire["signatures"]  # concept -> ses valeurs sur les positions (un bit chacune)
+    pires: dict = memoire["pires"]  # concept formé -> ce que le fils regarde au pire, mesuré
+    mesures: dict = {}  # ceux de cette recherche (sa décision ne dépend pas de ce qu'elle a gardé)
+    toutes = (1 << len(positions)) - 1
     coups = sum(len(pensee.enfants(etat, moi)) for etat, moi in positions) / max(len(positions), 1)
+
+    def valeurs(c: Concept) -> int:
+        bits = connues.get(c.id)
+        if bits is None:
+            if c.kind == "et" and c.args[0].id in connues and c.args[1].id in connues:
+                bits = connues[c.args[0].id] & connues[c.args[1].id]
+            elif c.kind == "non" and c.args[0].id in connues:
+                bits = toutes ^ connues[c.args[0].id]
+            else:
+                bits = 0
+                for i, (etat, moi) in enumerate(positions):
+                    if pensee.vrai(c, etat, moi):
+                        bits |= 1 << i
+            connues[c.id] = bits
+        return bits
 
     def essayer(c: Concept) -> None:
         if c.size > taille_max or c.depth > profondeur_max:
             return
-        if budget is not None and coups * (1 + cout(c, coups, pensee.definitions, couts, pires)) > budget:
+        if budget is not None and coups * (1 + cout(c, coups, pensee.definitions, couts, mesures)) > budget:
             return  # trop cher pour le fils : elle n'y pense pas
-        signature = tuple(pensee.vrai(c, etat, moi) for etat, moi in positions)
-        if all(signature) or not any(signature):
+        signature = valeurs(c)
+        if signature == toutes or not signature:
             return
         premier = signatures.get(signature)
         if premier is not None and not (contre(premier) and not contre(c)):
             return
         signatures[signature] = c
         if budget is not None:
-            pires[c.id] = max(pensee.regard(c, etat, moi) for etat, moi in positions)
+            if c.id not in pires:
+                pires[c.id] = max(pensee.regard(c, etat, moi) for etat, moi in positions)
+            mesures[c.id] = pires[c.id]
         par_taille[c.size].append(c)
 
     for nom in [GAGNE] + pensee.perceptions + list(pensee.definitions):

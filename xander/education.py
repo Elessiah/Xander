@@ -355,6 +355,7 @@ class Education:
         self._bank_rank = None                       # (concepts, place de chacun, combien)
         self._bank_positions = None                  # positions imaginées qui confondent les concepts
         self._wider = None                           # (concepts, ceux des crans d'élargissement)
+        self._compris = {}                           # ce que la mère sait de chaque concept sur ces positions
         self._explanations: dict = {}                # cas -> son explication (au fil des marges)
         self._counterexamples = collections.OrderedDict()  # cas qui ont fait tomber une hypothèse
         self.over_budget: dict = {}                  # coups -> (position, joueur) où le fils a trop calculé
@@ -1313,6 +1314,7 @@ class Education:
     def rethink(self) -> None:
         """La mère comprend mieux le jeu (pions, motifs) : sa perception est à refaire."""
         self._son = self._mind = self._pensee = self._bank = None
+        self._compris = {}
         self._judged = {}
         self._symmetries_known = False
         self._shapes_known = False
@@ -1745,7 +1747,7 @@ class Education:
         if self._bank is None:
             self._bank_positions = concepts.echantillon(self.mind, self.start_position(), self.knowledge["marks"])
             self._bank = concepts.enumerer(self.pensee, self._bank_positions, self.max_size, self.max_depth,
-                                           self.counts, tuple(concepts.joueurs(self.n)), BUDGET)
+                                           self.counts, tuple(concepts.joueurs(self.n)), BUDGET, self._compris)
         return self._bank
 
     def wider(self, level: int) -> list:
@@ -1761,7 +1763,7 @@ class Education:
             k = len(levels) + 1
             seen = {c.id for c in bank}.union(c.id for lower in levels for c in lower)
             found = concepts.enumerer(self.pensee, self._bank_positions, self.max_size + k, self.max_depth + k,
-                                      self.counts, tuple(concepts.joueurs(self.n)), BUDGET)
+                                      self.counts, tuple(concepts.joueurs(self.n)), BUDGET, self._compris)
             levels.append([c for c in found if c.id not in seen])
         return levels[level - 1]
 

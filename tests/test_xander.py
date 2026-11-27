@@ -738,6 +738,25 @@ class EducationTest(unittest.TestCase):
         finally:
             concepts.MEMOIRE_MAX = old
 
+    def test_bank_kept_from_one_search_to_the_next(self):
+        """Ce que la mère sait d'un concept, gardé d'une recherche à l'autre, ne change aucun
+        concept trouvé : avec une brique de plus, ou un nom qui change de sens, elle trouve les
+        mêmes concepts qu'en repartant de rien."""
+        teaching = trained(200)
+        positions = teaching._bank_positions[:40]
+        definitions = dict(teaching.knowledge["concepts"])
+        def bank(memoire=None):
+            pensee = concepts.Pensee(teaching.mind, definitions)
+            return [c.id for c in concepts.enumerer(pensee, positions, 4, 2, budget=200, memoire=memoire)]
+        memoire: dict = {}
+        self.assertEqual(bank(memoire), bank())
+        self.assertEqual(bank(memoire), bank())  # tout vient de la mémoire
+        premier = concepts.enumerer(concepts.Pensee(teaching.mind, definitions), positions, 3, 1)
+        definitions["nouveau"] = premier[-1]
+        self.assertEqual(bank(memoire), bank())
+        definitions["nouveau"] = premier[-2]  # le même nom pour autre chose
+        self.assertEqual(bank(memoire), bank())
+
     def test_bank_within_budget_at_worst(self):
         """« Au pire, pas en moyenne » : sur les positions de la mère, aucune règle de sa banque ne
         ferait regarder au fils plus que son budget (ses coups, puis le concept après chacun) ;
