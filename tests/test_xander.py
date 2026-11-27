@@ -645,6 +645,29 @@ class EducationTest(unittest.TestCase):
         finally:
             teaching._explanations = {}
 
+    def test_contrast_finds_what_the_whole_bank_would(self):
+        """Partir des deux positions (après le coup du professeur, après celui du fils) trouve les
+        plus petites explications qu'aurait trouvées l'essai de toute la banque, en ne construisant
+        que des concepts qui les séparent."""
+        teaching = trained(200)
+        pensee = teaching.pensee
+        errors = [c for c in teaching.cases.values() if c.son_cell != c.teacher_cell][:15]
+        compared = 0
+        for case in errors:
+            moves = dict(pensee.enfants(concepts._key(case.state), case.me))
+            good, bad = moves[case.teacher_cell], moves[case.son_cell]
+            brute = [c for c in teaching.bank if pensee.vrai(c, good, case.me) and not pensee.vrai(c, bad, case.me)]
+            if not brute:
+                continue
+            size = min(c.size for c in brute)
+            found = teaching.contrast(case.me).expliquer(good, bad, size, teaching.max_depth)
+            for concept in found:
+                self.assertTrue(pensee.vrai(concept, good, case.me))
+                self.assertFalse(pensee.vrai(concept, bad, case.me))
+            self.assertLessEqual({c.id for c in brute if c.size == size}, {c.id for c in found})
+            compared += 1
+        self.assertGreater(compared, 0)
+
     def test_or_rule_is_split_most_immediate_first(self):
         """« gagner ou parer » se lit non(et(non gagne(moi), il a un coup gagnant)) : ses parties,
         la plus immédiate d'abord (gagner : aucun coup plus loin ; parer : un coup plus loin)."""

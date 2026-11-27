@@ -449,6 +449,31 @@ def cout(c: Concept, coups: float, definitions: dict, memo: dict | None = None,
     return memo[c.id]
 
 
+def coups_moyens(pensee: Pensee, positions: list[tuple]) -> float:
+    """Le nombre moyen d'actions dans ces positions."""
+    return sum(len(pensee.enfants(etat, moi)) for etat, moi in positions) / max(len(positions), 1)
+
+
+def signature(pensee: Pensee, memoire: dict, c: Concept) -> int:
+    """Les valeurs de ``c`` sur les positions de ``memoire`` (celles de :func:`enumerer`), un bit
+    par position, gardées dans ``memoire``. « a et b », « non a » se lisent sur leurs parties."""
+    connues = memoire["signatures"]
+    bits = connues.get(c.id)
+    if bits is None:
+        positions = memoire["positions"]
+        if c.kind == "et" and c.args[0].id in connues and c.args[1].id in connues:
+            bits = connues[c.args[0].id] & connues[c.args[1].id]
+        elif c.kind == "non" and c.args[0].id in connues:
+            bits = ((1 << len(positions)) - 1) ^ connues[c.args[0].id]
+        else:
+            bits = 0
+            for i, (etat, moi) in enumerate(positions):
+                if pensee.vrai(c, etat, moi):
+                    bits |= 1 << i
+        connues[c.id] = bits
+    return bits
+
+
 def enumerer(pensee: Pensee, positions: list[tuple], taille_max: int = 5,
              profondeur_max: int = 2, comptes: tuple = (1, 2),
              qui: tuple = (MOI, LUI), budget: int | None = None,
@@ -495,26 +520,14 @@ def enumerer(pensee: Pensee, positions: list[tuple], taille_max: int = 5,
         memoire.clear()
         memoire.update(positions=positions, signatures={}, pires={})
     memoire["noms"] = noms
-    connues: dict = memoire["signatures"]  # concept -> ses valeurs sur les positions (un bit chacune)
     pires: dict = memoire["pires"]  # concept formé -> ce que le fils regarde au pire, mesuré
     mesures: dict = {}  # ceux de cette recherche (sa décision ne dépend pas de ce qu'elle a gardé)
     toutes = (1 << len(positions)) - 1
-    coups = sum(len(pensee.enfants(etat, moi)) for etat, moi in positions) / max(len(positions), 1)
+    coups = coups_moyens(pensee, positions)
+    memoire["representants"] = signatures
 
     def valeurs(c: Concept) -> int:
-        bits = connues.get(c.id)
-        if bits is None:
-            if c.kind == "et" and c.args[0].id in connues and c.args[1].id in connues:
-                bits = connues[c.args[0].id] & connues[c.args[1].id]
-            elif c.kind == "non" and c.args[0].id in connues:
-                bits = toutes ^ connues[c.args[0].id]
-            else:
-                bits = 0
-                for i, (etat, moi) in enumerate(positions):
-                    if pensee.vrai(c, etat, moi):
-                        bits |= 1 << i
-            connues[c.id] = bits
-        return bits
+        return signature(pensee, memoire, c)
 
     def essayer(c: Concept) -> None:
         if c.size > taille_max or c.depth > profondeur_max:
@@ -551,6 +564,173 @@ def enumerer(pensee: Pensee, positions: list[tuple], taille_max: int = 5,
                 for y in autres:
                     essayer(et(x, y))
     return [c for t in range(1, taille_max + 1) for c in par_taille[t]]
+
+
+# ---------------------------------------------------------------------- #
+# Expliquer par contraste : partir des deux positions
+# ---------------------------------------------------------------------- #
+
+class Epuise(Exception):
+    """La mère a assez réfléchi à ce cas (:attr:`Contraste.limite`)."""
+
+
+def _ranger(positions) -> tuple:
+    """Des positions sans doublon, dans l'ordre où elles viennent."""
+    return tuple(dict.fromkeys(positions))
+
+
+class Contraste:
+    """**Pourquoi ce coup plutôt que celui-là ? Regarder où les deux positions diffèrent.**
+
+    Au lieu de former tous les concepts puis de les essayer un à un sur le cas, la mère part des
+    deux positions (après le bon coup, après le mauvais) et ne construit que des concepts qui les
+    séparent : vrais sur les unes, faux sur les autres (:meth:`separer`). Chaque sorte de nœud dit
+    où chercher ce qui manque :
+
+    * une brique : vraie sur les unes, fausse sur les autres, elle suffit ;
+    * « non x » : x sépare les mêmes positions dans l'autre sens ;
+    * « un des coups de J donne x » : vrai ici, faux là, c'est qu'**un** coup d'ici mène à une
+      position où x est vrai, et qu'**aucun** coup de là n'y mène. La mère essaie chaque coup
+      d'ici et cherche un x qui sépare cette position de **toutes** celles où mènent les coups de
+      là : ce qui est pareil des deux côtés n'explique rien, elle ne le regarde pas ;
+    * « a et b » : seulement quand une partie ne suffit pas (a est faux sur une des positions à
+      écarter, b écarte celles qui restent). Une partie qui suffit seule est l'explication.
+
+    Le coût suit la différence entre les positions, pas le nombre d'idées qu'elle sait former. Les
+    bornes sont celles de l'énumération : taille, profondeur, et le budget du fils au pire, jugé
+    comme dans :func:`enumerer` (chaque partie construite doit pouvoir servir de règle : ce que
+    le fils regarderait, ses parties **mesurées** au pire sur les positions de la mère). Ce
+    qu'elle ne cherche pas ainsi : « au moins deux coups » (k = 2), et « a et b » quand a suffit
+    déjà sur ce cas.
+
+    ``briques`` : les briques (``Brique(nom, J)``) ; ``positions`` : celles de la mère, où elle
+    mesure ce que le fils regarde au pire ; ``pires`` : ces mesures, gardées d'une recherche à
+    l'autre (voir :func:`enumerer`)."""
+
+    def __init__(self, pensee: Pensee, moi, qui: tuple, briques: list[Concept],
+                 budget: int | None = None, positions: list[tuple] = (), pires: dict | None = None):
+        self.pensee, self.moi, self.qui, self.briques = pensee, moi, tuple(qui), list(briques)
+        self.positions = list(positions)
+        self.coups = max(coups_moyens(pensee, self.positions), 1.0) if self.positions else 1.0
+        self.budget = budget
+        self.pires = {} if pires is None else pires
+        self._admis: dict = {}
+        self._memo: dict = {}
+        self._vues: dict = {}  # position -> les briques vraies là (un bit chacune)
+        self.travail = 0      # les questions qu'elle s'est posées (ce qu'elle savait déjà ne compte pas)
+        self.limite = None    # au-delà, elle s'arrête (:class:`Epuise`)
+
+    def admis(self, c: Concept) -> bool:
+        """Le fils pourrait-il se permettre ``c`` comme règle (chacun de ses coups, puis ``c``) ?
+        Jugé sur ses parties, mesurées ; mesuré à son tour s'il l'est, pour ceux qui le
+        contiendront."""
+        if self.budget is None:
+            return True
+        ok = self._admis.get(c.id)
+        if ok is None:
+            ok = self.coups * (1 + cout(c, self.coups, self.pensee.definitions, {}, self.pires)) <= self.budget
+            if ok and c.id not in self.pires and self.positions:
+                self.pires[c.id] = max(self.pensee.regard(c, etat, moi) for etat, moi in self.positions)
+            self._admis[c.id] = ok
+        return ok
+
+    def expliquer(self, bon, mauvais, taille: int, profondeur: int, reste: int | None = None) -> list[Concept]:
+        """Les concepts d'exactement ``taille`` nœuds, vrais après le bon coup (``bon``) et faux
+        après le mauvais, que le fils pourrait se permettre comme règle : au plus ``reste``
+        positions regardées en tout, à ces deux places (``None`` : sans borne)."""
+        return self.separer((_key(bon),), (_key(mauvais),), taille, profondeur, reste)
+
+    def vues(self, etat) -> int:
+        """Les briques vraies dans cette position, un bit chacune (dans l'ordre de ``briques``)."""
+        bits = self._vues.get(etat)
+        if bits is None:
+            vrai, moi, bits = self.pensee._vrai, self.moi, 0
+            for i, b in enumerate(self.briques):
+                if vrai(b, etat, moi):
+                    bits |= 1 << i
+            bits = _retenir(self._vues, etat, bits)
+        return bits
+
+    def regard(self, c: Concept, positions: tuple) -> int:
+        """Ce que le fils regarde pour savoir si ``c`` est vrai, à chacune de ces positions."""
+        return sum(self.pensee.regard(c, etat, self.moi) for etat in positions)
+
+    def separer(self, vrais: tuple, faux: tuple, taille: int, profondeur: int,
+                reste: int | None = None) -> list[Concept]:
+        """Les concepts d'exactement ``taille`` nœuds, de profondeur au plus ``profondeur``, vrais
+        sur toutes les positions ``vrais`` et faux sur toutes les positions ``faux`` (jamais
+        vides), pour lesquels le fils regarde au plus ``reste`` positions en tout, à ces places.
+
+        **Ce que le fils regarde, compté là où il le regarde.** Pour savoir qu'un de ses coups
+        donne x, il essaie ses coups dans l'ordre et s'arrête au premier qui convient ; pour savoir
+        qu'aucun ne le donne, il les essaie tous. Ce qu'il regarde pour écarter les positions
+        ``faux`` est donc pris sur ce qui reste pour x, et un coup d'ici n'est essayé comme témoin
+        que si x est faux sur ceux d'avant (sinon le fils se serait arrêté avant) : ce sont aussi
+        des positions où x doit être faux. Plus il faudrait regarder loin, moins il en reste : la
+        recherche s'arrête d'elle-même là où le fils ne pourrait plus suivre."""
+        if reste is not None and reste < 0:
+            return []
+        cle = (vrais, faux, taille, profondeur, reste)
+        trouves = self._memo.get(cle)
+        if trouves is not None:
+            return trouves
+        self.travail += 1
+        if self.limite is not None and self.travail > self.limite:
+            raise Epuise
+        pensee, moi, admis = self.pensee, self.moi, self.admis
+        vrai = pensee._vrai
+        partout = vrais + faux
+
+        def tient(c: Concept) -> bool:
+            return admis(c) and (reste is None or self.regard(c, partout) <= reste)
+
+        retenus: dict = {}
+        if taille == 1:
+            bits = (1 << len(self.briques)) - 1
+            for e in vrais:
+                bits &= self.vues(e)
+            for e in faux:
+                if not bits:
+                    break
+                bits &= ~self.vues(e)
+            for i, b in enumerate(self.briques):
+                if bits >> i & 1 and b.depth <= profondeur and tient(b):
+                    retenus[b] = None
+        else:
+            for x in self.separer(faux, vrais, taille - 1, profondeur, reste):
+                if x.kind != "non" and admis(non(x)):  # pas de double négation
+                    retenus[non(x)] = None
+            if profondeur >= 1:
+                for j in self.qui:
+                    joueur = pensee.joueur(moi, j)
+                    ouverts = sum(len(pensee.enfants(f, joueur)) for f in faux)  # tous essayés là-bas
+                    suites = _ranger(s for f in faux for _, s in pensee.enfants(f, joueur))
+                    if not suites:
+                        continue  # aucun coup là-bas : rien à contraster
+                    premier, autres = vrais[0], vrais[1:]
+                    coups = pensee.enfants(premier, joueur)
+                    for i, (_, enfant) in enumerate(coups):
+                        sous = None if reste is None else reste - ouverts - (i + 1) - len(autres)
+                        if sous is not None and sous < 0:
+                            break  # le fils n'irait pas jusqu'à ce coup-là
+                        ecartes = _ranger(suites + tuple(s for _, s in coups[:i]))
+                        if enfant in ecartes:
+                            continue  # la même position des deux côtés : rien ne les sépare
+                        for x in self.separer((enfant,), ecartes, taille - 1, profondeur - 1, sous):
+                            c = au_moins(1, j, x)
+                            if c not in retenus and all(any(vrai(x, s, moi) for _, s in pensee.enfants(t, joueur))
+                                                        for t in autres) and tient(c):
+                                retenus[c] = None
+            for i in range(1, taille - 1):
+                for x in self.separer(vrais, faux[:1], i, profondeur, reste):
+                    restants = tuple(f for f in faux if vrai(x, f, moi))
+                    if not restants:
+                        continue  # x suffit seul : c'est lui l'explication
+                    sous = None if reste is None else reste - self.regard(x, partout)
+                    for y in self.separer(vrais, restants, taille - 1 - i, profondeur, sous):
+                        if tient(et(x, y)):  # (y n'est regardé que là où x est vrai)
+                            retenus[et(x, y)] = None
+        return _retenir(self._memo, cle, list(retenus))
 
 
 # ---------------------------------------------------------------------- #

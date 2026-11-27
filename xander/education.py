@@ -128,6 +128,12 @@ BUDGET = 1000
 #: Crans d'élargissement au plus quand un cas reste sans explication (chaque cran : un nœud et un
 #: niveau d'imbrication de plus que les bornes de la recherche de concepts).
 ELARGISSEMENTS = 2
+#: Ce que la mère s'accorde de réflexion pour expliquer un cas : les questions qu'elle se pose
+#: (« qu'est-ce qui sépare ces positions-ci de celles-là ? », :meth:`concepts.Contraste.separer`),
+#: sans compter celles dont elle connaît déjà la réponse. Le fils a un budget par coup ; elle, par
+#: cas. Au-delà, le cas reste un souvenir : elle ne calcule pas davantage, elle attendra d'en
+#: savoir plus (une nouvelle brique) pour y revenir.
+REFLEXION = 20_000
 #: Contre-exemples que la mère rejoue d'abord pour vérifier une hypothèse (l'ordre seulement : le
 #: résultat de la vérification n'en dépend pas).
 CONTRE_EXEMPLES = 20
@@ -352,10 +358,10 @@ class Education:
         self.cases: dict[str, Case] = {}            # cle de la position -> cas enregistré
         self._pensee = None                          # évalue les concepts (à refaire si le jeu est mieux compris)
         self._bank = None                            # concepts énumérés par taille (à refaire si une brique s'ajoute)
-        self._bank_rank = None                       # (concepts, place de chacun, combien)
+        self._bank_rank = None                       # (concepts, place de chacun)
         self._bank_positions = None                  # positions imaginées qui confondent les concepts
-        self._wider = None                           # (concepts, ceux des crans d'élargissement)
         self._compris = {}                           # ce que la mère sait de chaque concept sur ces positions
+        self._contrastes = None                      # (concepts, joueur -> sa recherche par contraste)
         self._explanations: dict = {}                # cas -> son explication (au fil des marges)
         self._counterexamples = collections.OrderedDict()  # cas qui ont fait tomber une hypothèse
         self.over_budget: dict = {}                  # coups -> (position, joueur) où le fils a trop calculé
@@ -1750,22 +1756,43 @@ class Education:
                                            self.counts, tuple(concepts.joueurs(self.n)), BUDGET, self._compris)
         return self._bank
 
-    def wider(self, level: int) -> list:
-        """« Rien de ce que je sais former ne l'explique : et en cherchant plus loin ? » Les concepts
-        qu'elle forme en élargissant ses bornes de ``level`` crans (chaque cran : un nœud et un niveau
-        d'imbrication de plus), sans ceux des crans d'avant. Elle ne les énumère que si un cas reste
-        sans explication, et les garde tant qu'elle ne sait pas former de nouvelles briques."""
+    def contrast(self, me) -> concepts.Contraste:
+        """La recherche par contraste du joueur ``me`` (:class:`concepts.Contraste`), avec les
+        briques qu'elle sait former ; refaite quand une brique s'ajoute."""
         bank = self.bank
-        if self._wider is None or self._wider[0] is not bank:
-            self._wider = (bank, [])
-        levels = self._wider[1]
-        while len(levels) < level:
-            k = len(levels) + 1
-            seen = {c.id for c in bank}.union(c.id for lower in levels for c in lower)
-            found = concepts.enumerer(self.pensee, self._bank_positions, self.max_size + k, self.max_depth + k,
-                                      self.counts, tuple(concepts.joueurs(self.n)), BUDGET, self._compris)
-            levels.append([c for c in found if c.id not in seen])
-        return levels[level - 1]
+        if self._contrastes is None or self._contrastes[0] is not bank:
+            self._contrastes = (bank, {})
+        search = self._contrastes[1].get(me)
+        if search is None:
+            pensee, definitions = self.pensee, self.knowledge["concepts"]
+            qui = tuple(concepts.joueurs(self.n))
+            names = [concepts.GAGNE] + pensee.perceptions + list(definitions)
+            bricks = [concepts.brique(name, j, definitions[name].depth if name in definitions else 0)
+                      for name in names for j in qui]
+            search = concepts.Contraste(pensee, me, qui, bricks, BUDGET, self._bank_positions,
+                                        self._compris.get("pires"))
+            self._contrastes[1][me] = search
+        return search
+
+    def representative(self, concept, me, good, bad):
+        """Le concept qui dit la même chose sur les positions de la banque (le plus petit qu'elle
+        connaisse), s'il explique encore ce cas : deux cas expliqués par deux façons de dire la même
+        chose partagent une hypothèse. ``None`` : toujours vrai ou toujours faux sur ces positions
+        (la banque ne le garderait pas)."""
+        memory = self._compris
+        signature = concepts.signature(self.pensee, memory, concept)
+        if signature == 0 or signature == (1 << len(memory["positions"])) - 1:
+            return None
+        known = memory["representants"]
+        other = known.get(signature)
+        if other is None:
+            known[signature] = concept
+            return concept
+        pensee = self.pensee
+        if other is not concept and pensee.vrai(other, good, me) and not pensee.vrai(other, bad, me) \
+                and not concepts.contre_son_but(other, self.knowledge["concepts"], self.n):
+            return other
+        return concept
 
     def rule(self, name: str) -> concepts.Concept:
         return self.knowledge["concepts"][name]  # l'arbre lui-même : un nom essayé peut être abandonné
@@ -1868,9 +1895,7 @@ class Education:
         if not over or not self.knowledge["rules"]:
             return []
         pensee, definitions = self.pensee, self.knowledge["concepts"]
-        bank = self.bank
-        wider = self._wider[1] if self._wider is not None and self._wider[0] is bank else []
-        candidates = sorted(list(bank) + [c for level in wider for c in level], key=lambda c: (c.size, c.id))
+        candidates = sorted(self.bank, key=lambda c: (c.size, c.id))
         positions = [(concepts._key(s), m) for s, m in over]
 
         def cost(concept) -> int:
@@ -2037,8 +2062,8 @@ class Education:
                     explained.setdefault(concept.id, set()).add(covering[case.key])
                     found[concept.id] = concept
                 complete &= self._explanations[case.key]["fini"]
-            rank = self.bank_rank  # après les explications : un élargissement y ajoute des concepts
-            candidates = sorted((found[c].size, -len(m), rank[c], found[c])
+            rank = self.bank_rank  # (un concept hors de la banque passe après, par ordre de création)
+            candidates = sorted((found[c].size, -len(m), rank.get(c, len(rank) + c), found[c])
                                 for c, m in explained.items() if len(m) >= 2 and c not in tried)
             for _, _, _, concept in candidates:
                 tried.add(concept.id)
@@ -2095,38 +2120,61 @@ class Education:
     def explanation(self, case: Case, margin: int | None = None) -> list[concepts.Concept]:
         """Pourquoi le coup du professeur valait-il mieux que celui du fils, dans ce cas ? Les
         concepts vrais après le coup du professeur et faux après celui du fils, pris dans ceux
-        qu'elle sait former du plus petit au plus grand : le plus petit, et ceux qui ont au plus
-        ``margin`` nœuds de plus (``None`` : tous). Elle ne parcourt les concepts qu'au fur et à
-        mesure qu'on lui demande une marge plus grande, et reprend où elle s'était arrêtée ; elle
-        recommence seulement si elle sait former de nouveaux concepts. Si aucun ne l'explique, elle
-        élargit ses bornes (:meth:`wider`, au plus :data:`ELARGISSEMENTS` crans), pour ce cas
-        seulement. Un coup bien joué n'a rien à expliquer."""
+        qu'elle sait former, du plus petit au plus grand : le plus petit, et ceux qui ont au plus
+        ``margin`` nœuds de plus (``None`` : tous).
+
+        **Elle part des deux positions** (:class:`concepts.Contraste`) : elle ne construit que des
+        concepts qui les séparent, en ne regardant que là où elles diffèrent, au lieu d'essayer
+        un à un tous ceux qu'elle sait former. Elle cherche taille par taille, au fur et à mesure
+        qu'on lui demande une marge plus grande, et reprend où elle s'était arrêtée ; elle
+        recommence seulement si elle sait former de nouveaux concepts. Si rien ne l'explique dans
+        les bornes de la banque, elle cherche plus loin (au plus :data:`ELARGISSEMENTS` nœuds et
+        niveaux de plus), pour ce cas seulement. Deux façons de dire la même chose sur ses
+        positions comptent pour une (:meth:`representative`). Un coup bien joué n'a rien à
+        expliquer ; un coup impossible non plus (une erreur de perception, pas de stratégie)."""
         bank = self.bank
         state = self._explanations.get(case.key)
         if state is None or state["concepts"] is not bank:
-            state = {"concepts": bank, "liste": bank, "cran": 0, "suivant": 0, "trouves": [],
-                     "plus_petit": None, "fini": case.son_cell == case.teacher_cell}
+            moves = dict(self.pensee.enfants(concepts._key(case.state), case.me))
+            state = {"concepts": bank, "cran": 0, "taille": 0, "trouves": [], "plus_petit": None,
+                     "bon": moves.get(case.teacher_cell), "mauvais": moves.get(case.son_cell),
+                     "reste": BUDGET - len(moves),  # le fils essaie chaque coup, puis la règle après lui
+                     "reflexion": REFLEXION,
+                     "fini": case.son_cell == case.teacher_cell or case.son_cell not in moves
+                     or case.teacher_cell not in moves}  # un coup impossible : rien à contraster
             self._explanations[case.key] = state
-        pensee, found = self.pensee, state["trouves"]
+        found = state["trouves"]
         while not state["fini"]:
-            if state["suivant"] >= len(state["liste"]):
+            size = state["taille"] + 1
+            if size > self.max_size + state["cran"]:
                 if found or state["cran"] >= ELARGISSEMENTS:
                     state["fini"] = True
                     break
                 state["cran"] += 1  # rien ne l'explique : elle cherche plus loin, pour ce cas
-                state["liste"], state["suivant"] = self.wider(state["cran"]), 0
-                continue
-            concept = state["liste"][state["suivant"]]
+                state["taille"] = 0  # (un nœud et un niveau de plus : rien de ce qu'elle a vu
+                continue             # n'explique le cas, elle ne retrouvera que du nouveau)
             smallest = state["plus_petit"]
-            if margin is not None and smallest is not None and concept.size > smallest + margin:
+            if margin is not None and smallest is not None and size > smallest + margin:
                 break  # assez pour cette marge ; la suite attendra une marge plus grande
-            state["suivant"] += 1
-            cells = pensee.choix(concept, case.state, case.me)
-            if case.teacher_cell in cells and case.son_cell not in cells and not concepts.contre_son_but(
-                    concept, self.knowledge["concepts"], self.n):  # on joue pour gagner
-                found.append(concept)
-                if smallest is None:
-                    state["plus_petit"] = concept.size
+            state["taille"] = size
+            depth = self.max_depth + state["cran"]
+            search = self.contrast(case.me)
+            start, search.limite = search.travail, search.travail + state["reflexion"]
+            try:
+                explained = search.expliquer(state["bon"], state["mauvais"], size, depth, state["reste"])
+            except concepts.Epuise:
+                explained, state["fini"] = [], True  # elle a assez réfléchi à ce cas
+            finally:
+                state["reflexion"] -= search.travail - start
+                search.limite = None
+            for concept in explained:
+                if concepts.contre_son_but(concept, self.knowledge["concepts"], self.n):
+                    continue  # on joue pour gagner
+                concept = self.representative(concept, case.me, state["bon"], state["mauvais"])
+                if concept is not None and concept not in found:
+                    found.append(concept)
+                    if state["plus_petit"] is None:
+                        state["plus_petit"] = concept.size
         if margin is None or state["plus_petit"] is None:
             return list(found)
         return [c for c in found if c.size <= state["plus_petit"] + margin]
@@ -2135,11 +2183,8 @@ class Education:
     def bank_rank(self) -> dict[int, int]:
         """La place de chaque concept dans l'ordre où la mère les forme (pour départager)."""
         bank = self.bank
-        wider = self._wider[1] if self._wider is not None and self._wider[0] is bank else []
-        size = len(bank) + sum(map(len, wider))
-        if self._bank_rank is None or self._bank_rank[0] is not bank or self._bank_rank[2] != size:
-            order = list(bank) + [c for level in wider for c in level]
-            self._bank_rank = (bank, {c.id: k for k, c in enumerate(order)}, size)
+        if self._bank_rank is None or self._bank_rank[0] is not bank:
+            self._bank_rank = (bank, {c.id: k for k, c in enumerate(bank)})
         return self._bank_rank[1]
 
     def shorter(self, rules: list[str], freed: list[str]) -> bool:
