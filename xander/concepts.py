@@ -23,7 +23,9 @@ suivant est l'adversaire. À trois, une parade peut dire **qui** elle pare : le
 suivant, qui joue juste après moi, ou ``lui2``, qui joue après lui.
 
 Une **règle** se lit « jouer une action après laquelle le concept est vrai ».
-Une règle qui accepte toutes les actions ne choisit rien : elle est ignorée.
+Une règle qui accepte toutes les actions ne choisit rien : elle est ignorée. Une règle propose,
+elle ne tranche pas seule : elle écarte des coups, et la suivante choisit parmi ceux qui restent
+(:meth:`Pensee.decision`).
 
 Exemples (que la mère doit trouver seule, ils ne sont écrits nulle part) :
 « jouer là où je gagne » est ``Brique(gagne, moi)`` ; « jouer là où il n'a plus
@@ -44,6 +46,14 @@ import random
 
 MOI, LUI = "moi", "lui"
 GAGNE = "gagne"
+#: Ce que le joueur **voit** sans rien imaginer, dans un jeu dont la fin est un motif de cases :
+#: une menace (une de ses constructions n'attend plus qu'une case, et cette case est jouable) et
+#: une double menace (deux cases jouables différentes qui en complètent chacune une). Ce sont des
+#: briques de départ, comme ``gagne``, quand la perception du jeu les fournit
+#: (:func:`xander.son_writer.constructions_source`) ; la mère ne garde, entre deux concepts qui
+#: disent la même chose sur ses positions, que le plus petit : une menace reconnue (un nœud)
+#: remplace « un de ses coups donne « il a gagné » » (deux nœuds, un coup imaginé par action).
+PERCEPTIONS = ("menace", "double_menace")
 
 
 def joueurs(n: int = 2) -> list[str]:
@@ -112,6 +122,38 @@ def negation(x: Concept) -> Concept:
     return x.args[0] if x.kind == "non" else non(x)
 
 
+def contre_son_but(c: Concept, definitions: dict, n: int = 2) -> bool:
+    """Le concept dit-il qu'un coup vaut mieux parce qu'il **me laisse moins près de gagner** (une
+    de mes perceptions de progrès, :data:`PERCEPTIONS`, niée : « je n'ai pas de menace ») ou **le
+    laisse, lui, plus près** (la sienne, affirmée : « il a une menace ») ? Un joueur ne se fait
+    pas de tort : un tel concept n'explique pas pourquoi le coup du professeur valait mieux, c'est
+    une coïncidence. Sous « au moins k de ses coups » (un autre que moi choisit), on ne conclut
+    rien : il choisira ce qui l'arrange. ``n`` : le nombre de joueurs (« lui pour le suivant »,
+    c'est moi à deux). Principe fourni à la main, général : on joue pour gagner.
+
+    Seulement pour les perceptions : une construction est faite des pions d'un joueur, elle est à
+    lui. ``gagne`` et les coups imaginés, non : au Nim, où les deux joueurs ont les mêmes coups,
+    « aucun de mes coups ne donne « aucun de mes coups ne donne « je n'ai pas gagné » » » est
+    une bonne règle (mes coups y imaginent les siens)."""
+    def tort(x: Concept, signe: int, qui: int, libre: bool) -> bool:
+        kind, args = x.kind, x.args
+        if kind == "brique":
+            nom, joueur = args
+            joueur = (qui + distance(joueur)) % n
+            if nom in definitions:
+                return tort(definitions[nom], signe, joueur, libre)
+            if nom not in PERCEPTIONS or libre:
+                return False
+            return signe < 0 if joueur == 0 else signe > 0
+        if kind == "non":
+            return tort(args[0], -signe, qui, libre)
+        if kind == "et":
+            return tort(args[0], signe, qui, libre) or tort(args[1], signe, qui, libre)
+        _, joueur, y = args
+        return tort(y, signe, qui, libre or (qui + distance(joueur)) % n != 0)
+    return tort(c, 1, 0, False)
+
+
 def parties_ou(c: Concept) -> list[Concept]:
     """Les parties d'un « ou » : ``non(et(non a, non b))`` se lit « a ou b ». Un concept qui n'en
     est pas un est sa seule partie. Les parties sont rangées **du plus immédiat au plus lointain**
@@ -129,6 +171,21 @@ def parties_ou(c: Concept) -> list[Concept]:
 # ---------------------------------------------------------------------- #
 # Évaluer un concept avec les quatre notions
 # ---------------------------------------------------------------------- #
+
+#: Ce que la mère retient au plus de ses calculs (par sorte : valeurs des concepts, positions
+#: imaginées…). Ce n'est qu'une mémoire de travail : pleine, elle est vidée et la mère recalcule
+#: ce dont elle a encore besoin (les résultats n'en dépendent pas). Sans ce plafond, une recherche
+#: de concepts à trois joueurs, élargie, a rempli 31 Go.
+MEMOIRE_MAX = 3_000_000
+
+
+def _retenir(memoire: dict, cle, valeur):
+    """Retient ``valeur`` sous ``cle`` ; une mémoire pleine est d'abord vidée."""
+    if len(memoire) >= MEMOIRE_MAX:
+        memoire.clear()
+    memoire[cle] = valeur
+    return valeur
+
 
 def _key(etat):
     return tuple(etat) if isinstance(etat, list) else etat
@@ -150,13 +207,21 @@ class Pensee:
         self._enfants: dict = {}
         self._gagne: dict = {}
         self._choix: dict = {}
+        self._coups: dict = {}
+        self._regards: dict = {}
+
+    @property
+    def perceptions(self) -> list[str]:
+        """Les briques de perception que fournit la perception de ce jeu (voir :data:`PERCEPTIONS`)."""
+        return [nom for nom in PERCEPTIONS if callable(getattr(self.notions, nom, None))]
 
     def enfants(self, etat, joueur) -> list:
         cle = (etat, joueur)
-        if cle not in self._enfants:
+        enfants = self._enfants.get(cle)
+        if enfants is None:
             n = self.notions
-            self._enfants[cle] = [(a, _key(n.apres(etat, a, joueur))) for a in n.possibles(etat)]
-        return self._enfants[cle]
+            enfants = _retenir(self._enfants, cle, [(a, _key(n.apres(etat, a, joueur))) for a in n.possibles(etat)])
+        return enfants
 
     def joueur(self, moi, qui: str):
         """Le joueur ``qui`` vu de ``moi`` : moi, ou le suivant autant de fois que sa place."""
@@ -167,12 +232,16 @@ class Pensee:
 
     def gagne(self, etat, joueur) -> bool:
         cle = (etat, joueur)
-        if cle not in self._gagne:
-            self._gagne[cle] = bool(self.notions.gagne(etat, joueur))
-        return self._gagne[cle]
+        valeur = self._gagne.get(cle)
+        if valeur is None:
+            valeur = _retenir(self._gagne, cle, bool(self.notions.gagne(etat, joueur)))
+        return valeur
 
     def vrai(self, concept: Concept, etat, moi) -> bool:
-        etat = _key(etat)
+        return self._vrai(concept, _key(etat), moi)
+
+    def _vrai(self, concept: Concept, etat, moi) -> bool:
+        """:meth:`vrai`, pour une position déjà sous sa forme de clé."""
         cle = (concept.id, etat, moi)
         if cle in self._memo:
             return self._memo[cle]
@@ -180,23 +249,58 @@ class Pensee:
         if kind == "brique":
             nom, qui = args
             joueur = self.joueur(moi, qui)
-            valeur = self.gagne(etat, joueur) if nom == GAGNE else self.vrai(self.definitions[nom], etat, joueur)
+            if nom == GAGNE:
+                valeur = self.gagne(etat, joueur)
+            elif nom in PERCEPTIONS:
+                valeur = bool(getattr(self.notions, nom)(etat, joueur))  # vu, pas imaginé
+            else:
+                valeur = self._vrai(self.definitions[nom], etat, joueur)
         elif kind == "non":
-            valeur = not self.vrai(args[0], etat, moi)
+            valeur = not self._vrai(args[0], etat, moi)
         elif kind == "et":
-            valeur = self.vrai(args[0], etat, moi) and self.vrai(args[1], etat, moi)
+            valeur = self._vrai(args[0], etat, moi) and self._vrai(args[1], etat, moi)
         else:
             k, qui, x = args
             joueur = self.joueur(moi, qui)
             compte = 0
             for _, suite in self.enfants(etat, joueur):
-                if self.vrai(x, suite, moi):
+                if self._vrai(x, suite, moi):
                     compte += 1
                     if compte >= k:
                         break
             valeur = compte >= k
-        self._memo[cle] = valeur
-        return valeur
+        return _retenir(self._memo, cle, valeur)
+
+    def regard(self, concept: Concept, etat, moi) -> int:
+        """Combien de positions le fils regarde ici pour savoir si le concept est vrai, en
+        exécutant son code (``and`` s'arrête au premier faux, ``au_moins`` dès ses ``k`` coups),
+        sans compter ce qu'il retient d'une sous-partie à l'autre (au plus :meth:`regardees`)."""
+        etat = _key(etat)
+        cle = (concept.id, etat, moi)
+        valeur = self._regards.get(cle)
+        if valeur is not None:
+            return valeur
+        kind, args = concept.kind, concept.args
+        if kind == "brique":
+            nom, qui = args
+            valeur = 0 if nom == GAGNE or nom in PERCEPTIONS else self.regard(
+                self.definitions[nom], etat, self.joueur(moi, qui))
+        elif kind == "non":
+            valeur = self.regard(args[0], etat, moi)
+        elif kind == "et":
+            valeur = self.regard(args[0], etat, moi)
+            if self._vrai(args[0], etat, moi):
+                valeur += self.regard(args[1], etat, moi)
+        else:
+            k, qui, x = args
+            valeur, compte = 0, 0
+            for _, suite in self.enfants(etat, self.joueur(moi, qui)):
+                valeur += 1 + self.regard(x, suite, moi)
+                if self._vrai(x, suite, moi):
+                    compte += 1
+                    if compte >= k:
+                        break
+        return _retenir(self._regards, cle, valeur)
 
     def regardees(self, concept: Concept, etat, moi, vues: set, faits: set) -> None:
         """Ajoute à ``vues`` les positions que regarde le fils (ses appels à ``apres`` :
@@ -214,7 +318,7 @@ class Pensee:
         kind, args = concept.kind, concept.args
         if kind == "brique":
             nom, qui = args
-            if nom != GAGNE:
+            if nom != GAGNE and nom not in PERCEPTIONS:  # ce qu'il voit ne coûte aucune position
                 self.regardees(self.definitions[nom], etat, self.joueur(moi, qui), vues, faits)
         elif kind == "non":
             self.regardees(args[0], etat, moi, vues, faits)
@@ -233,11 +337,14 @@ class Pensee:
                     if compte >= k:
                         break
 
-    def regle_regardees(self, regle: Concept, etat, moi, vues: set, faits: set) -> None:
-        """Les positions que regarde le fils pour appliquer la règle ici : chaque coup possible,
-        puis le concept après lui (voir :meth:`regardees`)."""
+    def regle_regardees(self, regle: Concept, etat, moi, vues: set, faits: set,
+                        candidats: set | None = None) -> None:
+        """Les positions que regarde le fils pour appliquer la règle ici : chaque coup encore
+        candidat (tous, sans ``candidats``), puis le concept après lui (voir :meth:`regardees`)."""
         etat = _key(etat)
         for action, suite in self.enfants(etat, moi):
+            if candidats is not None and action not in candidats:
+                continue
             vues.add((etat, action, moi))
             self.regardees(regle, suite, moi, vues, faits)
 
@@ -251,14 +358,41 @@ class Pensee:
         """La règle : les actions après lesquelles le concept est vrai."""
         return {a for a, suite in self.enfants(_key(etat), moi) if self.vrai(concept, suite, moi)}
 
+    def filtre(self, regle: Concept, etat, moi, candidats: set) -> set:
+        """Les candidats que garde la règle : ceux après lesquels le concept est vrai, si elle en
+        écarte (sinon elle se tait, et tous restent). **Une règle propose, elle ne tranche pas
+        seule** : elle écarte des coups, et la suivante choisit parmi ceux qui restent."""
+        etat = _key(etat)
+        cle = (regle.id, etat, moi)
+        acceptes = self._coups.get(cle)
+        if acceptes is None:
+            acceptes = _retenir(self._coups, cle, frozenset(self.coups(regle, etat, moi)))
+        gardes = candidats & acceptes
+        return gardes if gardes and len(gardes) < len(candidats) else candidats
+
+    def decision(self, regles: list[Concept], etat, moi) -> tuple[set, int | None]:
+        """Les coups qui restent après les règles, dans l'ordre (chacune filtre ce que laissent les
+        précédentes ; un seul coup restant, il n'y a plus rien à regarder), et le rang de la
+        dernière règle qui a écarté des coups (``None`` : aucune, le coup est par défaut)."""
+        etat = _key(etat)
+        candidats, rang = {a for a, _ in self.enfants(etat, moi)}, None
+        for i, regle in enumerate(regles):
+            if len(candidats) <= 1:
+                break
+            gardes = self.filtre(regle, etat, moi, candidats)
+            if gardes is not candidats:
+                candidats, rang = gardes, i
+        return candidats, rang
+
     def choix(self, regle: Concept, etat, moi) -> set:
         """Les coups proposés par la règle ; vide si elle n'en écarte aucun (elle ne choisit rien)."""
         etat = _key(etat)
         cle = (regle.id, etat, moi)
-        if cle not in self._choix:
+        choisis = self._choix.get(cle)
+        if choisis is None:
             coups = self.coups(regle, etat, moi)
-            self._choix[cle] = coups if len(coups) < len(self.enfants(etat, moi)) else set()
-        return self._choix[cle]
+            choisis = _retenir(self._choix, cle, coups if len(coups) < len(self.enfants(etat, moi)) else set())
+        return choisis
 
 
 # ---------------------------------------------------------------------- #
@@ -287,29 +421,121 @@ def echantillon(notions, depart, joueurs, nombre: int = 120, graine: int = 0) ->
     return resultat
 
 
+def cout(c: Concept, coups: float, definitions: dict, memo: dict | None = None,
+         connus: dict | None = None, racine: bool = True) -> float:
+    """Au plus combien de positions le fils regarde pour savoir si ``c`` est vrai, quand chaque
+    position offre ``coups`` coups. Rien pour ce qu'il voit (``gagne``, une perception) ;
+    « au moins k de ses coups » : chacun de ses coups et ce qui suit ; « a et b » : les deux.
+    ``connus`` : pour les concepts déjà formés, ce qu'il regarde **au pire, mesuré** sur les
+    positions de la mère (:meth:`Pensee.regard`) : elle ne suppose le pire que de ce qu'elle
+    n'a pas encore pensé (le concept lui-même est toujours jugé sur ses parties : qu'elle l'ait
+    déjà rencontré ne change pas sa décision). Se lit sur l'arbre du concept, sans rien imaginer."""
+    memo = {} if memo is None else memo
+    connus = {} if connus is None else connus
+    if not racine and c.id in connus:
+        return connus[c.id]
+    if c.id not in memo:
+        kind, args = c.kind, c.args
+        if kind == "brique":
+            nom = args[0]
+            valeur = cout(definitions[nom], coups, definitions, memo, connus, False) if nom in definitions else 0.0
+        elif kind == "non":
+            valeur = cout(args[0], coups, definitions, memo, connus, False)
+        elif kind == "et":
+            valeur = cout(args[0], coups, definitions, memo, connus, False) + cout(args[1], coups, definitions, memo, connus, False)
+        else:
+            valeur = coups * (1 + cout(args[2], coups, definitions, memo, connus, False))
+        memo[c.id] = valeur
+    return memo[c.id]
+
+
 def enumerer(pensee: Pensee, positions: list[tuple], taille_max: int = 5,
              profondeur_max: int = 2, comptes: tuple = (1, 2),
-             qui: tuple = (MOI, LUI)) -> list[Concept]:
+             qui: tuple = (MOI, LUI), budget: int | None = None,
+             memoire: dict | None = None) -> list[Concept]:
     """Les concepts distincts, du plus petit au plus grand. ``qui`` : les joueurs dont ils
     peuvent parler (voir :func:`joueurs`).
 
+    Ce qu'elle a compris d'un concept sur ``positions`` (vrai ou faux sur chacune, ce que le fils
+    y regarde au pire) ne change pas quand elle apprend une nouvelle brique : ``memoire`` le garde
+    d'une recherche à l'autre (pour les mêmes positions), et seul ce qui est nouveau est évalué.
+    « a et b », « non a » se lisent sur ce qu'elle sait déjà de a et de b, sans rien regarder.
+
     Un concept qui dit la même chose qu'un plus petit sur ``positions``, ou qui
-    y est toujours vrai (ou toujours faux), n'est pas gardé.
+    y est toujours vrai (ou toujours faux), n'est pas gardé ; sauf si le plus petit est contraire
+    au but et lui non (:func:`contre_son_but` : dans un jeu où « je pourrais gagner » et « il
+    pourrait gagner » vont ensemble, la version qui peut expliquer un coup est gardée aussi).
+
+    **Ne pas penser à ce que le fils ne pourrait pas se permettre.** Avec un ``budget`` (les
+    positions que le fils peut regarder par coup), la mère n'imagine même pas une règle qui
+    pourrait lui coûter davantage : chacun de ses coups, puis le concept (:func:`cout`, avec le
+    nombre moyen de coups des ``positions``). **Au pire, pas en moyenne** : le budget est un
+    plafond par coup, et un concept bon marché en moyenne (il s'arrête vite) peut énumérer
+    toutes les réponses sur plusieurs coups là où il ne s'arrête pas. Ce pire, elle le mesure sur
+    ses positions pour ce qu'elle a déjà formé, et ne le suppose que pour le reste. C'est le
+    budget qui dit jusqu'où penser, pas une
+    profondeur : loin dans un jeu à trois coups par position, à peine au-delà d'un coup quand
+    il y en a seize.
     """
     par_taille: dict[int, list[Concept]] = {t: [] for t in range(1, taille_max + 1)}
-    signatures = set()
+    signatures: dict = {}  # signature -> le concept qui la représente
+    tort: dict = {}
+
+    def contre(c: Concept) -> bool:
+        if c.id not in tort:
+            tort[c.id] = contre_son_but(c, pensee.definitions, len(qui))
+        return tort[c.id]
+
+    couts: dict = {}
+    positions = list(positions)
+    noms = {nom: c.id for nom, c in pensee.definitions.items()}
+    if memoire is None or memoire.get("positions") != positions or any(
+            noms.get(nom) != ident for nom, ident in memoire["noms"].items()):
+        memoire = {} if memoire is None else memoire  # d'autres positions, ou un nom qui a changé de sens
+        memoire.clear()
+        memoire.update(positions=positions, signatures={}, pires={})
+    memoire["noms"] = noms
+    connues: dict = memoire["signatures"]  # concept -> ses valeurs sur les positions (un bit chacune)
+    pires: dict = memoire["pires"]  # concept formé -> ce que le fils regarde au pire, mesuré
+    mesures: dict = {}  # ceux de cette recherche (sa décision ne dépend pas de ce qu'elle a gardé)
+    toutes = (1 << len(positions)) - 1
+    coups = sum(len(pensee.enfants(etat, moi)) for etat, moi in positions) / max(len(positions), 1)
+
+    def valeurs(c: Concept) -> int:
+        bits = connues.get(c.id)
+        if bits is None:
+            if c.kind == "et" and c.args[0].id in connues and c.args[1].id in connues:
+                bits = connues[c.args[0].id] & connues[c.args[1].id]
+            elif c.kind == "non" and c.args[0].id in connues:
+                bits = toutes ^ connues[c.args[0].id]
+            else:
+                bits = 0
+                for i, (etat, moi) in enumerate(positions):
+                    if pensee.vrai(c, etat, moi):
+                        bits |= 1 << i
+            connues[c.id] = bits
+        return bits
 
     def essayer(c: Concept) -> None:
         if c.size > taille_max or c.depth > profondeur_max:
             return
-        signature = tuple(pensee.vrai(c, etat, moi) for etat, moi in positions)
-        if signature in signatures or all(signature) or not any(signature):
+        if budget is not None and coups * (1 + cout(c, coups, pensee.definitions, couts, mesures)) > budget:
+            return  # trop cher pour le fils : elle n'y pense pas
+        signature = valeurs(c)
+        if signature == toutes or not signature:
             return
-        signatures.add(signature)
+        premier = signatures.get(signature)
+        if premier is not None and not (contre(premier) and not contre(c)):
+            return
+        signatures[signature] = c
+        if budget is not None:
+            if c.id not in pires:
+                pires[c.id] = max(pensee.regard(c, etat, moi) for etat, moi in positions)
+            mesures[c.id] = pires[c.id]
         par_taille[c.size].append(c)
 
-    for nom in [GAGNE] + list(pensee.definitions):
-        profondeur = 0 if nom == GAGNE else pensee.definitions[nom].depth
+    for nom in [GAGNE] + pensee.perceptions + list(pensee.definitions):
+        profondeur = pensee.definitions[nom].depth if nom in pensee.definitions else 0
         for j in qui:
             essayer(brique(nom, j, profondeur))
     for taille in range(2, taille_max + 1):
@@ -352,6 +578,11 @@ def decrire(c: Concept, vrai: bool = True) -> str:
             if qui == MOI:
                 return "j'ai gagné" if vrai else "je n'ai pas gagné"
             return f"{_sujet(qui)} a gagné" if vrai else f"{_sujet(qui)} n'a pas gagné"
+        if nom in PERCEPTIONS:
+            sujet = "j'ai" if qui == MOI else f"{_sujet(qui)} a"
+            negatif = "je n'ai" if qui == MOI else f"{_sujet(qui)} n'a"
+            nom = nom.replace("_", " ")
+            return f"{sujet} une {nom}" if vrai else f"{negatif} pas de {nom}"
         if qui != MOI:  # une brique vue du côté d'un autre joueur
             d = distance(qui)
             nom = f"{nom} pour {'le suivant' if d == 1 else f'le {d}e après moi'}"
@@ -430,7 +661,7 @@ def dependances(noms: list[str], definitions: dict[str, Concept]) -> list[str]:
     def visiter(c: Concept) -> None:
         if c.kind == "brique":
             nom = c.args[0]
-            if nom != GAGNE and nom not in ordre:
+            if nom != GAGNE and nom not in PERCEPTIONS and nom not in ordre:
                 visiter(definitions[nom])
                 ordre.append(nom)
         else:

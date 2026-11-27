@@ -453,6 +453,8 @@ def trained(nb_games: int) -> Education:
 #: Ce que la mère doit retrouver seule (écrit ici pour comparer, jamais donné à la mère).
 GAGNER = concepts.brique(concepts.GAGNE, MOI)
 PARER = concepts.non(concepts.au_moins(1, LUI, concepts.brique(concepts.GAGNE, LUI)))
+# « il n'a pas de menace » : le même concept, reconnu au lieu d'imaginer chacun de ses coups
+PARER_VU = concepts.non(concepts.brique("menace", LUI))
 
 
 def possible_defeats(son) -> tuple[list[list[int]], int]:
@@ -547,7 +549,7 @@ class EducationTest(unittest.TestCase):
         self.assertEqual(len(done), 1, done)
         self.assertEqual(teaching.knowledge["memories"], {})  # les deux cas sont couverts
         rule = teaching.knowledge["concepts"][teaching.knowledge["rules"][0]]
-        self.assertIs(rule, PARER)  # « aucun de ses coups ne le fait gagner »
+        self.assertIn(rule, (PARER, PARER_VU))  # « aucun de ses coups ne le fait gagner »
 
     def test_one_case_is_not_enough(self):
         """Un seul cas peut être une coïncidence : pas de refactor."""
@@ -575,10 +577,10 @@ class EducationTest(unittest.TestCase):
         self.assertIn(GAGNER, [definitions[name] for name in rules])
         mind = think(teaching.mind.possibles, teaching.mind.apres, teaching.mind.gagne,
                           teaching.mind.suivant)
-        parried = 0
+        parried, covering = 0, teaching.covering()
         for case in teaching.cases.values():
-            if case.key in teaching.knowledge["memories"]:
-                continue  # ici c'est un souvenir qui décide, pas une règle
+            if covering[case.key] is not None:
+                continue  # ici c'est un souvenir qui décide (exact, symétrique ou petit motif), pas une règle
             threat = mind["parer"](case.state, case.me)
             if threat and not mind["gagner"](case.state, case.me):
                 self.assertIn(teaching.decide(case.state, case.me, rules), threat, case.key)
@@ -705,15 +707,74 @@ class EducationTest(unittest.TestCase):
 
     def test_views_counted_without_compiling(self):
         """La mère compte les positions que regarderait le fils avec sa pensée, sans écrire ni
-        compiler un fils d'essai : le même nombre que le fils compilé, pour chaque ordre de règles."""
+        compiler un fils d'essai : le même nombre que le fils compilé, pour tous les ordres d'au
+        plus deux règles et pour quelques ordres de toutes ses règles (tous les ordres de six règles,
+        ce seraient près de deux mille fils à compiler)."""
         import itertools
+        import random
         teaching = trained(200)
         rules = teaching.knowledge["rules"]
-        for size in range(len(rules) + 1):
-            for order in itertools.permutations(rules, size):
-                self.assertEqual(teaching.views(list(order), []), teaching.views_compiled(list(order), []), order)
+        orders = [list(order) for size in range(min(len(rules), 2) + 1)
+                  for order in itertools.permutations(rules, size)]
+        hasard = random.Random(3)
+        orders += [list(rules), list(reversed(rules))] + [hasard.sample(rules, len(rules)) for _ in range(4)]
+        for order in orders:
+            self.assertEqual(teaching.views(order, []), teaching.views_compiled(order, []), order)
         some = list(teaching.knowledge["memories"])[:2]
         self.assertEqual(teaching.views(rules, some), teaching.views_compiled(rules, some))
+
+    def test_working_memory_is_only_a_cache(self):
+        """La mémoire de travail de la mère, même minuscule (vidée sans cesse), ne change aucun
+        concept trouvé : elle recalcule ce qu'elle a oublié."""
+        teaching = trained(200)
+        positions = teaching._bank_positions
+        def bank():
+            pensee = concepts.Pensee(teaching.mind, teaching.knowledge["concepts"])
+            return [c.id for c in concepts.enumerer(pensee, positions[:40], 4, 2)]
+        normal = bank()
+        old, concepts.MEMOIRE_MAX = concepts.MEMOIRE_MAX, 50
+        try:
+            self.assertEqual(bank(), normal)
+        finally:
+            concepts.MEMOIRE_MAX = old
+
+    def test_bank_kept_from_one_search_to_the_next(self):
+        """Ce que la mère sait d'un concept, gardé d'une recherche à l'autre, ne change aucun
+        concept trouvé : avec une brique de plus, ou un nom qui change de sens, elle trouve les
+        mêmes concepts qu'en repartant de rien."""
+        teaching = trained(200)
+        positions = teaching._bank_positions[:40]
+        definitions = dict(teaching.knowledge["concepts"])
+        def bank(memoire=None):
+            pensee = concepts.Pensee(teaching.mind, definitions)
+            return [c.id for c in concepts.enumerer(pensee, positions, 4, 2, budget=200, memoire=memoire)]
+        memoire: dict = {}
+        self.assertEqual(bank(memoire), bank())
+        self.assertEqual(bank(memoire), bank())  # tout vient de la mémoire
+        premier = concepts.enumerer(concepts.Pensee(teaching.mind, definitions), positions, 3, 1)
+        definitions["nouveau"] = premier[-1]
+        self.assertEqual(bank(memoire), bank())
+        definitions["nouveau"] = premier[-2]  # le même nom pour autre chose
+        self.assertEqual(bank(memoire), bank())
+
+    def test_bank_within_budget_at_worst(self):
+        """« Au pire, pas en moyenne » : sur les positions de la mère, aucune règle de sa banque ne
+        ferait regarder au fils plus que son budget (ses coups, puis le concept après chacun) ;
+        et ce qu'elle compte par concept majore ce qu'il regarde vraiment."""
+        teaching = trained(200)
+        positions = teaching._bank_positions[:40]
+        pensee = concepts.Pensee(teaching.mind, teaching.knowledge["concepts"])
+        budget = 60
+        banque = concepts.enumerer(pensee, positions, 5, 2, budget=budget)
+        coups = sum(len(pensee.enfants(e, m)) for e, m in positions) / len(positions)
+        self.assertLess(len(banque), len(concepts.enumerer(pensee, positions, 5, 2)))
+        for c in banque:
+            pire = max(pensee.regard(c, e, m) for e, m in positions)
+            self.assertLessEqual(coups * (1 + pire), budget, c)
+            for e, m in positions[:5]:
+                vues: set = set()
+                pensee.regardees(c, e, m, vues, set())
+                self.assertLessEqual(len(vues), pensee.regard(c, e, m), c)
 
     def test_memory_holds_for_rotated_position(self):
         """Un souvenir vaut pour la position tournée d'un quart de tour."""
@@ -892,6 +953,38 @@ def think(possibles, apres, gagne, adversaire) -> dict:
 
 class ConceptsGenerauxTest(unittest.TestCase):
     """Le vocabulaire de la mère vaut pour d'autres jeux (gravité, quantité, Puissance 4)."""
+
+    def test_one_plays_to_win(self):
+        """On joue pour gagner : une explication qui dit « je n'ai pas de menace » ou « il a une
+        menace » est une coïncidence ; sous ses coups à lui (il choisit), on ne conclut rien ; une
+        victoire ou des coups imaginés (Nim : mes coups y imaginent les siens) ne comptent pas."""
+        b, non, au_moins, et = concepts.brique, concepts.non, concepts.au_moins, concepts.et
+        moi, lui = concepts.MOI, concepts.LUI
+        contre = lambda c, d={}: concepts.contre_son_but(c, d, 2)
+        self.assertFalse(contre(non(b("menace", lui))))                      # parer
+        self.assertFalse(contre(au_moins(1, moi, b("menace", moi))))         # je peux me créer une menace
+        self.assertFalse(contre(au_moins(1, lui, b("menace", moi))))         # il choisit : rien à conclure
+        self.assertFalse(contre(non(au_moins(1, moi, non(au_moins(1, moi, non(b("gagne", moi))))))))  # Nim
+        self.assertTrue(contre(non(b("menace", moi))))                       # je n'ai pas de menace
+        self.assertTrue(contre(b("double_menace", lui)))                     # il a une double menace
+        self.assertTrue(contre(et(non(b("menace", lui)), non(au_moins(1, moi, b("menace", moi))))))
+        d = {"concept_1": non(b("menace", lui))}
+        self.assertTrue(contre(b("concept_1", lui), d))                      # pour le suivant : je n'en ai pas
+
+    def test_rules_filter_one_after_another(self):
+        """Une règle propose, elle ne tranche pas seule : la suivante choisit parmi les coups
+        qu'elle laisse (ici A garde 0 et 1, B garde 1 et 2 : il reste 1, pas le plus petit de A)."""
+        from types import SimpleNamespace
+        notions = SimpleNamespace(
+            possibles=lambda etat: [i for i in range(4) if etat[i] == "."],
+            apres=lambda etat, a, joueur: tuple("X" if i == a else v for i, v in enumerate(etat)),
+            gagne=lambda etat, joueur: any(etat[i] == "X" for i in ((0, 1) if joueur == "X" else (1, 2))),
+            suivant=lambda joueur: "O" if joueur == "X" else "X")
+        pensee = concepts.Pensee(notions)
+        a, b = concepts.brique("gagne", concepts.MOI), concepts.brique("gagne", concepts.LUI)
+        self.assertEqual(pensee.decision([a, b], tuple("...."), "X"), ({1}, 1))
+        self.assertEqual(pensee.decision([a], tuple("...."), "X"), ({0, 1}, 0))
+        self.assertEqual(pensee.decision([], tuple("...."), "X"), ({0, 1, 2, 3}, None))
 
     def test_concepts_are_general_gravity(self):
         """Le même texte vaut avec la gravité : un mini Puissance 4 (4 x 4, aligner 3)."""

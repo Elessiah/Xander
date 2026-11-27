@@ -549,6 +549,87 @@ plus `ELARGISSEMENTS` = 2 crans). C'est là qu'elle trouve, au Puissance 4,
 « après mon coup, aucun de ses coups ne m'empêche de parer » : se garder des
 fourchettes.
 
+**Voir sans imaginer : les constructions en cours.** Dans un jeu dont la fin
+est un motif de cases (Morpion, Puissance 4, Morpion à trois), la mère a deux
+briques de départ en plus de `gagne` (`concepts.PERCEPTIONS`) : `menace` (une
+de ses constructions, un motif où il est seul à avoir des pions, n'attend plus
+qu'une case, et cette case est jouable) et `double_menace` (deux cases jouables
+différentes en finissent chacune une). Le fils les **voit** sans imaginer de
+coup : elles ne coûtent aucune position regardée. Le tableau des
+constructions est tenu au fil de la partie (`son_writer.CONSTRUCTIONS_SOURCE`) :
+un coup ne change que les constructions qui passent par sa case, et un pion
+posé il y a trois coups se retrouve dans la même construction que celui qui la
+complète. C'est la reconnaissance de Chase et Simon à la place du calcul :
+« un de ses coups donne « il a gagné » » (un coup imaginé par action) devient
+« il a une menace » (vu). Au Morpion, le fils regarde 311 positions par coup
+au plus (985 sans elles). Le fils ne reçoit ce code que si une de ses règles
+s'en sert.
+
+**On joue pour gagner.** Une perception rend aussi les coïncidences bon
+marché : au Puissance 4, « il n'a pas de menace **et** aucun de mes coups ne
+me donne de menace » (6 nœuds) expliquait les premières parties, où le fils
+empile ses pions dans la colonne 0, et devenait sa première règle : 151
+souvenirs, 38 % de coups par défaut, 10 défaites sur 40 contre le hasard. Or
+ce concept dit que le coup du professeur valait mieux parce qu'il **me laisse
+moins près de gagner**. Principe fourni à la main, général : une explication
+ne dit jamais qu'un coup vaut mieux parce qu'il nie une de mes perceptions de
+progrès (« je n'ai pas de menace ») ou affirme celle d'un autre (« il a une
+menace ») (`concepts.contre_son_but`). Sous « un de ses coups » (un autre
+choisit), on ne conclut rien. Le principe ne vaut que pour les perceptions :
+une construction est faite des pions d'un joueur. Au Nim, où les deux joueurs
+ont les mêmes coups, « mes coups » imaginent souvent les siens, et le même
+principe appliqué à `gagne` y faisait perdre ses meilleures règles (taille
+93 → 141). À signature égale, la banque garde aussi la version conforme au
+but. Au Puissance 4 : 38 souvenirs (78 sans perceptions), 12 % de coups par
+défaut, 40 victoires sur 40 contre le hasard ; ses règles se lisent comme un
+plan offensif (« un de mes coups me donne une menace », « aucun de ses coups
+ne lui donne de double menace »).
+
+**Ne pas penser à ce que le fils ne pourrait pas se permettre.** La recherche
+de concepts est bornée par le **budget du fils**, pas seulement par une
+profondeur (`concepts.cout`, `enumerer(…, budget)`) : une règle qui pourrait
+lui coûter plus que tout son budget (chacun de ses coups, puis le concept)
+n'est même pas imaginée. **Au pire, pas en moyenne** : le budget est un
+plafond par coup, et la règle 2 de `CLAUDE.md` interdit d'énumérer toutes les
+réponses au-delà d'un coup. Ce pire, la mère le **mesure** pour ce qu'elle a
+déjà formé (`Pensee.regard` : sur chacune des positions de l'échantillon, ce
+que le fils regarde en exécutant son code, qui s'arrête au premier faux d'un
+« et » et dès ses k coups d'un « au moins ») et ne le **suppose** que pour ce
+qui est nouveau : « au moins k de ses coups », chacun de ses coups puis la
+partie déjà mesurée ; « a et b », les deux. Trois bornes essayées :
+
+- **pire cas supposé** (tous les coups, toujours) : coupe au Nim des concepts
+  qui, en fait, s'arrêtent vite partout (taille 126 au lieu de 93 quand les
+  règles filtrent) ;
+- **coût attendu** (« au moins » : environ k / p coups si le concept est vrai
+  après une part p des coups) : laisse entrer au Morpion à trois des concepts
+  bon marché en moyenne qui regardent trois ou quatre coups plus loin ;
+  l'élargissement (taille 8, profondeur 4) n'y finissait plus (taille 6 :
+  3 s à profondeur 2, 56 s à profondeur 3 ; 200 parties : plus de 12 h) ;
+- **pire cas mesuré** (retenu) : Nim inchangé (taille 93), banque du Morpion à
+  trois en 2 s (1 894 concepts), élargissements en 5 s et 17 s (3 033 puis
+  7 954 concepts ; au pire supposé : 2 646, 11 s et 33 s).
+
+**Ce qu'elle a compris d'un concept, elle le garde.** À chaque nouvelle brique
+(une règle adoptée), la mère reforme sa banque et ses élargissements. Ce
+qu'elle sait d'un concept sur ses positions (vrai ou faux sur chacune, ce que
+le fils y regarde au pire) ne change pas pour autant : elle le garde d'une
+recherche à l'autre (`enumerer(…, memoire)`, vidée si les positions changent ou
+si un nom change de sens), et « a et b », « non a » se lisent sur ce qu'elle
+sait déjà de a et de b, sans rien regarder. La banque trouvée est la même
+(test). Au Morpion à trois, le recalcul après 12 parties passe de 168 s à
+3 s, et les 40 premières parties de 1 202 s à 360 s.
+
+Ainsi la profondeur dépend du jeu :
+loin au Nim (trois coups par position), à peine au-delà d'un coup au Morpion
+à trois (seize cases). Sans cette borne, l'élargissement au Morpion à trois
+(taille 8, profondeur 4 : jusqu'à 16⁴ positions imaginées pour chacune des
+120 positions de l'échantillon) a rempli 31 Go : la mère pensait des
+concepts que le fils n'aurait jamais eu le droit d'utiliser. Sa mémoire de
+travail est aussi plafonnée (`concepts.MEMOIRE_MAX`, un cache vidé quand il
+est plein), comme garde-fou, mais c'est la borne par le budget qui règle le
+problème.
+
 **Séparer les « ou ».** Une règle « a ou b » se tait quand b est vrai
 partout : « gagner ou parer », quand il n'y a rien à parer, accepte tous les
 coups, donc ne choisit rien, et la victoire passe (41 victoires ratées sur
@@ -1145,7 +1226,16 @@ fait aussi le professeur à trois : il ne compte pas sur le suivant pour parer
 le troisième.
 
 Une règle se lit « jouer une action après laquelle le concept est vrai » ;
-une règle qui accepte toutes les actions ne choisit rien et est ignorée. La
+une règle qui accepte toutes les actions ne choisit rien et est ignorée.
+**Une règle propose, elle ne tranche pas seule** (jeux à plusieurs) : elle
+écarte des coups, et la suivante choisit parmi ceux qui restent
+(`Pensee.decision`) ; un seul coup restant, le fils ne regarde plus rien.
+Avant, la première règle qui écartait un coup décidait seule, par le plus
+petit numéro : au Puissance 4, « ne pas lui donner de gain » gardait 5 coups
+sur 7 et le fils jouait le premier, sans consulter ses autres règles. Au
+Morpion (200 parties) : taille 55 → 35, 4 → 2 souvenirs, 752 → 311 positions
+regardées, généralisation 46 → 48/50. Le fils à un joueur (`un_joueur`)
+garde l'ancien ordre. La
 mère énumère les arbres par taille croissante (jusqu'à 6 nœuds, 2 niveaux de
 `AuMoins`), et confond deux arbres qui disent la même chose sur un
 échantillon de positions imaginées : on garde le plus petit. Chaque concept
@@ -1153,7 +1243,9 @@ adopté devient une brique, d'où des concepts plus grands à taille égale
 (composition, comme les configurations de Chase et Simon).
 
 **Fourni à la main** : ces quatre sortes de nœuds (avec k = 1, c'est la
-logique minimale : non, et, il existe), la façon de désigner un joueur (sa
+logique minimale : non, et, il existe), les perceptions de départ des jeux à
+motifs (`menace`, `double_menace`), le principe « on joue pour gagner »
+(`contre_son_but`), la façon de désigner un joueur (sa
 place après moi, avec `suivant`), les bornes de la recherche, le budget
 du fils, et la forme d'une règle (« jouer une action après laquelle… »). Le vocabulaire écrit à la
 main (`xander/vocabulary.py` : `gagner`, `parer`, `fourchette`,
@@ -1192,8 +1284,9 @@ chaque correction, qui n'importe rien de Xander :
 2. **Règles** : les concepts qu'elle a construits et appris au fils, **et
    seulement ceux-là** (avec les briques dont ils dépendent), traduits en
    Python, `REGLES` dans l'ordre appris, `SOUVENIRS` et `SYMETRIES`.
-3. **Squelette** : `choisir` (souvenir, sinon première règle qui choisit,
-   sinon première action possible) et `play(game)`. C'est ici qu'on pourra
+3. **Squelette** : `choisir` (souvenir, sinon ses règles l'une après l'autre,
+   chacune filtrant les coups que laissent les précédentes, puis le plus petit
+   coup qui reste) et `play(game)`. C'est ici qu'on pourra
    plus tard transmettre l'expérience de ses frères.
 
 Le fils exécute son code bêtement : il ne simule que ce que ses règles

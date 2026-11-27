@@ -149,6 +149,14 @@ après la PR #20), mis à jour le 2026-11-26.
   `son_writer.py` en même temps doivent chacun intégrer `main` avant de
   finir : préférer les faire l'un après l'autre. Les conflits de doc se
   résolvent en gardant les deux côtés.
+- **Le banc de mesure** d'un changement de l'éducation à plusieurs : Morpion,
+  Nim et Nim misère (200 parties), puis Puissance 4 (10) et Morpion à trois
+  (200) ; pour chacun : taille, règles, souvenirs, généralisation, positions
+  regardées, **part de coups par défaut** (sans correction, à chaque place :
+  une partie contre le professeur, dix contre le hasard) et bilan. Les
+  Allumettes en sont retirées (2026-11-26) : trop simples, elles n'apportent
+  plus rien à l'apprentissage (leurs tests unitaires restent : ils couvrent
+  un état qui est une valeur).
 - **Relire une PR** : aucun nom ni cas de jeu dans le code de `xander/` (les
   commentaires d'exemple sont permis), ce qui reste fourni à la main est
   listé, tout nouveau réglage est dans le tableau « Réglages fixés à la
@@ -188,6 +196,80 @@ l'éducation bloque) est dans `docs/jeux.md`. Commandes :
 (une éducation), `python -m xander.examen <dossier>` (un examen).
 
 ### Priorités pour la suite, dans l'ordre
+
+**Priorité avant de valider les entraînements actuels (2026-11-26) : finir
+l'énumération, ou la limiter dans des proportions raisonnables.** Le fils
+regarde jusqu'à 922 positions par coup au Morpion et 996 au Puissance 4
+(budget 1 000, fixé a priori contre un minimax complet, pas contre un humain :
+de Groot, quelques dizaines) ; ses règles profondes énumèrent toutes les
+réponses sur deux ou trois coups (contraire à la règle 2 de `CLAUDE.md`).
+La mère, elle, énumère tous les concepts jusqu'à 6 nœuds (8 en élargissant)
+et les essaie sur chaque cas (manque de mémoire au Morpion à trois avec
+l'explication exigeante). Dans l'ordre :
+
+1. **Reconnaître au lieu de calculer (le fils).** Pour un concept qui
+   regarde à l'avance, la mère cherche une configuration fixe (un petit
+   motif) qui dit la même chose sur ses cas, et la met à sa place ; puis le
+   budget baisse par paliers vers l'échelle humaine.
+2. **Des hypothèses guidées (la mère).** Tirées du cas : ce qui diffère entre
+   la position après le coup du professeur et après celui du fils, le refus
+   d'une règle connue (« ce qui l'aide, je le lui refuse » : au Puissance 4,
+   26 à 44 souvenirs libérés sans cas mal joué, bloqués par le budget), la
+   suite de la partie (sous-buts, avec prudence). L'énumération devient un
+   dernier recours, à bornes plus petites.
+3. **Vérifier la règle 2, pas seulement le total** : un test refuse une règle
+   qui énumère toutes les réponses au-delà d'un coup hors suite forcée.
+
+**Fait (nuit du 2026-11-26) : la mère ne pense plus à ce que le fils ne
+pourrait pas se permettre** (architecture, § 6). Le Morpion à trois
+atteignait 31 Go : elle imaginait des concepts que le fils n'aurait jamais
+pu évaluer dans son budget. Désormais :
+
+- **l'énumération est bornée par le budget du fils, au pire** : ce que le
+  fils regarderait au pire, mesuré sur les positions de la mère pour ce
+  qu'elle a déjà formé, supposé pour le reste ; un concept qui dépasse le
+  budget n'est jamais construit. Une première version au coût attendu (en
+  moyenne) laissait entrer au Morpion à trois des concepts à trois ou quatre
+  coups d'avance : plus de 12 h pour 200 parties. Une mémoire de travail
+  plafonnée (3 millions d'entrées) reste en filet de sécurité ;
+- **les règles se suivent comme des filtres** : chacune garde, parmi les
+  coups laissés par les précédentes, ceux qui la satisfont (la règle
+  propose, elle ne tranche pas seule) ; le fils seul garde l'ancien ordre ;
+- **voir sans imaginer** : deux perceptions (« j'ai une menace », « j'ai une
+  double menace ») se lisent sur les constructions en cours, sans regarder
+  de coup ;
+- **on joue pour gagner** : une explication ne dit pas qu'un coup vaut
+  mieux parce qu'il me laisse moins près de gagner (ou laisse un autre plus
+  près), sauf sous un coup de l'autre. Sans ce principe, les perceptions
+  rendaient bon marché une coïncidence au Puissance 4.
+
+| Jeu | Avant (`main`) | Après |
+|---|---|---|
+| Morpion | taille 57, 922 vues, 32 % par défaut | taille 35, 2 souvenirs, 311 vues, 48/50, **25 %** par défaut |
+| Nim | — | taille 93, 4 règles, 18 souvenirs, 251 vues, 27/36, **22 %** |
+| Nim misère | — | taille 104, 22/34, **16 %** |
+| Puissance 4 (10 parties) | 5 règles, 78 souvenirs, 996 vues, 32 %, professeur 0/0/2 | 7 règles, 38 souvenirs, 669 vues, **14 %**, professeur 1/0/1, hasard 99/0/1 |
+| Morpion à trois | 296 souvenirs, taille 5 033 ; 31 Go avec l'explication exigeante | sans manque de mémoire ; 80 parties en 2 411 s (mesure des 200 en cours) |
+
+Le recalcul de la banque à chaque nouvelle brique est réglé : la mère garde ce
+qu'elle sait de chaque concept (168 s → 3 s par recalcul au Morpion à trois).
+
+Reste :
+- **le Morpion à trois reste lent** (environ 50 s par partie après la 50ᵉ) :
+  l'énumération n'y coûte plus que quelques secondes, le temps est ailleurs
+  (à profiler : probablement l'explication des cas, qui essaie une banque de
+  plus de 100 000 concepts) ; le bilan des 200 parties est à mesurer ;
+- les perceptions et le principe « on joue pour gagner » sont **fournis à la
+  main** (listés dans l'architecture) ;
+- la priorité 2 ci-dessus.
+
+En attente sur leurs branches, à reprendre après : la valeur « gagner plus
+tôt, perdre plus tard » (`feature/gagner-plus-tot` : 55 erreurs de plus
+visibles au Puissance 4, toutes gardées en souvenirs), le classement des
+souvenirs par rapports et l'explication exigeante
+(`feature/souvenirs-incompressibles` : au Nim, 17 souvenirs sur 23 sans
+aucune explication ; manque de mémoire au Morpion à trois), les souvenirs
+rangés là où la règle a échoué (`feature/souvenirs-classes` : mitigé).
 
 **Fait (2026-11-26) : l'hypothèse vient de l'explication** (architecture,
 § 6, « L'hypothèse vient de l'explication ») : explication par cas à marge
@@ -486,6 +568,11 @@ comparant des résultats.
 | Élargissement des bornes quand un cas reste sans explication | 2 crans (chaque cran : un nœud et un niveau de plus) | `ELARGISSEMENTS`, `Education.wider` | a priori (un nœud et un niveau ensemble, pour ne pas choisir l'un d'après nos jeux) |
 | Victoire par défaut : plus de cette part des coups du fils joués par défaut | la moitié | `education.PART_DEFAUT` | consigne (une victoire faite surtout de coups par défaut ne doit pas être un bon entraînement) |
 | Contre-exemples rejoués d'abord | 20 | `CONTRE_EXEMPLES`, `Education.check` | sans effet sur ce qu'elle apprend (l'ordre de la vérification seulement) |
+| Perceptions de départ des jeux à motifs | `menace`, `double_menace` (constructions en cours) | `concepts.PERCEPTIONS`, `son_writer.CONSTRUCTIONS_SOURCE` | principe (reconnaître au lieu de calculer, Chase et Simon) ; les deux choisies a priori |
+| On joue pour gagner | une explication ne nie pas une de mes perceptions de progrès, n'affirme pas celle d'un autre (sauf sous ses coups à lui) | `concepts.contre_son_but` | principe fourni à la main ; restreint aux perceptions après le Nim (avec `gagne`, taille 93 → 141) |
+| Borne de la recherche de concepts | coût d'une règle au pire ≤ budget du fils (mesuré sur l'échantillon pour les concepts formés, supposé pour le reste) | `concepts.cout`, `Pensee.regard`, `enumerer(…, budget)` | principe (budget mesurable, règle 2) ; pire cas supposé trop strict au Nim, coût attendu trop large au Morpion à trois |
+| Mémoire de travail de la mère | 3 millions de valeurs par sorte, vidée quand elle est pleine | `concepts.MEMOIRE_MAX` | a priori ; sans effet sur ce qu'elle apprend (un cache) |
+| Règles qui se suivent | chacune filtre les coups que laissent les précédentes, puis le plus petit | `Pensee.decision`, squelette du fils | principe (les règles proposent, le calcul vérifie) ; le fils à un joueur garde l'ancien ordre |
 | Parties d'un « ou » : la plus immédiate d'abord | profondeur croissante, puis taille | `concepts.parties_ou` | principe fourni à la main (régler d'abord ce qui arrive le plus tôt) |
 | k dans `AuMoins(k, …)` | 1 seulement | `Education.counts` | réglé au Morpion (tableau de `docs/architecture.md`, § 6) |
 | Positions imaginées pour départager des concepts | 120 | `concepts.echantillon` | a priori |

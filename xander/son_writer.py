@@ -289,8 +289,104 @@ def rappel(etat, moi, souvenirs):
 '''
 
 
-def perception_source(knowledge: dict) -> str:
-    """Les quatre notions, pour un état en tableau dont chaque action remplit une case."""
+CONSTRUCTIONS_SOURCE = '''# --- Ce que je vois sans rien imaginer : les constructions en cours -----------
+# Une construction : un motif de fin où un seul joueur a des pions. Le tableau des
+# constructions est tenu au fil de la partie : un coup ne change que celles qui passent
+# par sa case (un pion posé il y a trois coups et celui qui le complète se retrouvent
+# dans la même construction) ; il n'est jamais recompté de zéro quand une position voisine
+# est déjà connue.
+
+PAR_CASE = {}  # case -> les motifs qui passent par elle
+for _i, _motif in enumerate(MOTIFS):
+    for _case in _motif:
+        PAR_CASE.setdefault(_case, []).append(_i)
+TABLEAUX = {}  # position -> l'état de chaque construction
+DERNIER = []  # la dernière position dont je connais le tableau
+VU = {}  # (position, joueur) -> ce que j'en ai déjà vu (les cases qui finiraient ses constructions)
+
+
+def construction(etat, i):
+    """(joueur, cases qui lui manquent) si un seul joueur a des pions dans le motif i, sinon None."""
+    joueurs = {etat[c] for c in MOTIFS[i] if etat[c] in PIONS}
+    if len(joueurs) != 1:
+        return None
+    (joueur,) = joueurs
+    return joueur, tuple(c for c in MOTIFS[i] if etat[c] != joueur)
+
+
+def constructions(etat):
+    """Le tableau des constructions : mis à jour depuis la dernière position connue (seules
+    les constructions qui passent par une case changée), sinon fait une fois."""
+    cle = tuple(etat)
+    tableau = TABLEAUX.get(cle)
+    if tableau is None:
+        if DERNIER:
+            avant, connu = DERNIER[0]
+            tableau = list(connu)
+            for case in [c for c in range(len(cle)) if cle[c] != avant[c]]:
+                for i in PAR_CASE.get(case, ()):
+                    tableau[i] = construction(cle, i)
+        else:
+            tableau = [construction(cle, i) for i in range(len(MOTIFS))]
+        if len(TABLEAUX) > 20000:
+            TABLEAUX.clear()
+            VU.clear()
+        TABLEAUX[cle] = tableau
+    DERNIER[:] = [(cle, tableau)]
+    return tableau
+
+
+def jouables(etat):
+    """Les cases où un coup peut tomber (ce que je sais de l'action, sans l'imaginer)."""
+    return {case_jouee(etat, action) for action in possibles(etat)} - {None}
+
+
+def completions(etat, joueur):
+    """Les cases jouables qui finiraient une de ses constructions (toutes, si une est finie).
+    Une position déjà vue n'est pas regardée deux fois."""
+    cle = (tuple(etat), joueur)
+    if cle not in VU:
+        tableau, ici, fins = constructions(etat), None, set()
+        for c in tableau:
+            if c is not None and c[0] == joueur and len(c[1]) <= 1:
+                ici = jouables(etat) if ici is None else ici
+                if not c[1]:
+                    fins = ici
+                    break
+                if c[1][0] in ici:
+                    fins.add(c[1][0])
+        VU[cle] = fins
+    return VU[cle]
+
+
+def menace(etat, joueur):
+    """Une de ses constructions n'attend plus qu'une case, et cette case est jouable."""
+    return len(completions(etat, joueur)) >= 1
+
+
+def double_menace(etat, joueur):
+    """Deux cases jouables différentes qui finissent chacune une de ses constructions."""
+    return len(completions(etat, joueur)) >= 2
+'''
+
+
+def uses_perceptions(knowledge: dict) -> bool:
+    """Une règle du fils (ou une de ses briques) parle-t-elle de ce qu'il voit (menace…) ?"""
+    definitions = knowledge.get("concepts", {})
+
+    def parle(c) -> bool:
+        if c.kind == "brique" and c.args[0] in concepts.PERCEPTIONS:
+            return True
+        return any(parle(a) for a in c.args if isinstance(a, concepts.Concept))
+
+    names = concepts.dependances(knowledge.get("rules", []), definitions)
+    return any(parle(definitions[n]) for n in names)
+
+
+def perception_source(knowledge: dict, constructions: bool = True) -> str:
+    """Les quatre notions, pour un état en tableau dont chaque action remplit une case ; et ce
+    que le joueur voit sans rien imaginer (les constructions en cours), sauf ``constructions``
+    faux : le fils ne le reçoit que s'il s'en sert."""
     if est_valeur(knowledge):
         return perception_valeur_source(knowledge)
     return f'''# --- Perception (écrite par la mère) -------------------------------------
@@ -325,6 +421,8 @@ def possibles(etat):
 def gagne(etat, joueur):
     return any(all(etat[case] == joueur for case in motif) for motif in MOTIFS)
 
+
+{CONSTRUCTIONS_SOURCE if constructions else ""}
 
 {ORDRE_SOURCE}
 
@@ -476,18 +574,23 @@ MEMOIRE = {{}}
 
 
 def choisir(etat, moi):
-    """Mon coup et sa raison : souvenir, sinon première règle qui s'applique, sinon défaut."""
+    """Mon coup et sa raison : souvenir, sinon mes règles l'une après l'autre (chacune écarte des
+    coups parmi ceux que laissent les précédentes ; la raison : la dernière qui en a écarté),
+    sinon défaut."""
     global VUES
     VUES = 0
     DEJA.clear()  # un nouveau coup : rien n'est encore regardé
     _, coup = rappel(etat, moi, SOUVENIRS)
     if coup is not None and coup in possibles(etat):
         return coup, "souvenir"
+    candidats, raison = list(possibles(etat)), "défaut"
     for regle in REGLES:
-        coups = [a for a in possibles(etat) if regle(apres(etat, a, moi), moi)]
-        if coups and len(coups) < len(possibles(etat)):  # une règle qui accepte tout ne choisit rien
-            return min(coups), regle.__name__
-    return min(possibles(etat)), "défaut"
+        if len(candidats) <= 1:
+            break  # un seul coup reste : plus rien à regarder
+        coups = [a for a in candidats if regle(apres(etat, a, moi), moi)]
+        if coups and len(coups) < len(candidats):  # une règle qui garde tout (ou rien) se tait
+            candidats, raison = coups, regle.__name__
+    return min(candidats), raison
 '''
     if est_valeur(knowledge):
         return source + PLAY_VALEUR
@@ -519,8 +622,8 @@ def son_source(name: str, knowledge: dict, nb_games: int = 0) -> str:
         "que ce que la mère lui a appris ; il l'exécute sans jamais revenir en arrière.\n"
         '"""\n'
     )
-    return "\n\n".join([header, perception_source(knowledge), rules_source(knowledge),
-                        skeleton_source(knowledge)])
+    return "\n\n".join([header, perception_source(knowledge, uses_perceptions(knowledge)),
+                        rules_source(knowledge), skeleton_source(knowledge)])
 
 
 def load(source: str, name: str = "fils") -> types.ModuleType:
