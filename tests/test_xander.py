@@ -738,6 +738,25 @@ class EducationTest(unittest.TestCase):
         finally:
             concepts.MEMOIRE_MAX = old
 
+    def test_bank_within_budget_at_worst(self):
+        """« Au pire, pas en moyenne » : sur les positions de la mère, aucune règle de sa banque ne
+        ferait regarder au fils plus que son budget (ses coups, puis le concept après chacun) ;
+        et ce qu'elle compte par concept majore ce qu'il regarde vraiment."""
+        teaching = trained(200)
+        positions = teaching._bank_positions[:40]
+        pensee = concepts.Pensee(teaching.mind, teaching.knowledge["concepts"])
+        budget = 60
+        banque = concepts.enumerer(pensee, positions, 5, 2, budget=budget)
+        coups = sum(len(pensee.enfants(e, m)) for e, m in positions) / len(positions)
+        self.assertLess(len(banque), len(concepts.enumerer(pensee, positions, 5, 2)))
+        for c in banque:
+            pire = max(pensee.regard(c, e, m) for e, m in positions)
+            self.assertLessEqual(coups * (1 + pire), budget, c)
+            for e, m in positions[:5]:
+                vues: set = set()
+                pensee.regardees(c, e, m, vues, set())
+                self.assertLessEqual(len(vues), pensee.regard(c, e, m), c)
+
     def test_memory_holds_for_rotated_position(self):
         """Un souvenir vaut pour la position tournée d'un quart de tour."""
         teaching = education()
