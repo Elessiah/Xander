@@ -567,7 +567,9 @@ explications (Morpion, Nim, Puissance 4 : 40 cas chacun), mais :
   marges suivantes (Nim : taille 126 au lieu de 93, généralisation 22/35 au
   lieu de 27/36 ; Morpion à trois, 100 parties : 101 souvenirs au lieu de 81) ;
 - elle tient mieux la durée (Morpion à trois, 100 parties en 2 561 s ; 52 s
-  pour les parties 60 à 70, contre 342 s avec la banque).
+  pour les parties 60 à 70, contre 342 s avec la banque ; 200 parties en
+  2 h 55 au lieu de 13 h, mais 139 souvenirs au lieu de 113 et 16 % de coups
+  par défaut au lieu de 11 %).
 
 Ce qui en reste : le coût de l'explication ne vient plus de l'élargissement
 (même temps et même résultat avec ou sans), et la guider par la suite de

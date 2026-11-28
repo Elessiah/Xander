@@ -229,7 +229,10 @@ banque, évaluée sur les deux positions seulement (apprentissage identique,
 plus rapide). Guider l'explication par la suite de partie du professeur est
 écarté : ce serait lui qui dit où regarder. À reprendre : ne suivre loin que
 les suites que la mère reconnaît comme forcées (règle 2), avec ses propres
-règles.
+règles. **À décider** : au Morpion à trois, le contraste fait les 200 parties
+4,5 fois plus vite (2 h 55 au lieu de 13 h) mais apprend un peu moins bien
+(139 souvenirs au lieu de 113, 16 % de coups par défaut au lieu de 11 %) ;
+ailleurs il fait moins bien sans être plus rapide.
 
 | Jeu | `main` | Banque évaluée sur les deux positions | Contraste (non retenu) |
 |---|---|---|---|
@@ -238,7 +241,7 @@ règles.
 | Nim misère (200) | taille 104, 22/34, 16 % | identique | taille 139, 18/34, 16 % |
 | Puissance 4 (10) | 354 s, 7 règles, 38 souvenirs, 669 vues, 14 %, professeur 1/0/1, hasard 99/0/1 | **275 s**, identique | 1 104 s, 14 règles, 65 souvenirs, 987 vues, 18 %, professeur 0/1/1, hasard 100/0/0 |
 | Morpion à trois (100) | 6 738 s | **5 047 s**, 18 règles, 81 souvenirs | 2 561 s, 16 règles, 101 souvenirs |
-| Morpion à trois (200) | **47 740 s (13 h)**, 18 règles, 113 souvenirs, taille 1 983, 47/50, **11 %**, professeur 0/3/0, hasard 90/4/6 | identique par construction (test) ; TEMPS_RETENU | TEMPS_CONTRASTE |
+| Morpion à trois (200) | **47 740 s (13 h)**, 18 règles, 113 souvenirs, taille 1 983, 47/50, **11 %**, professeur 0/3/0, hasard 90/4/6 | identique par construction (test) ; plus de 4 h (arrêtée au délai) | **10 496 s (2 h 55)**, 23 règles, 139 souvenirs, taille 2 443, 45/50, 16 %, professeur 0/3/0, hasard 90/5/5 |
 
 **Fait (nuit du 2026-11-26) : la mère ne pense plus à ce que le fils ne
 pourrait pas se permettre** (architecture, § 6). Le Morpion à trois
