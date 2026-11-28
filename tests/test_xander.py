@@ -685,6 +685,32 @@ class EducationTest(unittest.TestCase):
         self.assertTrue(any(seen))  # des hypothèses adoptables à certains rangs
         self.assertGreater(len(seen), 20)
 
+    def test_new_brick_does_not_reexplain_everything(self):
+        """Avec une nouvelle brique, la mère reprend l'explication de chaque cas du début, mais
+        garde le verdict des concepts qu'elle y avait déjà jugés : pendant tout un apprentissage,
+        chaque explication est celle qu'elle trouverait en repartant de rien."""
+        original, inherited = Education.explanation, []
+
+        def compared(self, case, margin=None):
+            got = original(self, case, margin)
+            state = self._explanations[case.key]
+            inherited.append(state["connus"] is not None)
+            del self._explanations[case.key]
+            try:
+                fresh = original(self, case, margin)
+            finally:
+                self._explanations[case.key] = state
+            assert got == fresh, (case.key, margin, got, fresh)
+            return got
+
+        Education.explanation = compared
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                Mother().raise_son(RES / "exampleNim.py", minmax_nim_play, 60)
+        finally:
+            Education.explanation = original
+        self.assertTrue(any(inherited))  # des explications reprises d'une banque à l'autre
+
     def test_or_rule_is_split_most_immediate_first(self):
         """« gagner ou parer » se lit non(et(non gagne(moi), il a un coup gagnant)) : ses parties,
         la plus immédiate d'abord (gagner : aucun coup plus loin ; parer : un coup plus loin)."""
