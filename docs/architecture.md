@@ -541,6 +541,41 @@ ce qu'elle voyait avant (mesuré : éducations identiques partie par partie au
 Morpion et au Morpion à trois). Aucune marge n'est fixée : une marge fixe
 réglée sur nos jeux couperait la vision sur un problème plus riche.
 
+**Comparer les deux positions.** Un concept explique le cas s'il est vrai
+après le coup du professeur et faux après celui du fils : c'est exactement
+dire que la règle choisirait le coup du professeur et écarterait celui du
+fils, sans regarder ce que donnent les autres coups (deux évaluations au lieu
+d'une par coup possible). Si le coup du fils était impossible, elle regarde
+ce que la règle choisirait parmi tous les coups. Explications et
+apprentissage identiques (test ; banc de garde inchangé) ; au Morpion à
+trois, 100 parties en 5 047 s au lieu de 6 738 s.
+
+**Partir des deux positions pour construire l'explication : essayé, mis de
+côté** (`feature/explication-contraste`). Au lieu d'essayer chaque concept de
+la banque, la mère ne construisait que des concepts qui séparent les deux
+positions, en ne descendant que là où elles diffèrent (un coup témoin d'un
+côté, tous les coups de l'autre), le budget du fils compté là où il regarde
+et sa propre réflexion bornée par cas. Elle retrouve les mêmes plus petites
+explications (Morpion, Nim, Puissance 4 : 40 cas chacun), mais :
+
+- elle est plus lente au début (Morpion à trois, 20 parties : 508 s au lieu
+  de 152 s) : la banque confond une fois pour toutes les concepts qui disent
+  la même chose (19 000 à profondeur 2), le contraste refait la recherche
+  pour chaque cas, sans confondre les doublons ;
+- elle généralise moins bien : elle ne construit pas « a et b » quand a
+  suffit déjà sur ce cas, or ces conjonctions plus précises servent aux
+  marges suivantes (Nim : taille 126 au lieu de 93, généralisation 22/35 au
+  lieu de 27/36 ; Morpion à trois, 100 parties : 101 souvenirs au lieu de 81) ;
+- elle tient mieux la durée (Morpion à trois, 100 parties en 2 561 s ; 52 s
+  pour les parties 60 à 70, contre 342 s avec la banque).
+
+Ce qui en reste : le coût de l'explication ne vient plus de l'élargissement
+(même temps et même résultat avec ou sans), et la guider par la suite de
+partie du professeur serait un raccourci (c'est lui qui dirait où regarder,
+et l'examen n'a pas de professeur). L'équivalent légitime est la règle 2 de
+`CLAUDE.md` appliquée par la mère avec ses propres règles : ne suivre loin
+que les suites qu'elle sait déjà reconnaître comme forcées.
+
 **Chercher plus loin quand rien n'explique.** Si aucun concept qu'elle sait
 former n'explique un cas (la moitié des souvenirs au Morpion, au Nim, au
 Morpion à trois et au Puissance 4), elle élargit ses bornes pour ce cas
