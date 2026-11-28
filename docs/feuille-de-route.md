@@ -220,6 +220,29 @@ l'explication exigeante). Dans l'ordre :
 3. **Vérifier la règle 2, pas seulement le total** : un test refuse une règle
    qui énumère toutes les réponses au-delà d'un coup hors suite forcée.
 
+**Fait (nuit du 2026-11-28) : la priorité 2, premier essai** (architecture,
+§ 6, « Comparer les deux positions »). Construire l'explication à partir des
+deux positions (`feature/explication-contraste`, non fusionné) retrouve les
+mêmes explications mais généralise moins bien (Nim : taille 126 au lieu de
+93) et coûte plus cher au début ; il tient mieux la durée. Retenu : la
+banque, évaluée sur les deux positions seulement (apprentissage identique,
+plus rapide). Guider l'explication par la suite de partie du professeur est
+écarté : ce serait lui qui dit où regarder. À reprendre : ne suivre loin que
+les suites que la mère reconnaît comme forcées (règle 2), avec ses propres
+règles. **À décider** : au Morpion à trois, le contraste fait les 200 parties
+4,5 fois plus vite (2 h 55 au lieu de 13 h) mais apprend un peu moins bien
+(139 souvenirs au lieu de 113, 16 % de coups par défaut au lieu de 11 %) ;
+ailleurs il fait moins bien sans être plus rapide.
+
+| Jeu | `main` | Banque évaluée sur les deux positions | Contraste (non retenu) |
+|---|---|---|---|
+| Morpion (200) | taille 35, 2 souvenirs, 48/50, 25 % par défaut | identique | taille 41, 2 souvenirs, 48/50, 27 % |
+| Nim (200) | taille 93, 18 souvenirs, 27/36, 22 % | identique | taille 126, 27 souvenirs, 22/35, 23 % |
+| Nim misère (200) | taille 104, 22/34, 16 % | identique | taille 139, 18/34, 16 % |
+| Puissance 4 (10) | 354 s, 7 règles, 38 souvenirs, 669 vues, 14 %, professeur 1/0/1, hasard 99/0/1 | **275 s**, identique | 1 104 s, 14 règles, 65 souvenirs, 987 vues, 18 %, professeur 0/1/1, hasard 100/0/0 |
+| Morpion à trois (100) | 6 738 s | **5 047 s**, 18 règles, 81 souvenirs | 2 561 s, 16 règles, 101 souvenirs |
+| Morpion à trois (200) | **47 740 s (13 h)**, 18 règles, 113 souvenirs, taille 1 983, 47/50, **11 %**, professeur 0/3/0, hasard 90/4/6 | identique par construction (test) ; plus de 4 h (arrêtée au délai) | **10 496 s (2 h 55)**, 23 règles, 139 souvenirs, taille 2 443, 45/50, 16 %, professeur 0/3/0, hasard 90/5/5 |
+
 **Fait (nuit du 2026-11-26) : la mère ne pense plus à ce que le fils ne
 pourrait pas se permettre** (architecture, § 6). Le Morpion à trois
 atteignait 31 Go : elle imaginait des concepts que le fils n'aurait jamais
@@ -249,16 +272,18 @@ pu évaluer dans son budget. Désormais :
 | Nim | — | taille 93, 4 règles, 18 souvenirs, 251 vues, 27/36, **22 %** |
 | Nim misère | — | taille 104, 22/34, **16 %** |
 | Puissance 4 (10 parties) | 5 règles, 78 souvenirs, 996 vues, 32 %, professeur 0/0/2 | 7 règles, 38 souvenirs, 669 vues, **14 %**, professeur 1/0/1, hasard 99/0/1 |
-| Morpion à trois | 296 souvenirs, taille 5 033 ; 31 Go avec l'explication exigeante | sans manque de mémoire ; 80 parties en 2 411 s (mesure des 200 en cours) |
+| Morpion à trois | 296 souvenirs, taille 5 033 ; 31 Go avec l'explication exigeante | sans manque de mémoire ; 200 parties en 47 740 s (13 h), 113 souvenirs, taille 1 983, 47/50, **11 %**, hasard 90/4/6 |
 
 Le recalcul de la banque à chaque nouvelle brique est réglé : la mère garde ce
 qu'elle sait de chaque concept (168 s → 3 s par recalcul au Morpion à trois).
 
 Reste :
-- **le Morpion à trois reste lent** (environ 50 s par partie après la 50ᵉ) :
-  l'énumération n'y coûte plus que quelques secondes, le temps est ailleurs
-  (à profiler : probablement l'explication des cas, qui essaie une banque de
-  plus de 100 000 concepts) ; le bilan des 200 parties est à mesurer ;
+- **le Morpion à trois reste lent** (13 h pour 200 parties, de plus en plus
+  cher après la 50ᵉ) : l'énumération n'y coûte que quelques secondes ; le
+  temps est dans le refactor (parties 45 à 55 : 374 s à revérifier les
+  hypothèses sur tous les cas, 289 s à expliquer). Pistes : ne pas tout
+  réexpliquer à chaque nouvelle brique, ne pas revérifier une hypothèse sur
+  les cas qu'elle ne peut pas changer ;
 - les perceptions et le principe « on joue pour gagner » sont **fournis à la
   main** (listés dans l'architecture) ;
 - la priorité 2 ci-dessus.

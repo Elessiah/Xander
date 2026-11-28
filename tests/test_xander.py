@@ -617,7 +617,8 @@ class EducationTest(unittest.TestCase):
 
     def test_explanation_of_a_case(self):
         """« Pourquoi le coup du professeur valait-il mieux ? » L'explication d'un cas : des
-        concepts vrais après son coup et faux après celui du fils, les plus petits d'abord. Avec
+        concepts vrais après son coup et faux après celui du fils (les deux positions suffisent :
+        ce sont ceux qui feraient choisir son coup et écarter celui du fils), les plus petits d'abord. Avec
         une marge de 0, seulement ceux de la plus petite taille ; une marge plus grande les
         allonge sans rien perdre (la mère reprend où elle s'était arrêtée). Un coup bien joué n'a
         rien à expliquer."""
@@ -638,6 +639,13 @@ class EducationTest(unittest.TestCase):
                     cells = pensee.choix(concept, case.state, case.me)
                     self.assertIn(case.teacher_cell, cells)
                     self.assertNotIn(case.son_cell, cells)
+                # comparer les deux positions revient à regarder ce que la règle choisirait
+                expected = [c for c in teaching.bank
+                            if case.teacher_cell in pensee.choix(c, case.state, case.me)
+                            and case.son_cell not in pensee.choix(c, case.state, case.me)
+                            and not concepts.contre_son_but(c, teaching.knowledge["concepts"], teaching.n)]
+                if expected:
+                    self.assertEqual(everything, expected)
                 explained += bool(short)
             self.assertGreater(explained, 0)
             good = next(c for c in teaching.cases.values() if c.son_cell == c.teacher_cell)
