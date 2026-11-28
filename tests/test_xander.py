@@ -1,9 +1,12 @@
+import contextlib
 import functools
+import io
 import textwrap
 import unittest
 from pathlib import Path
 
 from Games.MinmaxMorpion import minmax_morpion_play
+from Games.MinmaxNim import minmax_nim_play
 from Games.MinmaxPuissance4 import WINDOWS, minmax_puissance4_play
 from Games.Morpion import LINES, Morpion, is_free, winner_of
 from xander.analyzer import analyse
@@ -652,6 +655,35 @@ class EducationTest(unittest.TestCase):
             self.assertEqual(teaching.explanation(good), [])
         finally:
             teaching._explanations = {}
+
+    def test_hypothesis_checked_at_every_rank_at_once(self):
+        """Pour vérifier une hypothèse, la mère juge tous ses rangs en un seul tour des cas, et ne
+        rejoue les règles que là où elle écarte des coups (:meth:`Education.check_ranks`) : pendant
+        tout un apprentissage, les mêmes rangs adoptables (assez de souvenirs libérés) que rejouer
+        tous les cas avec toutes les règles, rang par rang (:meth:`Education.check`)."""
+        original, seen = Education.check_ranks, []
+
+        def compared(self, rules, block, covering):
+            got = original(self, rules, block, covering)
+            names = {c.id: name for name, c in self.knowledge["concepts"].items()}
+            others, chosen = [names[c.id] for c in rules], [names[c.id] for c in block]
+            expected = {}
+            for rank in range(len(others) + 1):
+                freed = self.check(others[:rank] + chosen + others[rank:], covering)
+                if freed is not None and len(freed) >= effets.MIN_CAS:  # sinon trop peu pour une règle
+                    expected[rank] = freed
+            seen.append(bool(expected))
+            assert got == expected, (block, got, expected)
+            return got
+
+        Education.check_ranks = compared
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                Mother().raise_son(RES / "exampleNim.py", minmax_nim_play, 60)
+        finally:
+            Education.check_ranks = original
+        self.assertTrue(any(seen))  # des hypothèses adoptables à certains rangs
+        self.assertGreater(len(seen), 20)
 
     def test_or_rule_is_split_most_immediate_first(self):
         """« gagner ou parer » se lit non(et(non gagne(moi), il a un coup gagnant)) : ses parties,

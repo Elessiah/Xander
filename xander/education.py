@@ -358,6 +358,7 @@ class Education:
         self._compris = {}                           # ce que la mère sait de chaque concept sur ces positions
         self._explanations: dict = {}                # cas -> son explication (au fil des marges)
         self._counterexamples = collections.OrderedDict()  # cas qui ont fait tomber une hypothèse
+        self._sans_hypothese = None                  # (règles, pensée, cas -> ce qu'elles laissent rang après rang)
         self.over_budget: dict = {}                  # coups -> (position, joueur) où le fils a trop calculé
         self._judged: dict = {}                      # (cas, coup) -> aussi bon que le professeur ?
         self._symmetries_known = False               # à chercher de nouveau si un motif s'ajoute
@@ -1816,16 +1817,120 @@ class Education:
             memory = covering[case.key]
             if memory is None:
                 if not ok:
-                    self._counterexamples[case.key] = True
-                    self._counterexamples.move_to_end(case.key, last=False)
-                    while len(self._counterexamples) > CONTRE_EXEMPLES:
-                        self._counterexamples.popitem()
+                    self.counterexample(case.key)
                     return None
             else:
                 useful.add(memory)
                 if not ok:
                     needed.add(memory)
         return sorted(useful - needed)
+
+    def counterexample(self, key: str) -> None:
+        """Ce cas a fait tomber une hypothèse : il sera rejoué le premier la prochaine fois."""
+        self._counterexamples[key] = True
+        self._counterexamples.move_to_end(key, last=False)
+        while len(self._counterexamples) > CONTRE_EXEMPLES:
+            self._counterexamples.popitem()
+
+    def check_ranks(self, rules: list, block: list, covering: dict) -> dict[int, list[str]]:
+        """:meth:`check` pour l'hypothèse ``block`` (des concepts) insérée à **chaque** rang de
+        ``rules`` (des concepts) à la fois, en un seul tour des cas : pour chaque rang où elle
+        peut être adoptée, les souvenirs dont plus aucun cas n'a besoin. Ce sont les rangs où
+        :meth:`check` ne rend pas ``None`` et libère au moins :data:`effets.MIN_CAS` souvenirs
+        (sinon :meth:`shorter` la refuserait), avec la même liste.
+
+        **Ne rejouer que ce que l'hypothèse change.** Avant son rang, les règles laissent les
+        mêmes coups que sans elle : la mère s'en souvient, cas par cas (:meth:`ranks`). Là où
+        l'hypothèse n'écarte aucun de ces coups (elle se tait), la suite se déroule comme sans
+        elle et le fils joue le coup qu'il jouait déjà. Plusieurs rangs voient souvent les mêmes
+        coups (les règles entre eux se taisent) : elle ne les filtre qu'une fois.
+
+        **Abandonner un rang dès qu'il est perdu** : quand il fait mal jouer un cas sans souvenir,
+        ou quand il ne peut plus libérer assez de souvenirs (ceux qu'un cas mal joué garde
+        nécessaires). Elle regarde donc d'abord ses contre-exemples, puis les cas qu'un souvenir
+        décide : là où l'hypothèse se tait, le souvenir reste nécessaire, et les rangs où elle ne
+        change presque rien tombent vite. Quand il ne reste plus de rang, l'hypothèse tombe.
+
+        Juger un coup, c'est laisser le professeur finir la partie dans le labo : la mère peut y
+        découvrir un motif de fin (:meth:`winner`). Elle juge ici tous les rangs ensemble, donc
+        parfois des coups que la vérification rang par rang n'aurait pas eu à juger : elle peut
+        découvrir un motif plus tôt (le fils apprend la même chose, dans un autre ordre). Si sa
+        perception change en cours de route, elle reprend la vérification avec la nouvelle."""
+        pensee, cases = self.pensee, self.cases
+        alive = list(range(len(rules), -1, -1))
+        needed = {rank: set() for rank in alive}
+        useful = {m for m in covering.values() if m is not None}  # tous les cas seront rejoués
+        if len(useful) < effets.MIN_CAS:
+            return {}
+        first = [cases[k] for k in self._counterexamples if k in cases and covering.get(k) is None]
+        done = {case.key for case in first}
+        decided = [c for c in cases.values() if c.key not in done and covering.get(c.key) is not None]
+        rest = [c for c in cases.values() if c.key not in done and covering.get(c.key) is None]
+        for case in itertools.chain(first, decided, rest):
+            ranks, played = self.ranks(case, rules)
+            state, me = concepts._key(case.state), case.me
+            cuts, judged, failed = {}, {}, []
+            for rank in alive:
+                before = ranks[rank]
+                cut = cuts.get(id(before), False)
+                if cut is False:
+                    cut = before
+                    for rule in block:
+                        if len(cut) <= 1:
+                            break
+                        cut = pensee.filtre(rule, state, me, cut)
+                    cut = cuts[id(before)] = None if len(cut) == len(before) else cut
+                cell = played
+                if cut is not None:  # elle a écarté des coups : la suite est rejouée
+                    for rule in rules[rank:]:
+                        if len(cut) <= 1:
+                            break
+                        cut = pensee.filtre(rule, state, me, cut)
+                    cell = min(cut)
+                ok = judged.get(cell)
+                if ok is None:
+                    ok = judged[cell] = self.good(case, cell)
+                    if self._pensee is not pensee:  # en jugeant, elle a découvert un motif :
+                        return self.check_ranks(rules, block, covering)  # elle repense, et reprend
+                if not ok:
+                    failed.append(rank)
+            if not failed:
+                continue
+            memory = covering.get(case.key)
+            if memory is None:
+                self.counterexample(case.key)
+                lost = failed
+            else:
+                lost = []
+                for rank in failed:
+                    needed[rank].add(memory)
+                    if len(useful) - len(needed[rank]) < effets.MIN_CAS:
+                        lost.append(rank)
+            if lost:
+                alive = [rank for rank in alive if rank not in lost]
+                if not alive:
+                    return {}
+        return {rank: sorted(useful - needed[rank]) for rank in alive}
+
+    def ranks(self, case: Case, rules: list) -> tuple[list, int]:
+        """Dans ce cas, les coups que laissent les règles ``rules`` (des concepts) rang après rang
+        (avant la première, après la première…), et le coup qu'elles font jouer (comme
+        :meth:`decide`). Retenu tant que les règles et la perception ne changent pas."""
+        ids, pensee = tuple(c.id for c in rules), self.pensee
+        memo = self._sans_hypothese
+        if memo is None or memo[0] != ids or memo[1] is not pensee:
+            memo = self._sans_hypothese = (ids, pensee, {})
+        known = memo[2].get(case.key)
+        if known is None:
+            state, me = concepts._key(case.state), case.me
+            candidats = frozenset(a for a, _ in pensee.enfants(state, me))
+            ranks = [candidats]
+            for rule in rules:
+                if len(candidats) > 1:
+                    candidats = pensee.filtre(rule, state, me, candidats)
+                ranks.append(candidats)
+            known = memo[2][case.key] = (ranks, min(candidats))
+        return known
 
     def views(self, rules: list[str], freed: list[str]) -> int:
         """Positions regardées au plus par le fils écrit avec ces règles, sur les cas enregistrés.
@@ -2082,10 +2187,12 @@ class Education:
             if name not in chosen:
                 chosen.append(name)
         others = [r for r in self.knowledge["rules"] if r not in chosen]
+        passing = self.check_ranks([self.rule(n) for n in others], [self.rule(n) for n in chosen], covering)
         for rank in range(len(others), -1, -1):
-            rules = others[:rank] + chosen + others[rank:]
-            freed = self.check(rules, covering)
-            if freed is not None and self.shorter(rules, freed) and self.views(rules, freed) <= self.budget:
+            if rank not in passing:
+                continue
+            rules, freed = others[:rank] + chosen + others[rank:], passing[rank]
+            if self.shorter(rules, freed) and self.views(rules, freed) <= self.budget:
                 return self.adopt(chosen, rules, freed, bool(added))
         for concept_id, name in added:
             del definitions[name]
