@@ -277,13 +277,31 @@ pu évaluer dans son budget. Désormais :
 Le recalcul de la banque à chaque nouvelle brique est réglé : la mère garde ce
 qu'elle sait de chaque concept (168 s → 3 s par recalcul au Morpion à trois).
 
+**Fait (2026-11-28) : ne rejouer que ce qu'une hypothèse change**
+(architecture, « Ne rejouer que ce que l'hypothèse change »). Le profil du
+Morpion à trois (parties 51 à 60 : 348 s) donnait 299 s à vérifier les
+hypothèses (157 000 vérifications, 45 millions de coups rejoués : chaque
+hypothèse, à chacun de ses rangs, sur tous les cas avec toutes les règles),
+41 s à expliquer. La mère juge maintenant tous les rangs d'une hypothèse en
+un seul tour des cas, ne rejoue les règles que là où elle écarte des coups,
+et abandonne un rang dès qu'il est perdu. Mêmes fils (comparés au caractère
+près), sauf l'ordre de deux motifs au Puissance 4 (découverts plus tôt en
+jugeant un coup, même bilan) :
+
+| Jeu | Avant | Après |
+|---|---|---|
+| Morpion, Nim, Nim misère (200) | 4 s, 4 s, 2 s | identiques |
+| Puissance 4 (10) | 268 s ; 7 règles, 38 souvenirs, 669 vues, 14 %, professeur 1/0/1, hasard 99/0/1 | **217 s**, même bilan |
+| Morpion à trois (60) | 842 s ; 16 règles, 51 souvenirs | **205 s** (4,1 fois plus vite), identique |
+
+Sur les parties 51 à 60, il reste 68 s : 39 s à expliquer (dont 17 s à
+recomposer la banque après une nouvelle brique), 25 s à vérifier.
+
 Reste :
-- **le Morpion à trois reste lent** (13 h pour 200 parties, de plus en plus
-  cher après la 50ᵉ) : l'énumération n'y coûte que quelques secondes ; le
-  temps est dans le refactor (parties 45 à 55 : 374 s à revérifier les
-  hypothèses sur tous les cas, 289 s à expliquer). Pistes : ne pas tout
-  réexpliquer à chaque nouvelle brique, ne pas revérifier une hypothèse sur
-  les cas qu'elle ne peut pas changer ;
+- **le Morpion à trois** n'a pas été remesuré sur 200 parties (13 h avant ;
+  le gain grandit avec le nombre de cas). L'explication domine maintenant :
+  piste, ne pas tout réexpliquer à chaque nouvelle brique (un ancien concept
+  explique toujours les mêmes cas, seuls les nouveaux sont à essayer) ;
 - les perceptions et le principe « on joue pour gagner » sont **fournis à la
   main** (listés dans l'architecture) ;
 - la priorité 2 ci-dessus.

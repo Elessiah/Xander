@@ -680,6 +680,32 @@ d'abord ce qui arrive le plus tôt.
 mère rejoue d'abord ses contre-exemples (les cas qui ont fait tomber une
 hypothèse) : le résultat ne change pas, seulement le temps de le trouver.
 
+**Ne rejouer que ce que l'hypothèse change** (`check_ranks`). Une hypothèse
+s'essaie à chaque rang parmi les règles (du moins prioritaire au plus
+prioritaire) ; rejouer tous les cas avec toutes les règles à chaque rang
+coûtait 86 % du temps au Morpion à trois. La mère juge maintenant tous les
+rangs en un seul tour des cas :
+
+- avant le rang de l'hypothèse, les règles laissent les mêmes coups que sans
+  elle : elle s'en souvient, cas par cas et rang par rang (`ranks`) ;
+- là où l'hypothèse n'écarte aucun de ces coups (elle se tait), le fils joue
+  le coup qu'il jouait déjà : rien à rejouer ; ailleurs, seules les règles
+  d'après sont rejouées ;
+- un rang est abandonné dès qu'il est perdu : un cas sans souvenir mal joué,
+  ou plus assez de souvenirs libérables (il en faut deux, `shorter`). Elle
+  regarde d'abord ses contre-exemples, puis les cas qu'un souvenir décide :
+  là où l'hypothèse se tait, le souvenir reste nécessaire, et les rangs où
+  elle ne change presque rien tombent vite.
+
+Les rangs gardés et les souvenirs libérés sont ceux que donnerait la
+vérification rang par rang (test pendant tout un apprentissage du Nim). Une
+seule nuance : juger un coup, c'est laisser le professeur finir la partie
+dans le labo, et la mère peut y découvrir un motif de fin. En jugeant tous
+les rangs ensemble, elle juge parfois des coups que la vérification rang par
+rang n'aurait pas eu à juger, et découvre un motif plus tôt (au Puissance 4,
+deux alignements dans un autre ordre ; même fils sinon). Si sa perception
+change en cours de route, elle reprend la vérification avec la nouvelle.
+
 **Oublier le redondant.** Après chaque partie, un souvenir sans lequel chaque
 cas qu'il décide reste bien joué (par les règles ou un autre souvenir), et
 sans que le fils dépasse son budget, est oublié (`forget`), comme une règle
