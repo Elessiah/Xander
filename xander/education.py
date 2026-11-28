@@ -357,6 +357,7 @@ class Education:
         self._wider = None                           # (concepts, ceux des crans d'élargissement)
         self._compris = {}                           # ce que la mère sait de chaque concept sur ces positions
         self._explanations: dict = {}                # cas -> son explication (au fil des marges)
+        self._places: dict = {}                      # liste de concepts -> la place de chacun
         self._counterexamples = collections.OrderedDict()  # cas qui ont fait tomber une hypothèse
         self._sans_hypothese = None                  # (règles, pensée, cas -> ce qu'elles laissent rang après rang)
         self.over_budget: dict = {}                  # coups -> (position, joueur) où le fils a trop calculé
@@ -2213,17 +2214,29 @@ class Education:
         un concept vrai dans l'une et faux dans l'autre explique le cas (la règle choisit le coup
         du professeur et écarte celui du fils), sans regarder ce que donnent les autres coups. Si
         le coup du fils était impossible, il n'y a pas de position après lui : elle regarde alors
-        ce que la règle choisirait parmi tous les coups."""
-        bank = self.bank
+        ce que la règle choisirait parmi tous les coups.
+
+        **Une nouvelle brique ne fait pas tout réexpliquer.** Avec une nouvelle brique, elle sait
+        former de nouveaux concepts et reprend l'explication du début ; mais un concept qu'elle a
+        déjà jugé dans ce cas (avec la même perception, les mêmes deux coups) explique toujours,
+        ou toujours pas : elle reprend son verdict, et n'évalue que les concepts nouveaux."""
+        bank, pensee = self.bank, self.pensee
         state = self._explanations.get(case.key)
         if state is None or state["concepts"] is not bank:
-            moves = dict(self.pensee.enfants(concepts._key(case.state), case.me))
-            state = {"concepts": bank, "liste": bank, "cran": 0, "suivant": 0, "trouves": [],
-                     "plus_petit": None, "fini": case.son_cell == case.teacher_cell,
-                     "bon": moves.get(case.teacher_cell), "mauvais": moves.get(case.son_cell)}
+            moves = dict(pensee.enfants(concepts._key(case.state), case.me))
+            played = (case.teacher_cell, case.son_cell)
+            known = None  # ce qu'elle a déjà jugé dans ce cas, sur la banque d'avant
+            if state is not None and state["pensee"] is pensee and state["coups"] == played:
+                seen = state["vus"]
+                known = ([(self.places(l), len(l)) for l in seen[:-1]]
+                         + [(self.places(seen[-1]), state["suivant"])], {c.id for c in state["trouves"]})
+            state = {"concepts": bank, "liste": bank, "vus": [bank], "cran": 0, "suivant": 0,
+                     "trouves": [], "plus_petit": None, "fini": case.son_cell == case.teacher_cell,
+                     "bon": moves.get(case.teacher_cell), "mauvais": moves.get(case.son_cell),
+                     "pensee": pensee, "coups": played, "connus": known}
             self._explanations[case.key] = state
         good, bad = state["bon"], state["mauvais"]
-        pensee, found = self.pensee, state["trouves"]
+        found, known = state["trouves"], state["connus"]
         while not state["fini"]:
             if state["suivant"] >= len(state["liste"]):
                 if found or state["cran"] >= ELARGISSEMENTS:
@@ -2231,25 +2244,44 @@ class Education:
                     break
                 state["cran"] += 1  # rien ne l'explique : elle cherche plus loin, pour ce cas
                 state["liste"], state["suivant"] = self.wider(state["cran"]), 0
+                state["vus"].append(state["liste"])
                 continue
             concept = state["liste"][state["suivant"]]
             smallest = state["plus_petit"]
             if margin is not None and smallest is not None and concept.size > smallest + margin:
                 break  # assez pour cette marge ; la suite attendra une marge plus grande
             state["suivant"] += 1
-            if good is not None and bad is not None:
-                explains = pensee.vrai(concept, good, case.me) and not pensee.vrai(concept, bad, case.me)
-            else:
-                cells = pensee.choix(concept, case.state, case.me)
-                explains = case.teacher_cell in cells and case.son_cell not in cells
-            if explains and not concepts.contre_son_but(
-                    concept, self.knowledge["concepts"], self.n):  # on joue pour gagner
+            explains = None
+            if known is not None:  # déjà jugé avant la nouvelle brique : le même verdict
+                for place, limit in known[0]:
+                    index = place.get(concept.id)
+                    if index is not None and index < limit:
+                        explains = concept.id in known[1]
+                        break
+            if explains is None:
+                if good is not None and bad is not None:
+                    explains = pensee.vrai(concept, good, case.me) and not pensee.vrai(concept, bad, case.me)
+                else:
+                    cells = pensee.choix(concept, case.state, case.me)
+                    explains = case.teacher_cell in cells and case.son_cell not in cells
+                explains = explains and not concepts.contre_son_but(
+                    concept, self.knowledge["concepts"], self.n)  # on joue pour gagner
+            if explains:
                 found.append(concept)
                 if smallest is None:
                     state["plus_petit"] = concept.size
         if margin is None or state["plus_petit"] is None:
             return list(found)
         return [c for c in found if c.size <= state["plus_petit"] + margin]
+
+    def places(self, concepts_list: list) -> dict:
+        """La place de chaque concept dans cette liste (une banque ou un cran d'élargissement)."""
+        known = self._places.get(id(concepts_list))
+        if known is None or known[0] is not concepts_list:
+            if len(self._places) >= 8:
+                self._places.clear()
+            known = self._places[id(concepts_list)] = (concepts_list, {c.id: i for i, c in enumerate(concepts_list)})
+        return known[1]
 
     @property
     def bank_rank(self) -> dict[int, int]:

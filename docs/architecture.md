@@ -550,6 +550,16 @@ ce que la règle choisirait parmi tous les coups. Explications et
 apprentissage identiques (test ; banc de garde inchangé) ; au Morpion à
 trois, 100 parties en 5 047 s au lieu de 6 738 s.
 
+**Une nouvelle brique ne fait pas tout réexpliquer.** Avec une nouvelle
+brique, la mère sait former de nouveaux concepts (au Morpion à trois, la
+banque passe de 13 000 à 15 000 concepts) et reprend l'explication de chaque
+cas du début, dans le nouvel ordre. Mais un concept déjà jugé dans ce cas,
+avec la même perception et les deux mêmes coups, explique toujours (ou
+toujours pas) : elle reprend son verdict et n'évalue que les concepts
+nouveaux. Si sa perception a changé (un motif découvert), elle oublie ces
+verdicts. Explications identiques à celles qu'elle trouverait en repartant
+de rien (test pendant tout un apprentissage du Nim).
+
 **Partir des deux positions pour construire l'explication : essayé, mis de
 côté** (`feature/explication-contraste`). Au lieu d'essayer chaque concept de
 la banque, la mère ne construisait que des concepts qui séparent les deux

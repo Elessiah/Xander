@@ -292,16 +292,22 @@ jugeant un coup, même bilan) :
 |---|---|---|
 | Morpion, Nim, Nim misère (200) | 4 s, 4 s, 2 s | identiques |
 | Puissance 4 (10) | 268 s ; 7 règles, 38 souvenirs, 669 vues, 14 %, professeur 1/0/1, hasard 99/0/1 | **217 s**, même bilan |
-| Morpion à trois (60) | 842 s ; 16 règles, 51 souvenirs | **205 s** (4,1 fois plus vite), identique |
+| Morpion à trois (60) | 842 s ; 16 règles, 51 souvenirs | **205 s** (4,1 fois plus vite), identique ; **176 s** en gardant aussi les verdicts d'une banque à l'autre (ci-dessous) |
 
-Sur les parties 51 à 60, il reste 68 s : 39 s à expliquer (dont 17 s à
-recomposer la banque après une nouvelle brique), 25 s à vérifier.
+Puis **une nouvelle brique ne fait plus tout réexpliquer** (architecture) :
+à chaque nouvelle brique, chaque cas réexaminait toute la banque (8 millions
+de concepts examinés sur les parties 51 à 60, presque tous déjà jugés) ; la
+mère garde maintenant le verdict des concepts déjà jugés dans un cas et
+n'évalue que les nouveaux. Mêmes fils.
+
+Sur les parties 51 à 60, il reste 51 s (348 s avant) : 20 s à vérifier,
+17 s à recomposer la banque et ses crans d'élargissement après une nouvelle
+brique, 9 s à expliquer.
 
 Reste :
 - **le Morpion à trois** n'a pas été remesuré sur 200 parties (13 h avant ;
-  le gain grandit avec le nombre de cas). L'explication domine maintenant :
-  piste, ne pas tout réexpliquer à chaque nouvelle brique (un ancien concept
-  explique toujours les mêmes cas, seuls les nouveaux sont à essayer) ;
+  le gain grandit avec le nombre de cas). Prochaine piste si besoin :
+  recomposer la banque sans repartir de rien à chaque nouvelle brique ;
 - les perceptions et le principe « on joue pour gagner » sont **fournis à la
   main** (listés dans l'architecture) ;
 - la priorité 2 ci-dessus.
