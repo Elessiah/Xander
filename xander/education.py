@@ -2100,13 +2100,22 @@ class Education:
         mesure qu'on lui demande une marge plus grande, et reprend où elle s'était arrêtée ; elle
         recommence seulement si elle sait former de nouveaux concepts. Si aucun ne l'explique, elle
         élargit ses bornes (:meth:`wider`, au plus :data:`ELARGISSEMENTS` crans), pour ce cas
-        seulement. Un coup bien joué n'a rien à expliquer."""
+        seulement. Un coup bien joué n'a rien à expliquer.
+
+        **Elle compare les deux positions**, après le coup du professeur et après celui du fils :
+        un concept vrai dans l'une et faux dans l'autre explique le cas (la règle choisit le coup
+        du professeur et écarte celui du fils), sans regarder ce que donnent les autres coups. Si
+        le coup du fils était impossible, il n'y a pas de position après lui : elle regarde alors
+        ce que la règle choisirait parmi tous les coups."""
         bank = self.bank
         state = self._explanations.get(case.key)
         if state is None or state["concepts"] is not bank:
+            moves = dict(self.pensee.enfants(concepts._key(case.state), case.me))
             state = {"concepts": bank, "liste": bank, "cran": 0, "suivant": 0, "trouves": [],
-                     "plus_petit": None, "fini": case.son_cell == case.teacher_cell}
+                     "plus_petit": None, "fini": case.son_cell == case.teacher_cell,
+                     "bon": moves.get(case.teacher_cell), "mauvais": moves.get(case.son_cell)}
             self._explanations[case.key] = state
+        good, bad = state["bon"], state["mauvais"]
         pensee, found = self.pensee, state["trouves"]
         while not state["fini"]:
             if state["suivant"] >= len(state["liste"]):
@@ -2121,8 +2130,12 @@ class Education:
             if margin is not None and smallest is not None and concept.size > smallest + margin:
                 break  # assez pour cette marge ; la suite attendra une marge plus grande
             state["suivant"] += 1
-            cells = pensee.choix(concept, case.state, case.me)
-            if case.teacher_cell in cells and case.son_cell not in cells and not concepts.contre_son_but(
+            if good is not None and bad is not None:
+                explains = pensee.vrai(concept, good, case.me) and not pensee.vrai(concept, bad, case.me)
+            else:
+                cells = pensee.choix(concept, case.state, case.me)
+                explains = case.teacher_cell in cells and case.son_cell not in cells
+            if explains and not concepts.contre_son_but(
                     concept, self.knowledge["concepts"], self.n):  # on joue pour gagner
                 found.append(concept)
                 if smallest is None:
