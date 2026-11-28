@@ -300,14 +300,23 @@ de concepts examinés sur les parties 51 à 60, presque tous déjà jugés) ; la
 mère garde maintenant le verdict des concepts déjà jugés dans un cas et
 n'évalue que les nouveaux. Mêmes fils.
 
-Sur les parties 51 à 60, il reste 51 s (348 s avant) : 20 s à vérifier,
-17 s à recomposer la banque et ses crans d'élargissement après une nouvelle
-brique, 9 s à expliquer.
+Enfin, **recomposer la banque coûte moins** : une recomposition complète
+(banque et deux crans d'élargissement, 1,5 million de concepts essayés) passe
+de 8,8 s à 3,8 s. Un nœud déjà formé se retrouve directement dans la table
+des concepts ; « a et b » se fait tort à son but si a ou b se fait tort (déjà
+jugés) ; son coût pour le fils est la somme des pires mesurés de a et b. Mêmes
+fils ; Morpion à trois, 60 parties : **162 s** (842 s au départ, 5,2 fois
+plus vite).
+
+Sur les parties 51 à 60, il reste 45 s (348 s au départ) : 20 s à vérifier,
+12 s à recomposer la banque, 8 s à expliquer. Ce qui reste est le coût propre
+de chaque concept essayé ; ne plus former les « a et b » rejetés changerait
+l'ordre de numérotation des concepts (donc l'ordre des « et » dans le code du
+fils) pour peu de gain : écarté.
 
 Reste :
 - **le Morpion à trois** n'a pas été remesuré sur 200 parties (13 h avant ;
-  le gain grandit avec le nombre de cas). Prochaine piste si besoin :
-  recomposer la banque sans repartir de rien à chaque nouvelle brique ;
+  le gain grandit avec le nombre de cas) ;
 - les perceptions et le principe « on joue pour gagner » sont **fournis à la
   main** (listés dans l'architecture) ;
 - la priorité 2 ci-dessus.

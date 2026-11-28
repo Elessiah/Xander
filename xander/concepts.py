@@ -105,16 +105,24 @@ def brique(nom: str, joueur: str, depth: int = 0) -> Concept:
     return Concept("brique", nom, joueur, depth_of=depth)
 
 
+# Un nœud déjà formé se retrouve directement dans la table (l'énumération en reforme des
+# millions à chaque nouvelle brique) ; sinon :class:`Concept` le crée.
+
 def non(x: Concept) -> Concept:
-    return Concept("non", x)
+    node = Concept._table.get(("non", None, x.id))
+    return node if node is not None else Concept("non", x)
 
 
 def et(x: Concept, y: Concept) -> Concept:
-    return Concept("et", *sorted((x, y), key=lambda c: c.id))
+    if x.id > y.id:
+        x, y = y, x
+    node = Concept._table.get(("et", None, x.id, y.id))
+    return node if node is not None else Concept("et", x, y)
 
 
 def au_moins(k: int, joueur: str, x: Concept) -> Concept:
-    return Concept("au_moins", k, joueur, x)
+    node = Concept._table.get(("au_moins", None, k, joueur, x.id))
+    return node if node is not None else Concept("au_moins", k, joueur, x)
 
 
 def negation(x: Concept) -> Concept:
@@ -482,9 +490,14 @@ def enumerer(pensee: Pensee, positions: list[tuple], taille_max: int = 5,
     tort: dict = {}
 
     def contre(c: Concept) -> bool:
-        if c.id not in tort:
-            tort[c.id] = contre_son_but(c, pensee.definitions, len(qui))
-        return tort[c.id]
+        valeur = tort.get(c.id)
+        if valeur is None:
+            if c.kind == "et":  # « a et b » se fait tort si a ou b se fait tort (déjà jugés)
+                valeur = contre(c.args[0]) or contre(c.args[1])
+            else:
+                valeur = contre_son_but(c, pensee.definitions, len(qui))
+            tort[c.id] = valeur
+        return valeur
 
     couts: dict = {}
     positions = list(positions)
@@ -516,10 +529,20 @@ def enumerer(pensee: Pensee, positions: list[tuple], taille_max: int = 5,
             connues[c.id] = bits
         return bits
 
+    def prix(c: Concept) -> float:
+        """:func:`cout` ; pour « a et b » formé de concepts gardés, la somme de leurs pires mesurés."""
+        valeur = couts.get(c.id)
+        if valeur is None:
+            if c.kind == "et" and c.args[0].id in mesures and c.args[1].id in mesures:
+                valeur = couts[c.id] = mesures[c.args[0].id] + mesures[c.args[1].id]
+            else:
+                valeur = cout(c, coups, pensee.definitions, couts, mesures)
+        return valeur
+
     def essayer(c: Concept) -> None:
         if c.size > taille_max or c.depth > profondeur_max:
             return
-        if budget is not None and coups * (1 + cout(c, coups, pensee.definitions, couts, mesures)) > budget:
+        if budget is not None and coups * (1 + prix(c)) > budget:
             return  # trop cher pour le fils : elle n'y pense pas
         signature = valeurs(c)
         if signature == toutes or not signature:
